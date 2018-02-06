@@ -21,7 +21,7 @@ eventually get back to it.)
 The data exported by the logic analyzer is a comma-separated-value file
 whose lines contains a timestamp and the voltage of all nine read heads.
 I'm currently sampling at 1.56 MS/s, which generates about 20 samples per
-bit, since 1600 BPI x 60 IPS = 80,0000 bits/sec. I might be able to go 
+bit, since 1600 BPI x 50 IPS = 80,0000 bits/sec. I might be able to go 
 down to the next lower sample rate of 781 kS/s. 
 
 I've just started trying real tapes, but I have had good success reading
