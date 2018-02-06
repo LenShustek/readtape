@@ -6,9 +6,9 @@ drives will work.
 
 I am currently recording data using a 16-channel Saleae logic analyzer
 https://www.saleae.com connected to a Qualstar 1052 tape transport,
-http://bitsavers.com/pdf/qualstar/500150B_1052serviceMan.pdf.
+http://bitsavers.org/pdf/qualstar/500150B_1052serviceMan.pdf.
 The input is taken from the output of the differential amplifier that
-produces a +- 2V analog signal (for good tapes), before their thresholding
+produces a +-2V analog signal (for good tapes), before their thresholding
 logic tries to decode it into bits.
 
 (I had also designed and prototyped a custom 9-channel A-to-D converter
