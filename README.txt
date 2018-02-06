@@ -32,3 +32,7 @@ opportunities to improve the decoding algorithms.
 Now that the basic mechanism works, it should be possible to adapt this
 for other media: 5- and 7-track tapes, other densities, and other encoding
 schemes. 
+
+Thanks to: Paul Pierce for the original inspiration, Al Kossow for the
+tape drive and for suggesting Saleae, and Grant Saviers for detailed
+consulting on the nitty-gritties. 
