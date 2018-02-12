@@ -9,7 +9,8 @@ Copyright (C) 2018, Len Shustek
 
 See readtape.c for the merged change log.
 ***********************************************************************
-The MIT License (MIT): Permission is hereby granted, free of charge,
+The MIT License (MIT):
+Permission is hereby granted, free of charge,
 to any person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the Software without
 restriction, including without limitation the rights to use, copy,
@@ -54,33 +55,27 @@ typedef unsigned char byte;
 
 #define NTRKS 9
 #define MAXBLOCK 32768
+#define MAXPARMSETS  10
 #define MAXPATH 150
 
-struct sample_t {			// what get from the digitizer hardware:
+struct sample_t {			// what we get from the digitizer hardware:
     double time;			//   the time of this sample
     float voltage[NTRKS];	//   the voltage level from each track head
 };
 
-void fatal(char *, char *);
-void assert(bool, char *, char *);
-void log(const char *, ...);
-void init_trackstate(void);
-void process_sample(struct sample_t *);
-void got_tapemark(void);
-void got_crap (int, int);
-void got_datablock (uint16_t *, uint16_t *, double *, int, float);
+// Lots of of parameters that control the decoding algorithm
+// Some of these are defaults, and the currently used values are in the parms_t structure
 
-// lots of of parameters that control the decoding algorithm
-
-#define MOVE_THRESHOLD	0.10	// volts of deviation that means something's happening
+#define MOVE_THRESHOLD	0.10	// volts of deviation that means something is happening
 #define PEAK_THRESHOLD	0.01 	// volts that define "same peak"
 #define BIT_SPACING		12.5e-6	// in seconds, the default bit spacing (1600 BPI x 50 IPS)
 #define CLK_WINDOW	 	8.5e-6	// in seconds, the default max wait for a clock edge
-#define CLK_FACTOR		1.4		// how much of a period to wait for the clock transition.
-#define BIT_FACTOR      2.0     // how much of the bit spacing to wait for before faking bits
-#define AVG_WINDOW		2		// how many bit times to include in the clock timing moving average (0 means use defaults)
+#define CLK_FACTOR		1.5		// how much of a period to wait for the clock transition.
+#define BIT_FACTOR      2.5     // how much of the bit spacing to wait for before faking bits
+#define MAX_AVG_WINDOW  10		// up to how many bit times to include in the clock timing moving average (0 means use defaults)
 #define IDLE_TRK_LIMIT	9		// how many tracks must be idle to consider it an end-of-block
 #define FAKE_BITS       true    // should we fake bits during a dropout?
+#define USE_ALL_PARMSETS true	// should we try to use all the parameter sets, to be able to rate them?
 
 #define IGNORE_PREAMBLE		5		// how many preamble bits to ignore
 #define IGNORE_POSTAMBLE	5		// how many postable bits to ignore
@@ -105,8 +100,8 @@ struct trkstate_t {	// track-by-track decoding state
     double t_firstbit;		// time of first data bit transition in the data block
     double t_clkwindow; 	// how late a clock transition can be, before we consider it data
     float avg_bit_spacing;	// how far apart bits are, on average, in this block (computed at the end)
-#if AVG_WINDOW
-    float t_bitspacing[AVG_WINDOW]; // last n bit time spacing
+#if MAX_AVG_WINDOW
+    float t_bitspacing[MAX_AVG_WINDOW]; // last n bit time spacing
     float t_bitspaceavg;	// average of last n bit time spacing
     int	bitndx;				// index into t_bitspacing of next spot to use
 #endif
@@ -119,3 +114,42 @@ struct trkstate_t {	// track-by-track decoding state
     bool clknext;			// do we expect a clock next?
     bool datablock;			// are we collecting data?
 };
+
+struct parms_t {	// a set of parameters used for reading a block. We try again with different ones if we get errors.
+    float clk_factor;	// how much of a half-bit period to wait for a clock transition
+    int avg_window;		// how many bit times to average for clock rate
+    // ...add more dynamic parameters above here
+    int tried;          // how many times this parmset was tried
+    int succeeded;      // how many times this parmset succeeded
+}; // array: parmsets[block.parmset]
+
+enum bstate_t { // the decoding status a block
+    BS_NONE,        // no status available yet
+    BS_TAPEMARK,    // a tape mark
+    BS_BLOCK,       // a good block, but maybe parity errors or faked bits
+    BS_MALFORMED};  // a malformed block: different tracks are different lengths
+
+struct blkstate_t {	// state of the block, when we're done
+    int tries;			 // how many times we tried to decode this block
+    int parmset;         // which parm set we are currently using
+    struct results_t {      // the results from the various parameter sets
+        enum bstate_t blktype;  // the ending state of the block
+        int minbits, maxbits;   // the min/max bits of all the tracks
+        float avg_bit_spacing;
+        int parity_errs;        // how many parity errors it has
+        int faked_bits;         // how many faked bits it has
+    } results [MAXPARMSETS]; // results for each parm set we tried
+}; // block
+
+void fatal(char *, char *);
+void assert(bool, char *, char *);
+void log(const char *, ...);
+byte parity(uint16_t);
+void init_trackstate(void);
+void init_blockstate(void);
+enum bstate_t process_sample(struct sample_t *);
+void got_tapemark(void);
+void got_crap (void);
+void got_datablock (void);
+
+//*
