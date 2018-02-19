@@ -63,19 +63,21 @@ struct sample_t {			// what we get from the digitizer hardware:
     float voltage[NTRKS];	//   the voltage level from each track head
 };
 
-// Lots of of parameters that control the decoding algorithm
-// Some of these are defaults, and the currently used values are in the parms_t structure
+// Here are lots of of parameters that control the decoding algorithm.
+// Some of these are defaults, for which the currently used values are in the parms_t structure.
 
-#define MOVE_THRESHOLD	0.10	// volts of deviation that means something is happening
-#define PEAK_THRESHOLD	0.01 	// volts that define "same peak"
-#define BIT_SPACING		12.5e-6	// in seconds, the default bit spacing (1600 BPI x 50 IPS)
-#define CLK_WINDOW	 	8.5e-6	// in seconds, the default max wait for a clock edge
-#define CLK_FACTOR		1.5		// how much of a period to wait for the clock transition.
-#define BIT_FACTOR      2.5     // how much of the bit spacing to wait for before faking bits
-#define MAX_AVG_WINDOW  10		// up to how many bit times to include in the clock timing moving average (0 means use defaults)
-#define IDLE_TRK_LIMIT	9		// how many tracks must be idle to consider it an end-of-block
-#define FAKE_BITS       true    // should we fake bits during a dropout?
-#define USE_ALL_PARMSETS true	// should we try to use all the parameter sets, to be able to rate them?
+#define MOVE_THRESHOLD	0.10			// volts of deviation that means something is happening
+#define PEAK_THRESHOLD	0.02 		// volts that define "same peak"
+#define BIT_SPACING		12.5e-6		// in seconds, the default bit spacing (1600 BPI x 50 IPS)
+#define EPSILON_T		1.0e-7		// in seconds, time fuzz factor for comparisons
+#define CLK_FACTOR		1.4       	// how much of a half-bit period to wait for the clock transition.
+#define CLK_WINDOW	 	(BIT_SPACING/2*CLK_FACTOR)	// in seconds, the default max wait for a clock edge
+#define BIT_FACTOR      2.5     	// how much of the bit spacing to wait for before faking bits
+#define MAX_AVG_WINDOW  20			// up to how many bit times to include in the clock timing moving average (0 means use defaults)
+#define IDLE_TRK_LIMIT	9			// how many tracks must be idle to consider it an end-of-block
+#define FAKE_BITS       true    	// should we fake bits during a dropout?
+#define MULTIPLE_TRIES	true 		// should we do multiple tries to decode a block?
+#define USE_ALL_PARMSETS false		// should we try to use all the parameter sets, to be able to rate them?
 
 #define IGNORE_PREAMBLE		5		// how many preamble bits to ignore
 #define IGNORE_POSTAMBLE	5		// how many postable bits to ignore
@@ -102,9 +104,9 @@ struct trkstate_t {	// track-by-track decoding state
     float avg_bit_spacing;	// how far apart bits are, on average, in this block (computed at the end)
 #if MAX_AVG_WINDOW
     float t_bitspacing[MAX_AVG_WINDOW]; // last n bit time spacing
-    float t_bitspaceavg;	// average of last n bit time spacing
     int	bitndx;				// index into t_bitspacing of next spot to use
 #endif
+    float t_bitspaceavg;	// average of last n bit time spacing, or a constant
     int datacount;			// how many data bits we've seen
     int peakcount;			// how many peaks (flux reversals) we've seen
     byte lastdatabit;       // the last data bit we recorded
@@ -117,7 +119,7 @@ struct trkstate_t {	// track-by-track decoding state
 
 struct parms_t {	// a set of parameters used for reading a block. We try again with different ones if we get errors.
     float clk_factor;	// how much of a half-bit period to wait for a clock transition
-    int avg_window;		// how many bit times to average for clock rate
+    int avg_window;		// how many bit times to average for clock rate, 0 means use constant default
     // ...add more dynamic parameters above here
     int tried;          // how many times this parmset was tried
     int succeeded;      // how many times this parmset succeeded
@@ -148,8 +150,5 @@ byte parity(uint16_t);
 void init_trackstate(void);
 void init_blockstate(void);
 enum bstate_t process_sample(struct sample_t *);
-void got_tapemark(void);
-void got_crap (void);
-void got_datablock (void);
 
 //*
