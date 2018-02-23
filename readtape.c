@@ -30,8 +30,14 @@ processed multiple times with different sets of deocding parameters.
 19 Feb 2018, L. Shustek. Major change to the peak detection algorithm
 to interpolate the time of the peak when multiple samples are close to
 the peak. This significantly improves decoding for low sampling rates.
+Sampling at 781 KS/s for 1600 BPI PE tapes running at 50 IPS generates
+about 10 samples per bit, and seems to work fine now.
 
-*************************************************************************
+20 Feb 2018, L. Shustek, Add the "move threshold" to the variable
+parameters, because setting it low for some blocks lets us correctly
+decode some really grungy data.
+
+**********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
 to any person obtaining a copy of this software and associated
@@ -106,6 +112,7 @@ int numfiles=0, numblks=0, numbadparityblks=0, nummalformedblks=0, numtapemarks=
 int numfilebytes;
 bool logging=false;
 bool terse=false;
+bool verbose=DEBUG;
 int starting_parmset=0;
 
 extern double timenow;
@@ -173,6 +180,7 @@ void SayUsage (char *programName) {
         "Options:",
         "  -l   create log file",
         "  -t   terse mode",
+        "  -v   verbose mode",
         NULL
     };
     int i = 0;
@@ -195,6 +203,11 @@ int HandleOptions (int argc, char *argv[]) {
                 break;
             case 'T':
                 terse = true;
+                verbose = false;
+                break;
+            case 'V':
+                verbose = true;
+                terse = false;
                 break;
                 /* add more  option switches here */
 opterror:
@@ -255,10 +268,10 @@ int count_faked_tracks(uint16_t *data_faked, int len) { // count how many tracks
     return c;
 }
 
-void show_block_errs (uint16_t *data, uint16_t *data_faked, double *data_time, int len) { // report on parity errors and faked bits in the block
+void show_block_errs (int len) { // report on parity errors and faked bits in all tracks
     for (int i=0; i<len; ++i) {
         byte curparity=parity(data[i]);
-        if (curparity != 1 || data_faked[i]) { // something wrong
+        if (curparity != 1 || data_faked[i]) { // something wrong with this data
             dlog("  %s parity at byte %4d, time %11.7lf", curparity ? "good" : "bad ", i, data_time[i]);
             if (data_faked[i]) dlog(", faked bits: %09b", data_faked[i]);
             dlog("\n");
@@ -281,7 +294,6 @@ void dumpdata (uint16_t *data, int len) { // display a data block in hex and EBC
 
 void got_tapemark(void) {
     ++numtapemarks;
-    ++parmsets[block.parmset].succeeded;  // count times that this parmset was successfully used
     log("\n*** tapemark\n");
     blockstart = ftell(inf); // remember the file position for the start of the next block
     dlog("got tapemark, file pos %'lld at %.7lf\n", blockstart, timenow);
@@ -310,14 +322,14 @@ void got_datablock(bool malformed) { // decoded a tape block
     if (!malformed && length==80 && compare4(data,"VOL1")) { // IBM volume header
         struct IBM_vol_t hdr;
         copy_EBCDIC((byte *)&hdr, data, 80);
-        log("\n*** label %.4s: %.6s, owner %.10s\n", hdr.id, hdr.serno, hdr.owner);
+        log("\n*** tape label %.4s: %.6s, owner %.10s\n", hdr.id, hdr.serno, hdr.owner);
         if (result->parity_errs) log("--> %d parity errors\n", result->parity_errs);
         //dumpdata(data, length);
     }
     else if (!malformed && length==80 && (compare4(data,"HDR1") || compare4(data,"EOF1") || compare4(data,"EOV1"))){
         struct IBM_hdr1_t hdr;
         copy_EBCDIC((byte *)&hdr, data, 80);
-        log("\n*** label %.4s: %.17s, serno %.6s, created%.6s\n", hdr.id, hdr.dsid, hdr.serno, hdr.created);
+        log("\n*** tape label %.4s: %.17s, serno %.6s, created%.6s\n", hdr.id, hdr.dsid, hdr.serno, hdr.created);
         log("    volume %.4s, dataset %.4s\n", hdr.volseqno, hdr.dsseqno);
         if (compare4(data,"EOF1")) log("    block count: %.6s, system %.13s\n", hdr.blkcnt, hdr.syscode);
         if (result->parity_errs) log("--> %d parity errors\n", result->parity_errs);
@@ -334,7 +346,7 @@ void got_datablock(bool malformed) { // decoded a tape block
     else if (!malformed && length==80 && (compare4(data,"HDR2") || compare4(data,"EOF2") || compare4(data, "EOV2"))) {
         struct IBM_hdr2_t hdr;
         copy_EBCDIC((byte *)&hdr, data, 80);
-        log("\n*** label %.4s: RECFM=%.1s%.1s, BLKSIZE=%.5s, LRECL=%.5s\n",//
+        log("\n*** tape label %.4s: RECFM=%.1s%.1s, BLKSIZE=%.5s, LRECL=%.5s\n",//
             hdr.id, hdr.recfm, hdr.blkattrib, hdr.blklen, hdr.reclen);
         log("    job: %.17s\n", hdr.job);
         if (result->parity_errs) log("--> %d parity errors\n", result->parity_errs);
@@ -353,18 +365,17 @@ void got_datablock(bool malformed) { // decoded a tape block
         }
         numfilebytes += length;
         ++numblks;
-        if(result->parity_errs != 0) {
-            if (DEBUG) show_block_errs(data, data_faked, data_time, length);
+        if(result->parity_errs != 0 || result->faked_bits != 0) {
+            if (DEBUG) show_block_errs(result->maxbits);
             ++numbadparityblks;
         }
         log("wrote  block %d, %d bytes, %d tries, parmset %d, %d parity errs, %d faked bits on %d trks, at time %.7lf\n", //
             numblks, length, block.tries, block.parmset, result->parity_errs, //
             count_faked_bits(data_faked,length), count_faked_tracks(data_faked,length), timenow);
         if (malformed) {
-             log("   malformed, with lengths %d to %d\n", result->minbits, result->maxbits);
-             ++nummalformedblks;
-         }
-         else  ++parmsets[block.parmset].succeeded;  // count times that this parmset was successfully used
+            log("   malformed, with lengths %d to %d\n", result->minbits, result->maxbits);
+            ++nummalformedblks;
+        }
     }
     blockstart = ftell(inf);  // remember the file position for the start of the next block
     //log("got valid block %d, file pos %'lld at %.7lf\n", numblks, blockstart, timenow);
@@ -410,12 +421,13 @@ double scan_double(char **p) {
     return negative ? -n : n;
 }
 
-
 bool readblock(void) { // read the CSV file until we get to the end of a block on the tape
+    // return false if we are already at the endfile
     char line[MAXLINE+1];
     struct sample_t sample;
-    do {
-        if (!fgets(line, MAXLINE, inf)) return false;
+    if (!fgets(line, MAXLINE, inf)) // if we get an immediate endfile
+        return false;
+    while(1) {
         line[MAXLINE-1]=0;
         ++lines_in;
         /* sscanf is excruciately slow and was taking 90% of the processing time!
@@ -429,9 +441,13 @@ bool readblock(void) { // read the CSV file until we get to the end of a block o
         char *linep = line;
         sample.time = scan_double(&linep);
         for (int i=0; i<NTRKS; ++i) sample.voltage[i] = scan_float(&linep);
+        if (process_sample(&sample) != BS_NONE)	 // process one voltage sample point for all tracks
+            break;								 // until we recognize an end of block
+        if (!fgets(line, MAXLINE, inf)) { // read the next line
+            process_sample(NULLP); // if we get to the end of the file, force "end of block" processing
+            break;
+        }
     }
-    while (process_sample(&sample) == BS_NONE); // process one voltage sample point for all tracks
-    //											   and repeat until the end of a block is detected
     return true;
 }
 
@@ -484,12 +500,13 @@ void main(int argc, char *argv[]) {
         sprintf(logfilename, "%s\\%s.log", basefilename, basefilename);
         assert (logf = fopen (logfilename, "w"), "Unable to open log file", logfilename);
     }
-    if (!terse) log("reading file %s\n", filename);
+
+    time_t start_time = time(NULL);
+    if (!terse) log("reading file \"%s\" on %s\n", filename, ctime(&start_time));
     fgets(line, MAXLINE, inf); // first two lines in the input file are headers from Saleae
     //log("%s",line);
     fgets(line, MAXLINE, inf);
     //log("%s\n",line);
-    time_t start_time = time(NULL);
 
     while (1) { // for all lines of the file
         init_blockstate();  // initialize for a new block
@@ -507,8 +524,9 @@ void main(int argc, char *argv[]) {
             init_trackstate();
             dlog("\n     trying block %d with parmset %d at bytes %'lld at time %.7lf\n", numblks+1, block.parmset, blockstart, timenow);
             if (!readblock()) goto endfile; // ***** read a block ******
+             struct results_t *result = &block.results[block.parmset];
+            if (result->blktype == BS_NONE) goto endfile; // stuff at the end wasn't a real block
             ++block.tries;
-            struct results_t *result = &block.results[block.parmset];
             dlog("     block %d is type %d parmset %d, minlength %d, maxlength %d, %d parity errs, %d faked bits at %.7lf\n", //
                 numblks+1, result->blktype, block.parmset, result->minbits, result->maxbits, result->parity_errs, result->faked_bits, timenow);
             if (result->blktype == BS_TAPEMARK // if we got a tapemake or a perfect block, we're done
@@ -573,6 +591,7 @@ void main(int argc, char *argv[]) {
 
 done:
         dlog("  chose parmset %d as best after %d tries\n", block.parmset, block.tries);
+        ++parmsets[block.parmset].chosen;  // count times that this parmset was chosen to be used
         if(block.tries>1 // if we processed the block multiple times
             && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
             assert(fseek(inf,blockstart,SEEK_SET)==0,"seek failed", "1"); // then reprocess the chosen one to retrieve the data
@@ -581,7 +600,7 @@ done:
             assert(readblock(), "got endfile rereading a block", "");
             struct results_t *result = &block.results[block.parmset];
             dlog("     reread block %d is type %d, minlength %d, maxlength %d, %d parity errs, %d faked bits at %.7lf\n", //
-              numblks+1, result->blktype, result->minbits, result->maxbits, result->parity_errs, result->faked_bits, timenow);
+                numblks+1, result->blktype, result->minbits, result->maxbits, result->parity_errs, result->faked_bits, timenow);
         }
         switch (block.results[block.parmset].blktype) {  // process the block according to our best decoding, block.parmset
         case BS_TAPEMARK:
@@ -594,16 +613,17 @@ done:
             got_datablock(true);
             break;
         default:
-        fatal ("bad block state after decoding", "");
+            fatal ("bad block state after decoding", "");
         }
 
 #if USE_ALL_PARMSETS
         do { // If we start with a new parm set each time, we'll use them all relatively equally and can see which ones are best
-            if (++starting_parmset >= MAXPARMSETS) starting_parmset = 0;dir *
+            if (++starting_parmset >= MAXPARMSETS) starting_parmset = 0;
+            dir *
         }
         while (parmsets[starting_parmset].clk_factor==0);
 #else
-    // otherwise we always start with parmset 0, which has proven to be the best for most tapes
+        // otherwise we always start with parmset 0, which has proven to be the best for most tapes
 #endif
     }
 endfile:
@@ -612,9 +632,10 @@ endfile:
     //setlocale(LC_ALL,"");
     if (!terse) log("\n%'d samples processed in %l.0f seconds, created %d files\ndetected %d tape marks, and %d data blocks of which %d had parity errors and %d were malformed.\n",//
         lines_in, difftime(time(NULL),start_time), numfiles, numtapemarks, numblks, numbadparityblks, nummalformedblks);
-    for (int i=0; i<MAXPARMSETS; ++i) //
-        if (parmsets[i].tried > 0) dlog ("parm set %d was tried %d times and succeeded %d times, or %.1f%%\n",//
-        i, parmsets[i].tried, parmsets[i].succeeded, 100.*parmsets[i].succeeded/parmsets[i].tried);
+    if (verbose) for (int i=0; i<MAXPARMSETS; ++i) //
+        if (parmsets[i].tried > 0) log ("parm set %d was tried %d times and used %d times, or %5.1f%%, clk factor %.1f, window %2d, move threshold %.2fV\n",//
+        i, parmsets[i].tried, parmsets[i].chosen, 100.*parmsets[i].chosen/parmsets[i].tried,
+        parmsets[i].clk_factor, parmsets[i].avg_window, parmsets[i].move_threshold);
 }
 
 //*

@@ -30,6 +30,8 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
+#define DEBUG 0
+
 #include <stdio.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -42,32 +44,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <inttypes.h>
 #include <limits.h>
 
-typedef unsigned char byte;
-#define NULLP (void *)0
-
-#define DEBUG 0
-
-#if DEBUG
-#define dlog(...) log(__VA_ARGS__) // debugging log
-#else
-#define dlog(...)
-#endif
-
 #define NTRKS 9
 #define MAXBLOCK 32768
 #define MAXPARMSETS  10
 #define MAXPATH 150
 
-struct sample_t {			// what we get from the digitizer hardware:
-    double time;			//   the time of this sample
-    float voltage[NTRKS];	//   the voltage level from each track head
-};
-
 // Here are lots of of parameters that control the decoding algorithm.
 // Some of these are defaults, for which the currently used values are in the parms_t structure.
 
-#define MOVE_THRESHOLD	0.10			// volts of deviation that means something is happening
-#define PEAK_THRESHOLD	0.02 		// volts that define "same peak"
+#define MOVE_THRESHOLD	0.10		// volts of deviation that means something is happening (TYP: 0.10)
+#define PEAK_THRESHOLD	0.02 		// volts that define "same peak" (TYP: 0.02)
+// FLASH: .05 and .01 work for bad block 6!
 #define BIT_SPACING		12.5e-6		// in seconds, the default bit spacing (1600 BPI x 50 IPS)
 #define EPSILON_T		1.0e-7		// in seconds, time fuzz factor for comparisons
 #define CLK_FACTOR		1.4       	// how much of a half-bit period to wait for the clock transition.
@@ -76,12 +63,27 @@ struct sample_t {			// what we get from the digitizer hardware:
 #define MAX_AVG_WINDOW  20			// up to how many bit times to include in the clock timing moving average (0 means use defaults)
 #define IDLE_TRK_LIMIT	9			// how many tracks must be idle to consider it an end-of-block
 #define FAKE_BITS       true    	// should we fake bits during a dropout?
-#define MULTIPLE_TRIES	true 		// should we do multiple tries to decode a block?
+#define MULTIPLE_TRIES	true		// should we do multiple tries to decode a block?
 #define USE_ALL_PARMSETS false		// should we try to use all the parameter sets, to be able to rate them?
 
-#define IGNORE_PREAMBLE		5		// how many preamble bits to ignore
 #define IGNORE_POSTAMBLE	5		// how many postable bits to ignore
 #define MIN_PREAMBLE		70		// minimum number of peaks (half that number of bits) for a preamble
+#define MAX_POSTAMBLE_BITS	40		// maximum number of postable bits we will remove
+
+
+typedef unsigned char byte;
+#define NULLP (void *)0
+
+#if DEBUG
+#define dlog(...) log(__VA_ARGS__) // debugging log
+#else
+#define dlog(...)
+#endif
+
+struct sample_t {			// what we get from the digitizer hardware:
+    double time;			//   the time of this sample
+    float voltage[NTRKS];	//   the voltage level from each track head
+};
 
 // the track state structure
 
@@ -118,11 +120,12 @@ struct trkstate_t {	// track-by-track decoding state
 };
 
 struct parms_t {	// a set of parameters used for reading a block. We try again with different ones if we get errors.
-    float clk_factor;	// how much of a half-bit period to wait for a clock transition
-    int avg_window;		// how many bit times to average for clock rate, 0 means use constant default
+    float clk_factor;		// how much of a half-bit period to wait for a clock transition
+    int avg_window;			// how many bit times to average for clock rate, 0 means use constant default
+    float move_threshold;	// how many volts of deviation means that we have a real signal
     // ...add more dynamic parameters above here
-    int tried;          // how many times this parmset was tried
-    int succeeded;      // how many times this parmset succeeded
+    int tried;          	// how many times this parmset was tried
+    int chosen;  		    // how many times this parmset was chosen
 }; // array: parmsets[block.parmset]
 
 enum bstate_t { // the decoding status a block
@@ -140,7 +143,8 @@ struct blkstate_t {	// state of the block, when we're done
         float avg_bit_spacing;
         int parity_errs;        // how many parity errors it has
         int faked_bits;         // how many faked bits it has
-    } results [MAXPARMSETS]; // results for each parm set we tried
+    }
+    results [MAXPARMSETS]; // results for each parm set we tried
 }; // block
 
 void fatal(char *, char *);
@@ -150,5 +154,6 @@ byte parity(uint16_t);
 void init_trackstate(void);
 void init_blockstate(void);
 enum bstate_t process_sample(struct sample_t *);
+void show_block_errs(int);
 
 //*
