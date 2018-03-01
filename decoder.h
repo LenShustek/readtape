@@ -48,7 +48,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define NTRKS 9
 #define INVERTED false
 #define MAXBLOCK 32768
-#define MAXPARMSETS  10
+#define MAXPARMSETS 15
 #define MAXPATH 200
 
 // Here are lots of of parameters that control the decoding algorithm.
@@ -62,11 +62,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define CLKRATE_WINDOW  10          // maximum window for clock averaging
 #define IDLE_TRK_LIMIT	9				// how many tracks must be idle to consider it an end-of-block
 #define FAKE_BITS       true    		// should we fake bits during a dropout?
-#define MULTIPLE_TRIES	true			// should we do multiple tries to decode a block?
+#define MULTIPLE_TRIES	false			// should we do multiple tries to decode a block?
 #define USE_ALL_PARMSETS false		// should we try to use all the parameter sets, to be able to rate them?
 #define AGC				 	true			// do automatic gain control for weak signals?
 #define AGC_MAX			 10			// making it higher causes block 6 to fail!
-#define AGC_ALPHA        0.5        // the weighting for the current data in the AGC exponential weighted average
+#define AGC_ALPHA        0.8        // the weighting for the current data in the AGC exponential weighted average
 
 #define IGNORE_POSTAMBLE	5		// how many postable bits to ignore
 #define MIN_PREAMBLE		70			// minimum number of peaks (half that number of bits) for a preamble
@@ -112,6 +112,7 @@ struct trkstate_t {	// track-by-track decoding state
    double t_lastbit;		   // time of last data bit transition
    double t_firstbit;		// time of first data bit transition in the data block
    float t_clkwindow; 		// how late a clock transition can be, before we consider it data
+   float t_pulse_adj;      // how much to adjust the pulse by, based on previous pulse's timing
    float avg_bit_spacing;	// how far apart bits are, on average, in this block (computed at the end)
    float t_bitspacing[CLKRATE_WINDOW]; // last n bit time spacing
    int	bitndx;				// index into t_bitspacing of next spot to use
@@ -130,6 +131,7 @@ struct parms_t {	// a set of parameters used for reading a block. We try again w
    float clk_factor;		   // how much of a half-bit period to wait for a clock transition
    int avg_window;         // how many bit times to average for clock rate; 0 means use exponential averaging
    float clk_alpha;			// weighting for current data in the clock rate exponential weighted average, 0 means use constant
+   float pulse_adj_amt;    // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
    float move_threshold;	// how many volts of deviation means that we have a real signal
    // ...add more dynamic parameters above here
    int tried;          	   // how many times this parmset was tried

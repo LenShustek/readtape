@@ -70,6 +70,14 @@ I've liked lcc-win64 over the years, it has too many bugs and is no
 longer being supported by Jacob Navia.  That's shame; it was nice.
 The good news: code from VS in x64 "release" mode runs 3x faster!
 
+*** 28 Feb 2018, L. Shustek
+
+Compensate for pulse shifting on tape by keeping track of how far
+off a pulse is from the expected time, and using some fraction of
+that (as specified by the parameter block) to adjust the window 
+that determines if the next pulse is clock or data. This is a 
+pretty big win for some funky blocks.
+
 **********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
@@ -318,7 +326,7 @@ void show_block_errs (int len) { // report on parity errors and faked bits in al
       byte curparity=parity(data[i]);
       if (curparity != 1 || data_faked[i]) { // something wrong with this data
          dlog("  %s parity at byte %4d, time %11.7lf", curparity ? "good" : "bad ", i, data_time[i]);
-         if (data_faked[i]) dlog(", faked bits: %09b", data_faked[i]);
+         if (data_faked[i]) dlog(", faked bits: %03X", data_faked[i]); //Visual Studio doesn't support %b
          dlog("\n"); } } }
 
 void dumpdata (uint16_t *data, int len) { // display a data block in hex and EBCDIC
@@ -678,12 +686,13 @@ endfile:
            intcommas(lines_in), elapsed_time,
            numfiles, numblks==0 ? 0 : elapsed_time/numblks, //
            numtapemarks, numblks, numbadparityblks, nummalformedblks); }
-   if (verbose && MULTIPLE_TRIES) {
+   if (verbose) {
       rlog("%d perfect blocks needed to try more than one parm set\n", numgoodmultipleblks);
       for (int i=0; i<MAXPARMSETS; ++i) //
          if (parmsets[i].tried > 0)
-            rlog("parm set %d was tried %4d times and used %4d times, or %5.1f%%: clk factor %.1f, avg window %d, clk alpha %.2f, move threshold %.2fV\n",//
+            rlog("parm set %d was tried %4d times and used %4d times, or %5.1f%%: "
+                 "clk factor %.1f, avg window %d, clk alpha %.2f, pulse adj %.2f, move threshold %.2fV\n",//
                  i, parmsets[i].tried, parmsets[i].chosen, 100.*parmsets[i].chosen/parmsets[i].tried,
-                 parmsets[i].clk_factor, parmsets[i].avg_window, parmsets[i].clk_alpha, parmsets[i].move_threshold); } }
+                 parmsets[i].clk_factor, parmsets[i].avg_window, parmsets[i].clk_alpha, parmsets[i].pulse_adj_amt, parmsets[i].move_threshold); } }
 
 //*
