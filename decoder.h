@@ -29,9 +29,10 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
-#define DEBUG 0
-
-#define VA_WORKS 1  // does va_list work reliably in your compiler?
+#define DEBUG 0                  // debugging output?
+#define TRACEFILE false	         // creating trace file?
+#define TRACETRK 6		         // for which track
+#define DLOG_LINE_LIMIT 2000     // limit on debugging line output
 
 #include <stdio.h>
 #include <errno.h>
@@ -50,34 +51,38 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define MAXBLOCK 32768
 #define MAXPARMSETS 15
 #define MAXPATH 200
+#define VA_WORKS true     // does va_list work reliably in your compiler?
 
 // Here are lots of of parameters that control the decoding algorithm.
 // Some of these are defaults, for which the currently used values are in the parms_t structure.
 
-#define PEAK_THRESHOLD	0.01        // volts that define "same peak" (TYP: 0.02)
-#define BIT_SPACING		12.5e-6		// in seconds, the default bit spacing (1600 BPI x 50 IPS)
-#define EPSILON_T		1.0e-7		   // in seconds, time fuzz factor for comparisons
-#define CLK_FACTOR		1.4       	// how much of a half-bit period to wait for the clock transition.
-#define BIT_FACTOR      2.5     		// how much of the bit spacing to wait for before faking bits
-#define CLKRATE_WINDOW  10          // maximum window for clock averaging
-#define IDLE_TRK_LIMIT	9				// how many tracks must be idle to consider it an end-of-block
-#define FAKE_BITS       true    		// should we fake bits during a dropout?
-#define MULTIPLE_TRIES	false			// should we do multiple tries to decode a block?
+#define PEAK_THRESHOLD	 0.005      // volts that define "same peak" (TYP: 0.02)
+#define BIT_SPACING		 12.5e-6		// in seconds, the default bit spacing (1600 BPI x 50 IPS)
+#define EPSILON_T		    1.0e-7		// in seconds, time fuzz factor for comparisons
+#define CLK_FACTOR		 1.4       	// how much of a half-bit period to wait for the clock transition.
+#define BIT_FACTOR       2.5     	// how much of the bit spacing to wait for before faking bits
+#define CLKRATE_WINDOW   10         // maximum window for clock averaging
+#define IDLE_TRK_LIMIT	 9				// how many tracks must be idle to consider it an end-of-block
+#define FAKE_BITS        true    	// should we fake bits during a dropout?
+#define MULTIPLE_TRIES	 true 		// should we do multiple tries to decode a block?
 #define USE_ALL_PARMSETS false		// should we try to use all the parameter sets, to be able to rate them?
-#define AGC				 	true			// do automatic gain control for weak signals?
-#define AGC_MAX			 10			// making it higher causes block 6 to fail!
-#define AGC_ALPHA        0.8        // the weighting for the current data in the AGC exponential weighted average
+#define AGC_AVG    	 	 false 		// do automatic gain control for weak signals based on exponential averaging?
+#define AGC_MIN          true       // do automatic gain control for weak signals based on min of last n peaks?
+#define AGC_MAX			 15			// max agc boost (making it higher causes block 6 to fail!)
+#define AGC_ALPHA        0.8        // for AGC_AVG: the weighting for the current data in the AGC exponential weighted average
+#define AGC_WINDOW       5          // for AGC_MIN: number of peaks to look back for the min peak
 
-#define IGNORE_POSTAMBLE	5		// how many postable bits to ignore
-#define MIN_PREAMBLE		70			// minimum number of peaks (half that number of bits) for a preamble
-#define MAX_POSTAMBLE_BITS	40		// maximum number of postable bits we will remove
-#define AGC_STARTBASE	10			// starting peak for preamble baseline voltage measurement
-#define AGC_ENDBASE     50			// ending peak for preamble baseline voltage measurement
+#define IGNORE_POSTAMBLE	5		   // how many postable bits to ignore
+#define MIN_PREAMBLE		   70		   // minimum number of peaks (half that number of bits) for a preamble
+#define MAX_POSTAMBLE_BITS	40		   // maximum number of postable bits we will remove
+#define AGC_STARTBASE	   10		   // starting peak for preamble baseline voltage measurement
+#define AGC_ENDBASE        50		   // ending peak for preamble baseline voltage measurement
+
 typedef unsigned char byte;
 #define NULLP (void *)0
 
 #if DEBUG
-#define dlog(...) rlog(__VA_ARGS__) // debugging log
+#define dlog(...) if (++dlog_lines < DLOG_LINE_LIMIT) rlog(__VA_ARGS__) // debugging log
 #else
 #define dlog(...)
 #endif
@@ -109,6 +114,8 @@ struct trkstate_t {	// track-by-track decoding state
    float last_move_threshold;   // the last move threshold we used
    float agc_gain;         // the current AGC gain
    float max_agc_gain;     // the most we ever reduced the move threshold by
+   float v_heights[AGC_WINDOW];  // last n peak-to-peak voltages
+   int heightndx;                // index into v_heights of next spot to use
    double t_lastbit;		   // time of last data bit transition
    double t_firstbit;		// time of first data bit transition in the data block
    float t_clkwindow; 		// how late a clock transition can be, before we consider it data
@@ -134,6 +141,7 @@ struct parms_t {	// a set of parameters used for reading a block. We try again w
    float pulse_adj_amt;    // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
    float move_threshold;	// how many volts of deviation means that we have a real signal
    // ...add more dynamic parameters above here
+   char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
    int tried;          	   // how many times this parmset was tried
    int chosen;  		      // how many times this parmset was chosen
 }; // array: parmsets[block.parmset]
@@ -167,6 +175,7 @@ void fatal(char *, char *);
 void assert(bool, char *);
 void rlog(const char *, ...);
 #endif
+void breakapoint(void);
 char *intcommas(int);
 char *longlongcommas(long long int);
 

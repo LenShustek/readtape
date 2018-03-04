@@ -60,13 +60,31 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "decoder.h"
 
+struct parms_t parmsets[MAXPARMSETS] = {  // sets of parameters to try until a block is read correctly
+   // float clk_factor;	      // how much of a half-bit period to wait for a clock transition
+   // int avg_window;         // how many bit times to window average for clock rate; 0 means use exponential averaging
+   // float clk_alpha;			// weighting for current data in the clock rate exponential weighted average; 0 means use constant
+   // float pulse_adj_amt;    // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
+   // float move_threshold;	// how many volts of deviation means that we have a real signal
+   //										(the AGC algorithm might reduce that dynamically as the signal degrades)
+   //clkfact  win   alpha  pulseadj  move
+   { 1.40,    0,    0.0,    0.2,    0.10,  "PRM" },
+   { 1.50,    0,    0.2,    0.4,    0.10,  "PRM" },
+   { 1.40,    3,    0.0,    0.0,    0.10,  "PRM" }, // works on block 55 
+   { 1.40,    3,    0.0,    0.2,    0.10,  "PRM" },
+   { 1.40,    5,    0.0,    0.2,    0.10,  "PRM" },
+   { 1.50,    5,    0.0,    0.2,    0.10,  "PRM" },
+   { 1.40,    5,    0.0,    0.4,    0.10,  "PRM" },
+   { 1.40,    3,    0.0,    0.2,    0.05,  "PRM" },
+   { 0 } };
+
+
 // Stuff to create a CSV trace file with one track of raw voltage data
 // plus all sorts of debugging info. To see the timeline, create a
 // line graph in Excel from columns starting with the voltage.
-// The start and end of the graph is controlled by code at the bottom.
+// The on-switch and the track number is in decoder.h.
+// The start and end of the graph is controlled by code at the bottom of this file.
 
-#define TRACEFILE true	// creating trace file?
-#define TRACETRK 6		// for which track
 bool trace_on = false;
 bool trace_done = false;
 int trace_lines = 0;
@@ -97,8 +115,9 @@ float trace_fakedata;
 #define trace_fakedata_no 5.75
 #define trace_fakedata_yes 6.00
 
-// variables for time relative to the start must be double-precision
-// delta times for samples close to each other can be single-precision
+// Variables for time relative to the start must be double-precision.
+// Delta times for samples close to each other can be single-precision,
+// although the compiler will complain about loss of precision.
 
 double timenow=0;
 int num_trks_idle = NTRKS;
@@ -107,34 +126,13 @@ FILE *tracef;
 int errcode=0;
 
 extern bool terse, verbose;
-
-struct parms_t parmsets[MAXPARMSETS] = {  // sets of parameters to try until a block is read correctly
-   // float clk_factor;	      // how much of a half-bit period to wait for a clock transition
-   // int avg_window;         // how many bit times to window average for clock rate; 0 means use exponential averaging
-   // float clk_alpha;			// weighting for current data in the clock rate exponential weighted average; 0 means use constant
-   // float pulse_adj_amt;    // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
-   // float move_threshold;	// how many volts of deviation means that we have a real signal
-   //										(the AGC algorithm will reduce that dynamically as the signal degrades)
-//  clkfact  win   alpha  pulseadj  move
-// { 1.40,    0,    0.0,    0.0,    0.10 }, // FOR DEBUGGING
-   { 1.50,    0,    0.5,    0.4,    0.10 },   
-   { 1.40,    0,    0.0,    0.2,    0.10 },
-// { 1.50,    0,    0.5,    0.0,    0.10 }, //almost never worked 
-   { 1.40,    5,    0.0,    0.0,    0.10 }, // works for block ts120_bad11 and _bad240
-   { 1.50,    5,    0.0,    0.2,    0.10 },
-   { 1.40,    5,    0.0,    0.4,    0.10 },
-// { 1.50,    3,    0.0,    0.0,    0.05 }, //almost never worked
-   { 1.40,    3,    0.0,    0.2,    0.05 },
-   { 1.50,    3,    0.0,    0.4,    0.10 },
-   { 1.40,    3,    0.0,    0.0,    0.10 },
-  
-   {0 } };
+extern int dlog_lines;
 
 struct trkstate_t trkstate[NTRKS] = { // the current state of all tracks
    0 };
 uint16_t data[MAXBLOCK+1] = { 		  // the reconstructed data in bits 8..0 for tracks 0..7, then P as the LSB
    0 };
-uint16_t data_faked[MAXBLOCK+1] = {   // flag for "data was faked" in bits 8..0, for tracks 0..7 then P.
+uint16_t data_faked[MAXBLOCK+1] = {   // flag for "data was faked" in bits 8..0 for tracks 0..7, then P as the LSB
    0 };
 double data_time[MAXBLOCK+1] = { 	  // the time the last track contributed to this data byte
    0 };
@@ -147,6 +145,7 @@ void init_blockstate(void) {	// initialize block state information for multiple 
       rlog("settings: Fake? %d, Multiple tries? %d, Use all parmsets? %d\n", FAKE_BITS, MULTIPLE_TRIES, USE_ALL_PARMSETS);
       wrote_config = true; }
    for (int i=0; i<MAXPARMSETS; ++i) {
+      assert(parmsets[i].clk_factor == 0 || strcmp(parmsets[i].id, "PRM") == 0, "bad parm block initialization");
       block.results[i].blktype = BS_NONE;
       block.results[i].parity_errs = 0;
       block.results[i].faked_bits = 0;
@@ -166,6 +165,7 @@ void init_trackstate(void) {  // initialize all track and block state informatio
       trk->idle = true;
       trk->t_bitspaceavg = BIT_SPACING;
       trk->agc_gain = 1.0;
+      trk->last_move_threshold = parmsets[block.parmset].move_threshold;
       trk->max_agc_gain = 0;
       for (int i=0; i<CLKRATE_WINDOW; ++i) // initialize moving average bitspacing array
          trk->t_bitspacing[i] = BIT_SPACING;
@@ -234,7 +234,7 @@ void end_of_block(void) { // All/most tracks have just become idle. See if we ac
                break;  								// then we've erased the postable and are done
          }
          if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain;
-         dlog("trk %d had %d postamble bits, max AGC gain of %03f\n", trk, postamble_bits, t->max_agc_gain); }
+         dlog("trk %d had %d postamble bits, max AGC %5.2f\n", trk, postamble_bits, t->max_agc_gain); }
       if (t->datacount > result->maxbits) result->maxbits = t->datacount;
       if (t->datacount < result->minbits) result->minbits = t->datacount; }
    result->avg_bit_spacing = avg_bit_spacing/NTRKS;
@@ -296,12 +296,38 @@ void check_data_alignment(int clktrk) {
          dlog("! at clk on trk %d, trk %d has %d databytes, not %d, at %.7lf\n", clktrk, trknum, t->datacount, datacount, timenow);
          ++numshown; } } }
 
+void adjust_agc(struct trkstate_t *t) {
+   float move_threshold = parmsets[block.parmset].move_threshold; // the default move threshold for this set of parms
+   assert(!AGC_AVG || !AGC_MIN, "inconsistent AGC setting");
+   if (AGC_AVG) {  // do automatic gain control based on exponential averaging
+      float lastheight = t->v_lasttop - t->v_lastbot; // last peak-to-peak height
+      if (lastheight > 0 && lastheight < t->v_avg_height) { // if it's smaller than average  *** DO TIHS ALWAYS??
+         float gain = t->v_avg_height / lastheight;  			// the new gain
+         gain = AGC_ALPHA * gain + (1 - AGC_ALPHA)*t->agc_gain;  // exponential smoothing with previous values
+         if (gain > AGC_MAX) gain = AGC_MAX;
+         move_threshold /= gain; //  reduce the threshold proportionately
+         t->agc_gain = gain;
+         if (gain > t->max_agc_gain) t->max_agc_gain = gain; } }
+   if (AGC_MIN) {  // do automatic gain control based on the minimum of the last n peak-to-peak voltages
+      float lastheight = t->v_lasttop - t->v_lastbot; // last peak-to-peak height
+      if (lastheight > 0) {
+         t->v_heights[t->heightndx] = lastheight; // add the new height to the window
+         if (++t->heightndx >= AGC_WINDOW) t->heightndx = 0;
+         float minheight = 99;
+         for (int i = 0; i < AGC_WINDOW; ++i) if (t->v_heights[i] < minheight) minheight = t->v_heights[i];
+         assert(minheight < 99, "bad minimum peak-to-peak voltage");
+         if (minheight < t->v_avg_height) { // if min peak-to-peak voltage is lower than during preamble
+            float gain = t->v_avg_height / minheight;  // what gain we should use
+            if (gain > AGC_MAX) gain = AGC_MAX;
+            move_threshold /= gain;  // reduce threshold
+            t->agc_gain = gain;
+            if (gain > t->max_agc_gain) t->max_agc_gain = gain; } } }
+   t->last_move_threshold = move_threshold; }
+
 void hit_top (struct trkstate_t *t) {  // local maximum: end of a positive flux transition
    t->manchdata = 1;
    TRACE(peak,top);
    ++t->peakcount;
-   //if (trace_on && t->trknum==TRACETRK) rlog("top %.6f at %.7f, AGC gain %.2f, move thresh %.6f, peakcount %d, datacount %d\n", //
-   //   t->v_bot, t->t_bot, t->agc_gain, t->last_move_threshold, t->peakcount, t->datacount);
    if (t->datablock) { // inside a data block or the postamble
       bool missed_transition = (t->t_top + t->t_pulse_adj) - t->t_lastpeak > t->t_clkwindow; // missed a half-bit transition?
       if (!t->clknext // if we're expecting a data transition
@@ -311,20 +337,23 @@ void hit_top (struct trkstate_t *t) {  // local maximum: end of a positive flux 
       else { // this was a clock transition
          TRACE(clkedg,high);
          t->clknext = false; }
-      t->t_pulse_adj = ((t->t_top - t->t_lastpeak) - t->t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt; }
+      t->t_pulse_adj = ((t->t_top - t->t_lastpeak) - t->t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt;
+      adjust_agc(t); }
    else { // inside the preamble
       if (t->peakcount > MIN_PREAMBLE	// if we've seen at least 35 zeroes
             && t->t_top - t->t_lastpeak > t->t_clkwindow) { // and we missed a clock
          t->datablock = true;	// then this 1 means data is starting (end of preamble)
          t->v_avg_height /= t->v_avg_count; // compute avg peak-to-peak voltage
          assert(t->v_avg_height>0, "avg peak-to-peak voltage isn't positive");
-         dlog("trk %d start data at %.7lf, clk window %lf usec, avg peak-to-peak=%.2fV\n", //
-              t->trknum, timenow, t->t_clkwindow*1e6, t->v_avg_height); }
+         dlog("trk %d start data at %.7lf, AGC %.2f, clk window %lf usec, avg peak-to-peak %.2fV\n", //
+              t->trknum, timenow, t->agc_gain, t->t_clkwindow*1e6, t->v_avg_height); }
       else { // stay in the preamble
          t->clknext = false; // this was a clock; data is next
          if (t->peakcount>=AGC_STARTBASE && t->peakcount<=AGC_ENDBASE) { // accumulate peak-to-peak voltages
             t->v_avg_height += t->v_top - t->v_bot;
-            ++t->v_avg_count; } } }
+            ++t->v_avg_count;
+            t->v_heights[t->heightndx] = t->v_top - t->v_bot;
+            if (++t->heightndx >= AGC_WINDOW) t->heightndx = 0; } } }
    t->v_lasttop = t->v_top;
    t->v_lastpeak = t->v_top;
    t->t_lastpeak = t->t_top; }
@@ -333,8 +362,6 @@ void hit_bot (struct trkstate_t *t) { // local minimum: end of a negative flux t
    t->manchdata = 0;
    TRACE(peak,bot);
    ++t->peakcount;
-   //if (trace_on && t->trknum==TRACETRK) rlog("bot %.6f at %.7f, AGC gain %.2f, move thresh %.6f, peakcount %d, datacount %d\n", //
-   //    t->v_bot, t->t_bot, t->agc_gain, t->last_move_threshold, t->peakcount, t->datacount);
    if (t->datablock) { // inside a data block or the postamble
       bool missed_transition = (t->t_bot + t->t_pulse_adj) - t->t_lastpeak > t->t_clkwindow; // missed a half-bit transition?
       if (!t->clknext // if we're expecting a data transition
@@ -344,7 +371,8 @@ void hit_bot (struct trkstate_t *t) { // local minimum: end of a negative flux t
       else { // this was a clock transition
          TRACE(clkedg,high);
          t->clknext = false; }
-      t->t_pulse_adj = ((t->t_bot - t->t_lastpeak) - t->t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt; }
+      t->t_pulse_adj = ((t->t_bot - t->t_lastpeak) - t->t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt;
+      adjust_agc(t); }
    else { // inside the preamble
       t->clknext = true; // force this to be treated as a data transition; clock is next
    }
@@ -403,29 +431,10 @@ enum bstate_t process_sample(struct sample_t *sample) {  // process one voltage 
 
    deltaT = sample->time - timenow;  //(incorrect for the first sample)
    timenow = sample->time;
-   move_threshold = parmsets[block.parmset].move_threshold; // predefined MOVE_THRESHOLD for the current set of parms
 
-   for (int trknum=0; trknum<NTRKS; ++trknum) {
+   for (int trknum = 0; trknum < NTRKS; ++trknum) {
       struct trkstate_t *t = &trkstate[trknum];
       t->v_now = sample->voltage[trknum];
-      move_threshold = parmsets[block.parmset].move_threshold; // MOVE_THRESHOLD for the current set of parms
-
-      if (AGC && t->datablock) {  // do automatic gain control
-         float lastheight = t->v_lasttop - t->v_lastbot; // last peak-to-peak height
-         if (lastheight > 0 && lastheight < t->v_avg_height) { // if it's smaller than average  *** DO TIHS ALWAYS??
-            float gain = t->v_avg_height / lastheight;  			// the new gain
-            gain = AGC_ALPHA*gain + (1-AGC_ALPHA)*t->agc_gain;  // exponential smoothing with previous values
-            if (gain > AGC_MAX) gain = AGC_MAX;
-            move_threshold /= gain; //  reduce the threshold proportionately
-            //if (trace_on && trknum==TRACETRK) log ("trk %d old avg gain %.2f, new avg gain %.2f, thresh %.4f, lastheight=%.4f, avgheight=%.2f, at %.7lf\n",//
-            //   trknum, t->agc_gain, gain, move_threshold, lastheight, t->v_avg_height, timenow); //TEMP
-            t->agc_gain = gain;
-            if (gain > t->max_agc_gain) t->max_agc_gain = gain;
-            //if (trace_on && trknum==TRACETRK) rlog("  trk %d: vtop=%.2f, vbot=%.2f, reduce threshold by %3f to %.2f at %.7lf\n",
-            //   trknum, t->v_lasttop, t->v_lastbot, lastheight/t->v_avg_height, move_threshold, timenow);
-            //if (gain > 2) rlog("*** trk %d reached gain of %.2f at %.7lf\n", trknum, gain, timenow); //TEMP
-         } }
-      t->last_move_threshold = move_threshold;
 
       //dlog("trk %d state %d voltage %f at %.7lf\n", trknum, t->astate, t->v_now, timenow);
       TRACE(peak,not);
@@ -439,15 +448,15 @@ enum bstate_t process_sample(struct sample_t *sample) {  // process one voltage 
       if (t->manchdata) TRACE(manch,high) else TRACE(manch,low);
 
       if (num_samples == 0)  t->v_lastpeak = t->v_now;
-
+      move_threshold = t->last_move_threshold;
       if (t->astate == AS_IDLE) { // idling, waiting for the start of a flux transition
          t->v_top = t->v_bot = t->v_now;
          t->t_top = t->t_bot = timenow;
          if (t->v_now > t->v_lastpeak + move_threshold) t->astate = AS_UP;
          if (t->v_now < t->v_lastpeak - move_threshold) t->astate = AS_DOWN;
          if (t->astate != AS_IDLE) {
-            dlog ("trk %d not idle, going %s at %.7f, v_now=%f, v_lastpeak=%f, bitspaceavg=%.2f\n", //
-                  trknum, t->astate==AS_UP ? "up":"down", timenow, t->v_now, t->v_lastpeak, t->t_bitspaceavg*1e6);
+            dlog ("trk %d not idle, going %s at %.7f, AGC %.2f, thresh %.3f, v_now %f, v_lastpeak %f, bitspaceavg %.2f\n", //
+                  trknum, t->astate==AS_UP ? "up":"down", timenow, t->agc_gain, move_threshold, t->v_now, t->v_lastpeak, t->t_bitspaceavg*1e6);
             t->t_lastpeak = timenow;
             --num_trks_idle;
             t->moving = true;
@@ -479,8 +488,8 @@ enum bstate_t process_sample(struct sample_t *sample) {  // process one voltage 
             t->v_lastpeak = t->v_now;
             t->idle = true;
             TRACE(clkdet,low);
-            dlog("trk %d became idle at %.7lf, last peak at %.7lf, bitspaceavg %.2f usec, datacount %d\n", //
-                 trknum, timenow, t->t_lastpeak, t->t_bitspaceavg*1e6, t->datacount);
+            dlog("trk %d became idle at %.7lf, AGC %.2f, threshold %.3f, last peak at %.7lf, bitspaceavg %.2f usec, datacount %d\n", //
+                 trknum, timenow, t->agc_gain, move_threshold, t->t_lastpeak, t->t_bitspaceavg*1e6, t->datacount);
             if (++num_trks_idle >= IDLE_TRK_LIMIT) {
                end_of_block(); } } }
 
@@ -553,7 +562,7 @@ new_maxmin:
       sprintf(filename, "%s\\trace.csv", basefilename);
       assert (tracef = fopen(filename, "w"), "can't open trace file \"%s\"", filename);
       fprintf(tracef, "TRK%d time, deltaT, datacount, voltage, peak, manch, clkwind, data, clkedg, datedg, clkdet,"
-              "fakedata, AGC gain, move thresh, clkwind, bitspaceavg, peak deltaT\n", TRACETRK); }
+              "fakedata, AGC gain, move thresh, clkwind, bitspaceavg, peak deltaT, lastheight\n", TRACETRK); }
 
    // Put special tests here for turning the trace on, depending on what anomaly we're looking at...
    if(trkstate[TRACETRK].datacount==183-4 && !trace_done) trace_on = true;
@@ -562,7 +571,7 @@ new_maxmin:
    //if (trkstate[0].datacount == 275) trace_on = true;
    //if (trkstate[3].datacount > trkstate[0].datacount+1) trace_on = true;
    if (trace_on) {
-      if (trace_lines < 200) { // limit on how much trace data to collect
+      if (trace_lines < 100) { // limit on how much trace data to collect
          static double last_peak_time = 0;
          float peak_delta_time = 0;
          static double timestart = 0;
@@ -574,9 +583,9 @@ new_maxmin:
                  timenow, (timenow - timestart)*1e6, trkstate[TRACETRK].datacount, sample->voltage[TRACETRK]);
          fprintf(tracef, "%f, %f, %f, %f, %f, %f, %f, %f, ",
                  trace_peak, trace_manch, trace_clkwindow, trace_data, trace_clkedg, trace_datedg, trace_clkdet, trace_fakedata);
-         fprintf(tracef, "%.2f, %.5f, %.2f, %.2f, %.2f\n", //
+         fprintf(tracef, "%.2f, %.5f, %.2f, %.2f, %.2f, %.2f\n", //
                  trkstate[TRACETRK].agc_gain, trkstate[TRACETRK].last_move_threshold, trkstate[TRACETRK].t_clkwindow*1e6,
-                 trkstate[TRACETRK].t_bitspaceavg*1e6, peak_delta_time*1e6);
+                 trkstate[TRACETRK].t_bitspaceavg*1e6, peak_delta_time*1e6, trkstate[TRACETRK].v_lasttop - trkstate[TRACETRK].v_lastbot);
          ++trace_lines; }
       else {
          trace_on = false;
