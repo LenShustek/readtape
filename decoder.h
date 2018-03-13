@@ -3,10 +3,10 @@
 
 header file for readtape.c and decoder.c
 
+---> See readtape.c for the merged change log.
+
 ***********************************************************************
 Copyright (C) 2018, Len Shustek
-
-See readtape.c for the merged change log.
 ***********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
@@ -31,8 +31,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define DEBUG 0                  // debugging output?
 #define TRACEFILE false	         // creating trace file?
-#define TRACETRK 6		         // for which track
-#define DLOG_LINE_LIMIT 2000     // limit on debugging line output
+#define TRACETRK 8		         // for which track
+#define DLOG_LINE_LIMIT 1000     // limit on debugging line output
 
 #include <stdio.h>
 #include <errno.h>
@@ -56,15 +56,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Here are lots of of parameters that control the decoding algorithm.
 // Some of these are defaults, for which the currently used values are in the parms_t structure.
 
+#define NRZI_CLK_DEFAULT (50*800)   // 50 ips x 800 bpi = 40 Khz
+#define NRZI_MIDPOINT    0.5        // how far beyond a bit clock is the NRZI "midpoint"
+#define NRZI_IBG_SECS    0.0001     // minimum interblock gap
 #define PEAK_THRESHOLD	 0.005      // volts that define "same peak" (TYP: 0.02)
 #define BIT_SPACING		 12.5e-6		// in seconds, the default bit spacing (1600 BPI x 50 IPS)
 #define EPSILON_T		    1.0e-7		// in seconds, time fuzz factor for comparisons
 #define CLK_FACTOR		 1.4       	// how much of a half-bit period to wait for the clock transition.
-#define BIT_FACTOR       2.5     	// how much of the bit spacing to wait for before faking bits
+#define IDLE_FACTOR       2.5     	// how much of the bit spacing to wait for before considering the track idle
 #define CLKRATE_WINDOW   10         // maximum window for clock averaging
 #define IDLE_TRK_LIMIT	 9				// how many tracks must be idle to consider it an end-of-block
 #define FAKE_BITS        true    	// should we fake bits during a dropout?
-#define MULTIPLE_TRIES	 true 		// should we do multiple tries to decode a block?
 #define USE_ALL_PARMSETS false		// should we try to use all the parameter sets, to be able to rate them?
 #define AGC_AVG    	 	 false 		// do automatic gain control for weak signals based on exponential averaging?
 #define AGC_MIN          true       // do automatic gain control for weak signals based on min of last n peaks?
@@ -92,10 +94,21 @@ struct sample_t {			// what we get from the digitizer hardware:
    float voltage[NTRKS];	//   the voltage level from each track head
 };
 
+enum mode_t {
+   PE, NRZI, GCR
+};
+
 // the track state structure
 
 enum astate_t {
    AS_IDLE, AS_UP, AS_DOWN };
+   
+struct clkavg_t { // structure for keeping track of clock rate
+   // we either do window averaging or exponential averaging, depending on parms
+   float t_bitspacing[CLKRATE_WINDOW];  // last n bit time spacing
+   int bitndx;  // index into t_bitspacing of next spot to use
+   float t_bitspaceavg;  // current avg of bit time spacing
+};
 
 struct trkstate_t {	// track-by-track decoding state
    int trknum;				   // which track number 0..8, where 8=P
@@ -120,19 +133,30 @@ struct trkstate_t {	// track-by-track decoding state
    double t_firstbit;		// time of first data bit transition in the data block
    float t_clkwindow; 		// how late a clock transition can be, before we consider it data
    float t_pulse_adj;      // how much to adjust the pulse by, based on previous pulse's timing
-   float avg_bit_spacing;	// how far apart bits are, on average, in this block (computed at the end)
-   float t_bitspacing[CLKRATE_WINDOW]; // last n bit time spacing
-   int	bitndx;				// index into t_bitspacing of next spot to use
-   float t_bitspaceavg;	   // average of last n bit time spacing, or a constant
+   struct clkavg_t clkavg; // data for computing average clock
    int datacount;			   // how many data bits we've seen
    int peakcount;	         // how many peaks (flux reversals) we've seen
    byte lastdatabit;       // the last data bit we recorded
    byte manchdata;			// the reconstructed manchester encoding
    bool idle;              // are we idle, ie not seeing transitions?
    bool moving;			   // are we moving up or down through a transition?
-   bool clknext;           // do we expect a clock next?
+   bool clknext;           // do we expect a PE clock next?
    bool datablock;			// are we collecting data?
 };
+
+// For PE and GCR, which are self-clocking, the clock for each track is separately computed. 
+// That allows us to be insensitive to significant head skew.
+// For NRZI, which is not self-clocking, we compute one global clock and keep it synchronized
+// in frequency and phase to transitions on any track. That allows us to tolerate pretty wide
+// changes in tape speed. It means we can't tolerate much head skew, but that isn't generally 
+// an issue for 800 BPI and lower densities with fat bits. 
+struct nrzi_t { // NRZI decode state information
+   double t_lastclock;     // time of the last clock 
+   struct clkavg_t clkavg; // the current bit rate estimate 
+   bool datablock;         // are we in a data block?
+   int post_counter;       // counter for post-data bit times: CRC is at 4, LRC is at 8
+};
+
 
 struct parms_t {	// a set of parameters used for reading a block. We try again with different ones if we get errors.
    float clk_factor;		   // how much of a half-bit period to wait for a clock transition
@@ -140,6 +164,7 @@ struct parms_t {	// a set of parameters used for reading a block. We try again w
    float clk_alpha;			// weighting for current data in the clock rate exponential weighted average, 0 means use constant
    float pulse_adj_amt;    // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
    float move_threshold;	// how many volts of deviation means that we have a real signal
+   float zero_band;        // how many volts close to zero should be considered zero
    // ...add more dynamic parameters above here
    char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
    int tried;          	   // how many times this parmset was tried
@@ -158,9 +183,11 @@ struct blkstate_t {	// state of the block, when we're done
    struct results_t {      // the results from the various parameter sets
       enum bstate_t blktype;     // the ending state of the block
       int minbits, maxbits;      // the min/max bits of all the tracks
-      float avg_bit_spacing;     // what the average bit spacing was
+      float avg_bit_spacing;     // what the average bit spacing was, in secs
       int parity_errs;           // how many parity errors it has
       int faked_bits;            // how many faked bits it has
+      bool crc_ok, lrc_ok;       // NRZI: are crc/lrc ok?
+      int crc, lrc;              // NRZI; the crc anc lrc
       float alltrk_max_agc_gain; // the maximum AGC gain we needed
    }
    results [MAXPARMSETS]; // results for each parm set we tried

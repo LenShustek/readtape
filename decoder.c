@@ -32,11 +32,10 @@ The major routine here is process_sample(). It returns an indication
 of whether the current sample represents the end of a block, whose
 state is then in struct blkstate_t block.
 
+----> See readtape.c for the merged change log.
+
 ***********************************************************************
 Copyright (C) 2018, Len Shustek
-
-See readtape.c for the merged change log.
-
 ***********************************************************************
 The MIT License (MIT): Permission is hereby granted, free of charge,
 to any person obtaining a copy of this software and associated
@@ -60,22 +59,25 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "decoder.h"
 
-struct parms_t parmsets[MAXPARMSETS] = {  // sets of parameters to try until a block is read correctly
+struct parms_t parmsets[MAXPARMSETS] = {  // sets of parameters to try until a block is read correctly, or with mininal errors
    // float clk_factor;	      // how much of a half-bit period to wait for a clock transition
    // int avg_window;         // how many bit times to window average for clock rate; 0 means use exponential averaging
    // float clk_alpha;			// weighting for current data in the clock rate exponential weighted average; 0 means use constant
    // float pulse_adj_amt;    // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
    // float move_threshold;	// how many volts of deviation means that we have a real signal
-   //										(the AGC algorithm might reduce that dynamically as the signal degrades)
-   //clkfact  win   alpha  pulseadj  move
-   { 1.40,    0,    0.0,    0.2,    0.10,  "PRM" },
-   { 1.50,    0,    0.2,    0.4,    0.10,  "PRM" },
-   { 1.40,    3,    0.0,    0.0,    0.10,  "PRM" }, // works on block 55 
-   { 1.40,    3,    0.0,    0.2,    0.10,  "PRM" },
-   { 1.40,    5,    0.0,    0.2,    0.10,  "PRM" },
-   { 1.50,    5,    0.0,    0.2,    0.10,  "PRM" },
-   { 1.40,    5,    0.0,    0.4,    0.10,  "PRM" },
-   { 1.40,    3,    0.0,    0.2,    0.05,  "PRM" },
+   // float zero_band;        // how many volts close to zero should be considered zero
+   //										(the AGC algorithm might reduce the last two dynamically as the signal degrades)
+
+   //clkfact  win  alpha  pulseadj  move    zero
+
+   { 1.40,    0,    0.5,    0.2,    0.10,   0.50,  "PRM" }, // for testings
+   { 1.50,    0,    0.2,    0.4,    0.10,   0.01,  "PRM" },
+   { 1.40,    3,    0.0,    0.0,    0.10,   0.01,  "PRM" }, // works on block 55, but not with pulseadj=0.2
+   { 1.40,    3,    0.0,    0.2,    0.10,   0.01,  "PRM" },
+   { 1.40,    5,    0.0,    0.0,    0.10,   0.01,  "PRM" },
+   { 1.50,    5,    0.0,    0.2,    0.10,   0.01,  "PRM" },
+   { 1.40,    5,    0.0,    0.4,    0.10,   0.01,  "PRM" },
+   { 1.40,    3,    0.0,    0.2,    0.05,   0.01,  "PRM" },
    { 0 } };
 
 
@@ -114,6 +116,10 @@ float trace_clkdet;
 float trace_fakedata;
 #define trace_fakedata_no 5.75
 #define trace_fakedata_yes 6.00
+float trace_midbit;
+#define trace_midbit_low 6.25
+#define trace_midbit_high 6.00
+
 
 // Variables for time relative to the start must be double-precision.
 // Delta times for samples close to each other can be single-precision,
@@ -124,8 +130,15 @@ int num_trks_idle = NTRKS;
 int num_samples = 0;
 FILE *tracef;
 int errcode=0;
+double interblock_expiration = 0; // interblock gap expiration time
 
-extern bool terse, verbose;
+
+struct nrzi_t nrzi = { 0 };
+float nrzi_starting_bitrate = NRZI_CLK_DEFAULT;
+float bpi = 1600;
+
+extern enum mode_t mode;
+extern bool terse, verbose, multiple_tries;
 extern int dlog_lines;
 
 struct trkstate_t trkstate[NTRKS] = { // the current state of all tracks
@@ -142,7 +155,7 @@ void init_blockstate(void) {	// initialize block state information for multiple 
    static bool wrote_config = false;
    if (!wrote_config  && verbose) {
       rlog("settings: peak threshold %.3f volts, default bit spacing %.2f usec\n", PEAK_THRESHOLD, BIT_SPACING*1e6);
-      rlog("settings: Fake? %d, Multiple tries? %d, Use all parmsets? %d\n", FAKE_BITS, MULTIPLE_TRIES, USE_ALL_PARMSETS);
+      rlog("settings: Fake? %d, Multiple tries? %d, Use all parmsets? %d\n", FAKE_BITS, multiple_tries, USE_ALL_PARMSETS);
       wrote_config = true; }
    for (int i=0; i<MAXPARMSETS; ++i) {
       assert(parmsets[i].clk_factor == 0 || strcmp(parmsets[i].id, "PRM") == 0, "bad parm block initialization");
@@ -163,19 +176,22 @@ void init_trackstate(void) {  // initialize all track and block state informatio
       trk->astate = AS_IDLE;
       trk->trknum = trknum;
       trk->idle = true;
-      trk->t_bitspaceavg = BIT_SPACING;
+      trk->clkavg.t_bitspaceavg = mode == PE ? BIT_SPACING : 1 / nrzi_starting_bitrate;
       trk->agc_gain = 1.0;
       trk->last_move_threshold = parmsets[block.parmset].move_threshold;
       trk->max_agc_gain = 0;
       for (int i=0; i<CLKRATE_WINDOW; ++i) // initialize moving average bitspacing array
-         trk->t_bitspacing[i] = BIT_SPACING;
-      trk->t_clkwindow = trk->t_bitspaceavg/2 * parmsets[block.parmset].clk_factor; }
+         trk->clkavg.t_bitspacing[i] = BIT_SPACING;
+      trk->t_clkwindow = trk->clkavg.t_bitspaceavg/2 * parmsets[block.parmset].clk_factor; }
+   memset(&nrzi, 0, sizeof(nrzi));  // only need to initialize non-zeros below
+   nrzi.clkavg.t_bitspaceavg = 1 / nrzi_starting_bitrate;
 #if TRACEFILE
    trace_peak = trace_peak_not;
    trace_manch = trace_manch_low;
    trace_clkwindow = trace_clkwindow_low;
    trace_data = trace_data_low;
    trace_clkdet = trace_clkdet_low;
+   trace_midbit = trace_midbit_low;
 #endif
 }
 
@@ -186,7 +202,7 @@ void show_track_datacounts (char *msg) {
       dlog("   trk %d has %d data bits, %d peaks, %f avg bit spacing\n",
            trk, t->datacount, t->peakcount, (t->t_lastbit - t->t_firstbit) / t->datacount * 1e6); } }
 
-void end_of_block(void) { // All/most tracks have just become idle. See if we accumulated a data block, a tape mark, or junk
+void pe_end_of_block(void) { // All/most tracks have just become idle. See if we accumulated a data block, a tape mark, or junk
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
 
    // a tape mark is bizarre:
@@ -211,15 +227,14 @@ void end_of_block(void) { // All/most tracks have just become idle. See if we ac
    float avg_bit_spacing = 0;
    result->minbits=MAXBLOCK;
    result->maxbits=0;
-
-   //extern byte EBCDIC[];  //TEMP
+   //extern byte EBCDIC[];
    //for (int i=60; i<120; ++i)
    //    rlog("%3d: %02X, %c, %d\n", i, data[i]>>1, EBCDIC[data[i]>>1], data[i]&1);
 
    for (int trk=0; trk<NTRKS; ++trk) { // process postable bits on all tracks
       struct trkstate_t *t = &trkstate[trk];
-      avg_bit_spacing += (t->t_lastbit - t->t_firstbit) / t->datacount * 1e6;
-      //dlog("trk %d firstbit at %.7lf, lastbit at %.7lf, avg spacing %.2f\n", trk, t->t_firstbit, t->t_lastbit, t->avg_bit_spacing);
+      avg_bit_spacing += (t->t_lastbit - t->t_firstbit) / t->datacount;
+      //dlog("trk %d firstbit at %.7lf, lastbit at %.7lf, avg spacing %.2f\n", trk, t->t_firstbit, t->t_lastbit, avg_bit_spacing*1e6);
       int postamble_bits;
       if (t->datacount > 0) {
          for (postamble_bits=0; postamble_bits<=MAX_POSTAMBLE_BITS; ++postamble_bits) {
@@ -251,7 +266,24 @@ void end_of_block(void) { // All/most tracks have just become idle. See if we ac
       for (int i=0; i<result->minbits; ++i) // count parity errors
          if (parity(data[i]) != 1) ++result->parity_errs; } }
 
-void addbit (struct trkstate_t *t, byte bit, bool faked, double t_bit) { // we encountered a data bit transition
+void adjust_clock(struct clkavg_t *c, float delta) {
+   int avg_window = parmsets[block.parmset].avg_window;
+   float clk_alpha = parmsets[block.parmset].clk_alpha;
+   if (avg_window > 0) { // *** STRATEGY 1: do moving-window averaging
+      float olddelta = c->t_bitspacing[c->bitndx]; // save value going out of average
+      c->t_bitspacing[c->bitndx] = delta; // insert new value
+      if (++c->bitndx >= avg_window) c->bitndx = 0; // circularly increment the index
+      c->t_bitspaceavg += (delta - olddelta) / avg_window; // update moving average
+   }
+   else if (clk_alpha > 0) { // *** STRATEGY 2: do exponential weighted averaging
+      c->t_bitspaceavg = // exponential averaging of clock rate
+         clk_alpha * delta // weighting of new value
+         + (1 - clk_alpha) * c->t_bitspaceavg; // weighting of old values
+   }
+   else // *** STRATEGY 3: use a constant instead of averaging
+      c->t_bitspaceavg = mode == PE ? BIT_SPACING : nrzi.clkavg.t_bitspaceavg; }
+
+void pe_addbit (struct trkstate_t *t, byte bit, bool faked, double t_bit) { // we encountered a data bit transition
    if(bit) TRACE(data,high) else TRACE(data,low);
    if (faked) TRACE(fakedata,yes);
    TRACE(datedg,high); 	// data edge
@@ -261,22 +293,8 @@ void addbit (struct trkstate_t *t, byte bit, bool faked, double t_bit) { // we e
       t->lastdatabit = bit;
       if (!t->idle && !faked) { // adjust average clock rate based on inter-bit timing
          float delta = t_bit - t->t_lastbit;
-         int avg_window = parmsets[block.parmset].avg_window;
-         float clk_alpha = parmsets[block.parmset].clk_alpha;
-         if (avg_window > 0) { // *** STRATEGY 1: do moving-window averaging
-            float olddelta = t->t_bitspacing[t->bitndx]; // save value going out of average
-            t->t_bitspacing[t->bitndx] = delta; // insert new value
-            if (++t->bitndx >= avg_window) t->bitndx = 0; // circularly increment the index
-            t->t_bitspaceavg += (delta - olddelta) / avg_window; // update moving average
-         }
-         else if (clk_alpha > 0) { // *** STRATEGY 2: do exponential weighted averaging
-            t->t_bitspaceavg = // exponential averaging of clock rate
-               clk_alpha * delta // weighting of new value
-               + (1 - clk_alpha) * t->t_bitspaceavg; // weighting of old values
-         }
-         else // *** STRATEGY 3: use a constant instead of averaging
-            t->t_bitspaceavg = BIT_SPACING;
-         t->t_clkwindow = t->t_bitspaceavg / 2 * parmsets[block.parmset].clk_factor; }
+         adjust_clock(&t->clkavg, delta);
+         t->t_clkwindow = t->clkavg.t_bitspaceavg / 2 * parmsets[block.parmset].clk_factor; }
       t->t_lastbit = t_bit;
       if (t->datacount == 0) t->t_firstbit = t_bit; // record time of first bit in the datablock
       uint16_t mask = 0x100 >> t->trknum;  // update this track's bit in the data array
@@ -324,20 +342,18 @@ void adjust_agc(struct trkstate_t *t) {
             if (gain > t->max_agc_gain) t->max_agc_gain = gain; } } }
    t->last_move_threshold = move_threshold; }
 
-void hit_top (struct trkstate_t *t) {  // local maximum: end of a positive flux transition
+void pe_top (struct trkstate_t *t) {  // local maximum: end of a positive flux transition
    t->manchdata = 1;
-   TRACE(peak,top);
-   ++t->peakcount;
    if (t->datablock) { // inside a data block or the postamble
       bool missed_transition = (t->t_top + t->t_pulse_adj) - t->t_lastpeak > t->t_clkwindow; // missed a half-bit transition?
       if (!t->clknext // if we're expecting a data transition
             || missed_transition) { // or we missed a clock transition
-         addbit (t, 1, false, t->t_top);  // then we have new data '1'
+         pe_addbit (t, 1, false, t->t_top);  // then we have new data '1'
          t->clknext = true; }
       else { // this was a clock transition
          TRACE(clkedg,high);
          t->clknext = false; }
-      t->t_pulse_adj = ((t->t_top - t->t_lastpeak) - t->t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt;
+      t->t_pulse_adj = ((t->t_top - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt;
       adjust_agc(t); }
    else { // inside the preamble
       if (t->peakcount > MIN_PREAMBLE	// if we've seen at least 35 zeroes
@@ -353,32 +369,142 @@ void hit_top (struct trkstate_t *t) {  // local maximum: end of a positive flux 
             t->v_avg_height += t->v_top - t->v_bot;
             ++t->v_avg_count;
             t->v_heights[t->heightndx] = t->v_top - t->v_bot;
-            if (++t->heightndx >= AGC_WINDOW) t->heightndx = 0; } } }
-   t->v_lasttop = t->v_top;
-   t->v_lastpeak = t->v_top;
-   t->t_lastpeak = t->t_top; }
+            if (++t->heightndx >= AGC_WINDOW) t->heightndx = 0; } } } }
 
-void hit_bot (struct trkstate_t *t) { // local minimum: end of a negative flux transition
+void pe_bot (struct trkstate_t *t) { // local minimum: end of a negative flux transition
    t->manchdata = 0;
-   TRACE(peak,bot);
-   ++t->peakcount;
    if (t->datablock) { // inside a data block or the postamble
       bool missed_transition = (t->t_bot + t->t_pulse_adj) - t->t_lastpeak > t->t_clkwindow; // missed a half-bit transition?
       if (!t->clknext // if we're expecting a data transition
             || missed_transition) { // or we missed a clock transition
-         addbit (t, 0, false, t->t_bot);  // then we have new data '0'
+         pe_addbit (t, 0, false, t->t_bot);  // then we have new data '0'
          t->clknext = true; }
       else { // this was a clock transition
          TRACE(clkedg,high);
          t->clknext = false; }
-      t->t_pulse_adj = ((t->t_bot - t->t_lastpeak) - t->t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt;
+      t->t_pulse_adj = ((t->t_bot - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * parmsets[block.parmset].pulse_adj_amt;
       adjust_agc(t); }
    else { // inside the preamble
       t->clknext = true; // force this to be treated as a data transition; clock is next
+   } }
+
+void nrzi_end_of_block(void) {
+   struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
+   float avg_bit_spacing = 0;
+   nrzi.datablock = false;
+   result->minbits = MAXBLOCK;
+   result->maxbits = 0;
+   for (int trk = 0; trk < NTRKS; ++trk) { //
+      struct trkstate_t *t = &trkstate[trk];
+      avg_bit_spacing += (t->t_lastbit - t->t_firstbit) / t->datacount;
+      if (t->datacount > result->maxbits) result->maxbits = t->datacount;
+      if (t->datacount < result->minbits) result->minbits = t->datacount;
+      if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain; }
+   result->avg_bit_spacing = avg_bit_spacing / NTRKS;
+   dlog("end_of_block, min %d max %d, avgbitspacing %f, at %.7lf\n", result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow);
+   if (result->maxbits == 0) {  // leave result-blktype == BS_NONE
+      dlog("   ignoring noise block\n"); }
+   else {
+      if (result->minbits != result->maxbits) {  // different number of bits in different tracks
+         show_track_datacounts("*** malformed block");
+         result->blktype = BS_MALFORMED; }
+      else { // well-formed block
+         if (result->minbits == 3  // if it's a 3-byte block
+               && data[0] == 0x26 && data[1] == 0 && data[2] == 0x26) // with trks 3/6/7, then nothing, then 3/6/7
+            result->blktype = BS_TAPEMARK; // then it's the bizarre tapemark
+         else result->blktype = BS_BLOCK; }
+      result->parity_errs = 0;
+      int crc = 0;
+      int lrc = 0;
+      if (result->blktype != BS_TAPEMARK && result->minbits > 2) {
+         for (int i = 0; i < result->minbits - 2; ++i) {  // count parity errors, and check the CRC/LRC at the end
+            if (parity(data[i]) != 1) ++result->parity_errs;
+            lrc ^= data[i];
+            crc ^= data[i]; // C0..C7,P  (See IBM Form A22-6862-4)
+            if (crc & 2) crc ^= 0xf0; // if P will become 1 after rotate, invert what will go into C2..C5
+            int lsb = crc & 1; // rotate all 9 bits
+            crc >>= 1;
+            if (lsb) crc |= 0x100; }
+         crc ^= 0x1af; // invert all except C2 and C4
+         lrc ^= crc;  // LRC inlcudes the CRC (the manual doesn't say that!)
+         result->crc = data[result->minbits - 2];
+         result->lrc = data[result->minbits - 1];
+         result->crc_ok = (crc == result->crc);
+         result->lrc_ok = (lrc == result->lrc);
+         dlog("crc is %03X, should be %03X\n", result->crc, crc);
+         dlog("lrc is %03X, should be %03X\n", result->lrc, lrc);
+         result->minbits -= 2;  // don't include CRC and LRC in the data
+         result->maxbits -= 2; }
+      interblock_expiration = timenow + NRZI_IBG_SECS;  // ignore data for a while until we're well into the IBG
+   } }
+
+void nrzi_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a NRZI bit
+   if (bit) TRACE(data, high) else TRACE(data, low);
+   t->t_lastbit = t_bit;
+   if (t->datacount == 0) {
+      t->t_firstbit = t_bit; // record time of first bit in the datablock
+      t->v_avg_height = 2 * (t->v_bot + t->v_top); // avg peak-to-peak is twice the first top or bottom
+      t->max_agc_gain = t->agc_gain;
    }
-   t->v_lastbot = t->v_bot;
-   t->v_lastpeak = t->v_bot;
-   t->t_lastpeak = t->t_bot; }
+   if (!nrzi.datablock) {
+      nrzi.t_lastclock = t_bit - nrzi.clkavg.t_bitspaceavg;
+      nrzi.datablock = true; }
+   if (nrzi.post_counter == 0 // if we're still inside the data block
+         || nrzi.post_counter == 3 || nrzi.post_counter == 7) { // or are at the CRC or LRC time
+      // add a bit to the data block
+      dlog("trk %d at %.7lf, lastpeak %.7lf, add %d to %d bytes at %.7lf, bitspacing %f\n", t->trknum, timenow, t->t_lastpeak, bit, t->datacount, t_bit, nrzi.clkavg.t_bitspaceavg*1e6);
+      uint16_t mask = 0x100 >> t->trknum;  // update this track's bit in the data array
+      data[t->datacount] = bit ? data[t->datacount] | mask : data[t->datacount] & ~mask;
+      data_time[t->datacount] = t_bit;
+      if (t->datacount < MAXBLOCK) ++t->datacount; } }
+
+void nrzi_deletebits(void) {
+   for (int trknum = 0; trknum < NTRKS; ++trknum) {
+      struct trkstate_t *t = &trkstate[trknum];
+      assert(t->datacount > 0, "bad NRZI data count");
+      --t->datacount; } }
+
+void nrzi_bot(struct trkstate_t *t) { // local minimum: end of a negative flux transition
+   dlog("trk %d bot at %.7f\n", t->trknum, t->t_bot);
+   nrzi_addbit(t, 1, t->t_bot);  // add a data 1
+   adjust_agc(t); }
+
+void nrzi_top(struct trkstate_t *t) {  // local maximum: end of a positive flux transition
+   dlog("trk %d top at %.7f\n", t->trknum, t->t_top);
+   nrzi_addbit(t, 1, t->t_top); // add a data 1
+   adjust_agc(t); }
+
+void nrzi_midbit(void) { // we're in between NRZI bit times
+   int numbits = 0;
+   float avgpos = 0;
+   trace_midbit = trace_midbit_high;
+   for (int trknum = 0; trknum < NTRKS; ++trknum) {
+      struct trkstate_t *t = &trkstate[trknum];
+      if (timenow - t->t_lastpeak > nrzi.clkavg.t_bitspaceavg) {  // this track had no transition at the last clock
+         nrzi_addbit(t, 0, timenow - nrzi.clkavg.t_bitspaceavg * NRZI_MIDPOINT); // so add a zero bit at approximately the last clock time
+      }
+      else { // there was a transition on this track: accumulate the average position of the clock time
+         avgpos += t->t_lastpeak;
+         ++numbits; } } // for
+   if (numbits > 0) { // at least one track had a flux transition at the last clock
+      avgpos /= numbits;
+      adjust_clock(&nrzi.clkavg, avgpos - nrzi.t_lastclock);  // adjust the clock rate based on the average position
+      nrzi.t_lastclock = avgpos;  // and use it as the last clock position
+      if (nrzi.post_counter)
+         if (++nrzi.post_counter == 8)
+            nrzi_end_of_block(); }
+   else { // there were no transitions, so we must be at the end of the block
+      nrzi.t_lastclock += nrzi.clkavg.t_bitspaceavg; // compute the last clock position
+      if (nrzi.post_counter++ == 0) nrzi_deletebits(); // delete the all-zero bits we just added
+   }
+   dlog("midbit at %.7lf, %d transitions, lastclock %.7lf, trk0 %d bytes, post_ctr %d\n", //
+        timenow, numbits, nrzi.t_lastclock, trkstate[0].datacount, nrzi.post_counter); //
+}
+
+void end_of_block(void) {
+   if (mode == PE) pe_end_of_block();
+   else if (mode == NRZI) nrzi_end_of_block();
+   else fatal("GCR end of block not implemented"); }
 
 int choose_number_of_faked_bits(struct trkstate_t *t) {
    // We try various algorithms for choosing how many bits to add when there is a dropout in a track.
@@ -390,7 +516,7 @@ int choose_number_of_faked_bits(struct trkstate_t *t) {
    switch(strategy) { // which of the following ideas to try
    case 1: // The number of bits is based on the time between now and the last bit, and the avg bit spacing.
       // It won't work if the clock is drifting
-      numbits = (timenow - t->t_lastbit /* + t->t_bitspaceavg/2*/) / t->t_bitspaceavg;
+      numbits = (timenow - t->t_lastbit /* + t->t_bitspaceavg/2*/) / t->clkavg.t_bitspaceavg;
       break;
    case 2: //  Add enough bits to give this track the same number as the minimum of
       //  any track which is still getting data.
@@ -421,8 +547,11 @@ int choose_number_of_faked_bits(struct trkstate_t *t) {
    assert(numbits>0, "choose_bad_bits bad count");
    return numbits; }
 
-
-enum bstate_t process_sample(struct sample_t *sample) {  // process one voltage sample for each track
+//
+// Process one voltage sample with data for all tracks
+// Return with the status of the block we're working on.
+//
+enum bstate_t process_sample(struct sample_t *sample) {
    float deltaT, move_threshold;
 
    if (sample == NULLP) { // special code for endfile
@@ -432,9 +561,20 @@ enum bstate_t process_sample(struct sample_t *sample) {  // process one voltage 
    deltaT = sample->time - timenow;  //(incorrect for the first sample)
    timenow = sample->time;
 
+   if (interblock_expiration && timenow < interblock_expiration) // if we're waiting for an IBG to really start
+      goto exit;
+
+   if (nrzi.datablock && timenow > nrzi.t_lastclock + (1+NRZI_MIDPOINT)*nrzi.clkavg.t_bitspaceavg ) {
+      nrzi_midbit();  // do NRZI mid-bit computations
+   }
+
    for (int trknum = 0; trknum < NTRKS; ++trknum) {
       struct trkstate_t *t = &trkstate[trknum];
       t->v_now = sample->voltage[trknum];
+
+      // force voltage near zero to be zero
+      float zero_band = parmsets[block.parmset].zero_band / t->agc_gain;
+      if (t->v_now < zero_band && t->v_now > -zero_band) t->v_now = 0;
 
       //dlog("trk %d state %d voltage %f at %.7lf\n", trknum, t->astate, t->v_now, timenow);
       TRACE(peak,not);
@@ -455,24 +595,23 @@ enum bstate_t process_sample(struct sample_t *sample) {  // process one voltage 
          if (t->v_now > t->v_lastpeak + move_threshold) t->astate = AS_UP;
          if (t->v_now < t->v_lastpeak - move_threshold) t->astate = AS_DOWN;
          if (t->astate != AS_IDLE) {
-            dlog ("trk %d not idle, going %s at %.7f, AGC %.2f, thresh %.3f, v_now %f, v_lastpeak %f, bitspaceavg %.2f\n", //
-                  trknum, t->astate==AS_UP ? "up":"down", timenow, t->agc_gain, move_threshold, t->v_now, t->v_lastpeak, t->t_bitspaceavg*1e6);
-            t->t_lastpeak = timenow;
+            dlog ("trk %d not idle, %d idle, going %s at %.7f, AGC %.2f, thresh %.3f, v_now %f, v_lastpeak %f, bitspaceavg %.2f\n", //
+                  trknum, num_trks_idle-1, t->astate==AS_UP ? "up":"down", timenow, t->agc_gain, move_threshold, t->v_now, t->v_lastpeak, t->clkavg.t_bitspaceavg*1e6);
+            if (mode == PE) t->t_lastpeak = timenow;  // TEMP problem: it isn't really a peak!
             --num_trks_idle;
             t->moving = true;
             t->idle = false;
             TRACE(clkdet,high);
-            // if we're in a datablock, add extra data bits the same as the last bit to cover the gap
-            if (FAKE_BITS && t->datablock && t->datacount>1) {
-               //  Transitions have returned within a data block after a gap.
+            if (FAKE_BITS && mode != NRZI && t->datablock && t->datacount>1) {
+               //  For PE and GCR, if transitions have returned within a data block after a gap.
                //  Add extra data bits that are same as the last bit before the gap started,in an
                //  attempt to keep this track in sync with the others. .
                int numbits = choose_number_of_faked_bits(t);
                if (numbits > 0) {
                   dlog("trk %d adding %d fake bits to %d bits at %.7lf, lastbit at %.7lf, bitspaceavg=%.2f\n", //
-                       trknum, numbits, t->datacount, timenow, t->t_lastbit, t->t_bitspaceavg*1e6);
+                       trknum, numbits, t->datacount, timenow, t->t_lastbit, t->clkavg.t_bitspaceavg*1e6);
                   if (DEBUG) show_track_datacounts("*** before adding bits");
-                  while (numbits--) addbit(t, t->lastdatabit, true, timenow);
+                  while (numbits--) pe_addbit(t, t->lastdatabit, true, timenow);
                   t->t_lastbit = 0; // don't let the bitspacing averaging algorithm work on these bits
                   if (t->lastdatabit==0 && t->astate==AS_DOWN || t->lastdatabit==1 && t->astate==AS_UP) {
                      // the first new peak will be a data bit, when it comes
@@ -483,13 +622,13 @@ enum bstate_t process_sample(struct sample_t *sample) {  // process one voltage 
             goto new_maxmin; } } // AS_IDLE
 
       else { // going up or down: check for having waited too long for a peak
-         if (t->t_lastpeak != 0 && timenow - t->t_lastpeak > /*BIT_SPACING*2*/ t->t_bitspaceavg * BIT_FACTOR ) {
+         if (mode == PE && t->t_lastpeak != 0 && timenow - t->t_lastpeak >  t->clkavg.t_bitspaceavg * IDLE_FACTOR ) {
             t->astate = AS_IDLE;
             t->v_lastpeak = t->v_now;
             t->idle = true;
             TRACE(clkdet,low);
-            dlog("trk %d became idle at %.7lf, AGC %.2f, threshold %.3f, last peak at %.7lf, bitspaceavg %.2f usec, datacount %d\n", //
-                 trknum, timenow, t->agc_gain, move_threshold, t->t_lastpeak, t->t_bitspaceavg*1e6, t->datacount);
+            dlog("trk %d became idle at %.7lf, %d idle, AGC %.2f, threshold %.3f, last peak at %.7lf, bitspaceavg %.2f usec, datacount %d\n", //
+                 trknum, timenow, num_trks_idle+1, t->agc_gain, move_threshold, t->t_lastpeak, t->clkavg.t_bitspaceavg*1e6, t->datacount);
             if (++num_trks_idle >= IDLE_TRK_LIMIT) {
                end_of_block(); } } }
 
@@ -521,7 +660,14 @@ new_maxmin:
                   else t->t_top = timenow - deltaT/2;
                   //if (t->trknum==0 && t->datacount>1408 && t->datacount<1413) dlog("trk %d interpolated top going down at byte %d to time %.7f\n", t->trknum, t->datacount, t->t_top);
                } // else moving down by a lot: keep previous top time
-               hit_top(t);  // record a peak
+               TRACE(peak, top); // record a peak
+               ++t->peakcount;
+               if (mode == PE) pe_top(t);
+               else if (mode == NRZI) nrzi_top(t);
+               else fatal("GCR not supported yet");
+               t->v_lasttop = t->v_top;
+               t->v_lastpeak = t->v_top;
+               t->t_lastpeak = t->t_top;
                t->astate = AS_DOWN; // start moving down
                t->moving = false; // but haven't started a big move yet
                t->v_bot = t->v_now; // start tracking the bottom on the way down
@@ -547,7 +693,14 @@ new_maxmin:
                   else t->t_bot = timenow - deltaT/2;
                   //if (t->trknum==0 && t->datacount>1408 && t->datacount<1413) dlog("trk %d interpolated bot going up   at byte %d to time %.7f\n", t->trknum, t->datacount, t->t_bot);
                } // else moving up by a lot: keep previous bottom time
-               hit_bot(t);  // record a peak
+               TRACE(peak, bot); // record a peak
+               ++t->peakcount;
+               if (mode == PE) pe_bot(t);
+               else if (mode == NRZI) nrzi_bot(t);
+               else fatal("GCR not supported yet");
+               t->v_lastbot = t->v_bot;
+               t->v_lastpeak = t->v_bot;
+               t->t_lastpeak = t->t_bot;
                t->astate = AS_UP; // start moving up
                t->moving = false; // but haven't started a big move yet
                t->v_top = t->v_now; // start tracking the top on the way up
@@ -556,22 +709,23 @@ new_maxmin:
    } // for tracks
 
 #if TRACEFILE
-   extern char *basefilename;
+   extern char basefilename[];
    if (!tracef) {
       char filename[MAXPATH];
       sprintf(filename, "%s\\trace.csv", basefilename);
-      assert (tracef = fopen(filename, "w"), "can't open trace file \"%s\"", filename);
+      assert(tracef = fopen(filename, "w"), "can't open trace file \"%s\"", filename);
       fprintf(tracef, "TRK%d time, deltaT, datacount, voltage, peak, manch, clkwind, data, clkedg, datedg, clkdet,"
-              "fakedata, AGC gain, move thresh, clkwind, bitspaceavg, peak deltaT, lastheight\n", TRACETRK); }
+              "fakedata, midbit, AGC gain, move thresh, clkwind, bitspaceavg, peak deltaT, lastheight\n", TRACETRK); }
 
    // Put special tests here for turning the trace on, depending on what anomaly we're looking at...
-   if(trkstate[TRACETRK].datacount==183-4 && !trace_done) trace_on = true;
+   //if(trkstate[TRACETRK].datacount==112-2 && !trace_done) trace_on = true;
+   if (timenow > 0.9654 && !trace_done) trace_on = true;
    //if (trkstate[0].datablock) trace_on = true;
    //if (num_samples == 8500) trace_on = true;
    //if (trkstate[0].datacount == 275) trace_on = true;
    //if (trkstate[3].datacount > trkstate[0].datacount+1) trace_on = true;
    if (trace_on) {
-      if (trace_lines < 100) { // limit on how much trace data to collect
+      if (trace_lines < 500) { // limit on how much trace data to collect
          static double last_peak_time = 0;
          float peak_delta_time = 0;
          static double timestart = 0;
@@ -581,17 +735,19 @@ new_maxmin:
             last_peak_time = timenow; }
          fprintf(tracef, "%.8lf, %.2lf, %d, %f, ",
                  timenow, (timenow - timestart)*1e6, trkstate[TRACETRK].datacount, sample->voltage[TRACETRK]);
-         fprintf(tracef, "%f, %f, %f, %f, %f, %f, %f, %f, ",
-                 trace_peak, trace_manch, trace_clkwindow, trace_data, trace_clkedg, trace_datedg, trace_clkdet, trace_fakedata);
+         fprintf(tracef, "%f, %f, %f, %f, %f, %f, %f, %f, %f, ",
+                 trace_peak, trace_manch, trace_clkwindow, trace_data, trace_clkedg, trace_datedg, trace_clkdet, trace_fakedata, trace_midbit);
          fprintf(tracef, "%.2f, %.5f, %.2f, %.2f, %.2f, %.2f\n", //
                  trkstate[TRACETRK].agc_gain, trkstate[TRACETRK].last_move_threshold, trkstate[TRACETRK].t_clkwindow*1e6,
-                 trkstate[TRACETRK].t_bitspaceavg*1e6, peak_delta_time*1e6, trkstate[TRACETRK].v_lasttop - trkstate[TRACETRK].v_lastbot);
+                 trkstate[TRACETRK].clkavg.t_bitspaceavg*1e6, peak_delta_time*1e6, trkstate[TRACETRK].v_lasttop - trkstate[TRACETRK].v_lastbot);
+         trace_midbit = trace_midbit_low;
          ++trace_lines; }
       else {
          trace_on = false;
          trace_done = true; } }
 #endif
 
+exit:
    ++num_samples;
    return block.results[block.parmset].blktype;  // what block type we found, if any
 }

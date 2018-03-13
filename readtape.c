@@ -74,6 +74,10 @@ Copyright (C) 2018, Len Shustek
   This helps because 2f dropouts are often preceeded by good f peaks.
 - Add a filelist input to make regression testing easier.
 
+*** 12 Mar 2018, L. Shustek
+- Add NRZI decoding for 9-track 800 BPI tapes
+- Add zero-band noise surpression, parametrized
+
 **********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
@@ -150,6 +154,8 @@ bool terse=false;
 bool verbose=DEBUG;
 bool quiet = false;
 bool filelist = false;
+bool multiple_tries = false;
+enum mode_t mode = PE;
 int starting_parmset=0;
 time_t start_time;
 
@@ -159,6 +165,8 @@ extern struct blkstate_t block;
 extern uint16_t data[];
 extern uint16_t data_faked[];
 extern double data_time[];
+extern struct nrzi_t nrzi;
+extern float nrzi_starting_bitrate, bpi;
 
 byte EBCDIC [256] = {	/* EBCDIC to ASCII */
    /* 0 */	 ' ',  '?',  '?',  '?',  '?',  '?',  '?',  '?',
@@ -243,45 +251,63 @@ int dlog_lines = 0;
 void SayUsage (char *programName) {
    static char *usage[] = {
       "Use: readtape <options> <basefilename>",
-      "   input file will be <basefilename>.csv",
+      "   input file is <basefilename>.csv",
       "   output files will be in the created directory <basefilename>\\",
       "   log file will also be there, as <basefilename>.log",
       "Options:",
-      "  -l   create log file",
-      "  -t   terse mode",
-      "  -v   verbose mode",
-      "  -q   quiet mode ",
-      "  -f   filelist from <basefilename>.txt",
+      " -pe    do PE decoding (the default)",
+      " -nrzi  do NRZI decoding",
+      " -gcr   do GCR decoding",
+      " -br=n  for NRZI, the expected bit rate in hertz",
+      "  -m    try multiple ways to decode a block",
+      "  -l    create a log file",
+      "  -t    terse mode",
+      "  -v    verbose mode",
+      "  -q    quiet mode ",
+      "  -f    take file list from <basefilename>.txt",
       NULL };
-
    int i = 0;
    while (usage[i] != NULL) fprintf (stderr, "%s\n", usage[i++]); }
+
 int HandleOptions (int argc, char *argv[]) {
    /* returns the index of the first argument that is not an option; i.e.
    does not start with a dash or a slash */
    int i, firstnonoption = 0;
    for (i = 1; i < argc; i++) {
       if (argv[i][0] == '/' || argv[i][0] == '-') {
-         switch (toupper (argv[i][1])) {
-         case 'H':
-         case '?': SayUsage (argv[0]); exit (1);
-         case 'L': logging = true;  break;
-         case 'T': terse = true; verbose = false;  break;
-         case 'V': verbose = true; terse = false;  break;
-         case 'Q': quiet = terse = true;  break;
-         case 'F': filelist = true;  break;
+         if (strcmp(argv[i] + 1, "nrzi") == 0) mode = NRZI;
+         else if (strcmp(argv[i] + 1, "gcr") == 0) mode = GCR;
+         else if (strcmp(argv[i] + 1, "pe") == 0) mode = PE;
+         else if (strncmp(argv[i] + 1, "br=", 3) == 0) {
+            int nch, num;
+            if (sscanf(argv[i] + 4, "%d%n",&num, &nch) != 1
+                  || num < 1000 || num > 100000)
+               goto opterror;
+            if (argv[i][4 + nch] != '\0') goto opterror;
+            nrzi_starting_bitrate = num;
+            rlog("NRZI bit rate is %f Hz\n", nrzi_starting_bitrate); }
+         else
+            switch (toupper (argv[i][1])) {
+            case 'H':
+            case '?': SayUsage (argv[0]); exit (1);
+            case 'M': multiple_tries = true;  break;
+            case 'L': logging = true;  break;
+            case 'T': terse = true; verbose = false;  break;
+            case 'V': verbose = true; terse = false;  break;
+            case 'Q': quiet = terse = true;  break;
+            case 'F': filelist = true;  break;
             /* add more  option switches here */
+            default:
 opterror:
-         default:
-            fprintf (stderr, "\n*** unknown option: %s\n\n", argv[i]);
-            SayUsage (argv[0]);
-            exit (4); } }
+               fprintf (stderr, "\n*** unknown option: %s\n\n", argv[i]);
+               SayUsage (argv[0]);
+               exit (4); } }
       else { // end of switches
          firstnonoption = i;
          break; } }
    return firstnonoption; }
 
-bool compare4(uint16_t *d, char *c) { // string compare ASCII to EBCDIC
+bool compare4(uint16_t *d, const char *c) { // string compare ASCII to EBCDIC
    for (int i=0; i<4; ++i)
       if (EBCDIC[d[i]>>1] != c[i]) return false;
    return true; }
@@ -400,10 +426,22 @@ void got_datablock(bool malformed) { // decoded a tape block
       ++numblks;
       if(DEBUG && (result->parity_errs != 0 || result->faked_bits != 0))
          show_block_errs(result->maxbits);
-      if (result->parity_errs != 0) ++numbadparityblks;
-      if (!quiet) rlog("wrote block %d, %d bytes, %d tries, parmset %d, max AGC %.2f, %d parity errs, %d faked bits on %d trks, at time %.7lf\n", //
-                          numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->parity_errs, //
-                          count_faked_bits(data_faked,length), count_faked_tracks(data_faked,length), timenow);
+      if (DEBUG && mode == NRZI) {
+         if (!result->crc_ok) dlog("bad CRC: %03x\n", result->crc);
+         if (!result->lrc_ok) dlog("bad LRC: %03x\n", result->lrc); }
+      if (result->parity_errs != 0 
+         || (mode==NRZI && (!result->crc_ok || !result->lrc_ok))) ++numbadparityblks;
+      if (!quiet) {
+         if (mode == PE)
+            rlog("wrote block %3d, %d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, %d faked bits on %d trks, at time %.7lf\n", //
+                 numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->parity_errs, //
+                 count_faked_bits(data_faked, length), count_faked_tracks(data_faked, length), timenow);
+         if (mode == NRZI)
+            rlog("wrote block %3d, %d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, CRC %s, LRC %s, avg speed %.2f IPS, at time %.7lf\n", //
+                 numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->parity_errs, //
+                 result->crc_ok ? "ok ":"bad", result->lrc_ok ? "ok ":"bad", 1/(result->avg_bit_spacing * bpi), timenow);
+
+      }
       if (!quiet && malformed) {
          rlog("   malformed, with lengths %d to %d\n", result->minbits, result->maxbits);
          ++nummalformedblks; } }
@@ -555,7 +593,7 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
          if (result->blktype == BS_BLOCK && result->parity_errs == 0 && result->faked_bits == 0) { // if we got a perfect block, we're done
             if (block.tries>1) ++numgoodmultipleblks;  // bragging rights; perfect blocks due to multiple parameter sets
             goto done; }
-         if (MULTIPLE_TRIES && result->minbits != 0) { // if there are no dead tracks (which probably means we saw noise)
+         if (multiple_tries && result->minbits != 0) { // if there are no dead tracks (which probably means we saw noise)
             int next_parmset = block.parmset; // then find another parameter set we haven't used yet
             do {
                if (++next_parmset >= MAXPARMSETS) next_parmset = 0; }
@@ -674,6 +712,10 @@ void main(int argc, char *argv[]) {
       exit(4); }
    cmdfilename = argv[argno];
    start_time = time(NULL);
+   assert(mode != GCR, "GCR is not implemented yet");
+   if (mode == PE) bpi = 1600;
+   if (mode == NRZI) bpi = 800;
+   if (mode == GCR) bpi = 9042; // the real bit rate for "6250 BPI" tapes
 
    if (filelist) {  // process a list of files
       char filename[MAXPATH], logfilename[MAXPATH];
