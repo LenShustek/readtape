@@ -31,7 +31,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define DEBUG 0                  // generate debugging output?
 #define TRACEFILE true           // if DEBUG, are we also creating trace file?
-#define TRACETRK 4		         // for which track
+#define TRACETRK 4               // for which track
 #define MULTITRACK false         // or, are we plotting multi-track analog waveforms?
 #define DLOG_LINE_LIMIT 10000    // limit for debugging output
 
@@ -59,26 +59,26 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define NRZI_CLK_DEFAULT (50*800)   // 50 ips x 800 bpi = 40 Khz
 #define NRZI_MIDPOINT    0.6        // how far beyond a bit clock is the NRZI "midpoint"
 #define NRZI_IBG_SECS    0.0001     // minimum interblock gap
-#define PEAK_THRESHOLD	 0.005      // volts that define "same peak" (TYP: 0.02)
-#define BIT_SPACING		 12.5e-6		// in seconds, the default bit spacing (1600 BPI x 50 IPS)
-#define EPSILON_T		    1.0e-7		// in seconds, time fuzz factor for comparisons
-#define CLK_FACTOR		 1.4       	// how much of a half-bit period to wait for the clock transition.
-#define IDLE_FACTOR       2.5     	// how much of the bit spacing to wait for before considering the track idle
+#define PEAK_THRESHOLD   0.005      // volts that define "same peak" (TYP: 0.02)
+#define BIT_SPACING      12.5e-6    // in seconds, the default bit spacing (1600 BPI x 50 IPS)
+#define EPSILON_T        1.0e-7     // in seconds, time fuzz factor for comparisons
+#define CLK_FACTOR       1.4        // how much of a half-bit period to wait for the clock transition.
+#define IDLE_FACTOR       2.5       // how much of the bit spacing to wait for before considering the track idle
 #define CLKRATE_WINDOW   10         // maximum window for clock averaging
-#define IDLE_TRK_LIMIT	 9				// how many tracks must be idle to consider it an end-of-block
-#define FAKE_BITS        true    	// should we fake bits during a dropout?
-#define USE_ALL_PARMSETS false		// should we try to use all the parameter sets, to be able to rate them?
-#define AGC_AVG    	 	 false 		// do automatic gain control for weak signals based on exponential averaging?
+#define IDLE_TRK_LIMIT   9          // how many tracks must be idle to consider it an end-of-block
+#define FAKE_BITS        true       // should we fake bits during a dropout?
+#define USE_ALL_PARMSETS false      // should we try to use all the parameter sets, to be able to rate them?
+#define AGC_AVG          false      // do automatic gain control for weak signals based on exponential averaging?
 #define AGC_MIN          true       // do automatic gain control for weak signals based on min of last n peaks?
-#define AGC_MAX			 15			// max agc boost (making it higher causes block 6 to fail!)
+#define AGC_MAX          15         // max agc boost (making it higher causes block 6 to fail!)
 #define AGC_ALPHA        0.8        // for AGC_AVG: the weighting for the current data in the AGC exponential weighted average
 #define AGC_WINDOW       5          // for AGC_MIN: number of peaks to look back for the min peak
 
-#define IGNORE_POSTAMBLE	5		   // PE: how many postable bits to ignore
-#define MIN_PREAMBLE		   70		   // PE: minimum number of peaks (half that number of bits) for a preamble
-#define MAX_POSTAMBLE_BITS	40		   // PE: maximum number of postable bits we will remove
-#define AGC_STARTBASE	   10		   // starting peak for baseline voltage measurement
-#define AGC_ENDBASE        50		   // ending peak for baseline voltage measurement
+#define IGNORE_POSTAMBLE   5        // PE: how many postable bits to ignore
+#define MIN_PREAMBLE       70       // PE: minimum number of peaks (half that number of bits) for a preamble
+#define MAX_POSTAMBLE_BITS 40       // PE: maximum number of postable bits we will remove
+#define AGC_STARTBASE      10       // starting peak for baseline voltage measurement
+#define AGC_ENDBASE        50       // ending peak for baseline voltage measurement
 
 typedef unsigned char byte;
 #define NULLP (void *)0
@@ -89,9 +89,9 @@ typedef unsigned char byte;
 #define dlog(...)
 #endif
 
-struct sample_t {			// what we get from the digitizer hardware:
-   double time;			//   the time of this sample
-   float voltage[NTRKS];	//   the voltage level from each track head
+struct sample_t {       // what we get from the digitizer hardware:
+   double time;         //   the time of this sample
+   float voltage[NTRKS];   //   the voltage level from each track head
 };
 
 enum mode_t {
@@ -110,39 +110,39 @@ struct clkavg_t { // structure for keeping track of clock rate
    float t_bitspaceavg;  // current avg of bit time spacing
 };
 
-struct trkstate_t {	// track-by-track decoding state
-   int trknum;				   // which track number 0..8, where 8=P
-   enum astate_t astate;	// current state: AS_xxx
-   float v_now;  			   // current voltage
-   float v_top; 			   // top voltage
+struct trkstate_t {  // track-by-track decoding state
+   int trknum;             // which track number 0..8, where 8=P
+   enum astate_t astate;   // current state: AS_xxx
+   float v_now;            // current voltage
+   float v_top;            // top voltage
    double t_top;           // time of top
    float v_lasttop;        // remembered last top voltage
-   float v_bot;				// bottom voltage
-   double t_bot;			   // time of bottom voltage
+   float v_bot;            // bottom voltage
+   double t_bot;           // time of bottom voltage
    float v_lastbot;        // remembered last bottom voltage
    float v_lastpeak;       // last peak (top or bottom) voltage
-   double t_lastpeak;		// time of last top or bottom
-   float v_avg_height;		// average of low-to-high voltage during preamble
+   double t_lastpeak;      // time of last top or bottom
+   float v_avg_height;     // average of low-to-high voltage during preamble
    int v_avg_count;        // how many samples went into that average
    float last_move_threshold;   // the last move threshold we used
    float agc_gain;         // the current AGC gain
    float max_agc_gain;     // the most we ever reduced the move threshold by
    float v_heights[AGC_WINDOW];  // last n peak-to-peak voltages
    int heightndx;                // index into v_heights of next spot to use
-   double t_lastbit;		   // time of last data bit transition
-   double t_firstbit;		// time of first data bit transition in the data block
-   float t_clkwindow; 		// how late a clock transition can be, before we consider it data
+   double t_lastbit;       // time of last data bit transition
+   double t_firstbit;      // time of first data bit transition in the data block
+   float t_clkwindow;      // how late a clock transition can be, before we consider it data
    float t_pulse_adj;      // PE: how much to adjust the pulse by, based on previous pulse's timing
    struct clkavg_t clkavg; // data for computing average clock
-   int datacount;			   // how many data bits we've seen
-   int peakcount;	         // how many peaks (flux reversals) we've seen
+   int datacount;          // how many data bits we've seen
+   int peakcount;          // how many peaks (flux reversals) we've seen
    byte lastdatabit;       // the last data bit we recorded
-   byte manchdata;			// the reconstructed manchester encoding
+   byte manchdata;         // the reconstructed manchester encoding
    bool idle;              // are we idle, ie not seeing transitions?
-   bool moving;			   // are we moving up or down through a transition?
+   bool moving;            // are we moving up or down through a transition?
    bool clknext;           // do we expect a PE clock next?
    bool hadbit;            // NRZI: did we have a bit transition since the last check?
-   bool datablock;			// are we collecting data?
+   bool datablock;         // are we collecting data?
 };
 
 // For PE and GCR, which are self-clocking, the clock for each track is separately computed. 
@@ -158,18 +158,18 @@ struct nrzi_t { // NRZI decode state information
    int post_counter;       // counter for post-data bit times: CRC is at 4, LRC is at 8
 };
 
-struct parms_t {	// a set of parameters used for reading a block. We try again with different ones if we get errors.
+struct parms_t {  // a set of parameters used for reading a block. We try again with different ones if we get errors.
    int active;             // this is an active parameter set
    int clk_window;         // how many bit times to average for clock rate; 0 means use exponential averaging
-   float clk_alpha;			// weighting for current data in the clock rate exponential weighted average, 0 means use constant
-   float move_threshold;	// how many volts of deviation means that we have a real signal
+   float clk_alpha;        // weighting for current data in the clock rate exponential weighted average, 0 means use constant
+   float move_threshold;   // how many volts of deviation means that we have a real signal
    float zero_band;        // how many volts close to zero should be considered zero
-   float clk_factor;		   // PE: how much of a half-bit period to wait for a clock transition
+   float clk_factor;       // PE: how much of a half-bit period to wait for a clock transition
    float pulse_adj_amt;    // PE: how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
                            // ...add more dynamic parameters above here
    char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
-   int tried;          	   // how many times this parmset was tried
-   int chosen;  		      // how many times this parmset was chosen
+   int tried;              // how many times this parmset was tried
+   int chosen;             // how many times this parmset was chosen
 }; // array: parmsets_xxx[block.parmset]
 
 extern struct parms_t *parmsetsptr;    // pointer to one of the following sets of decoding parameters
@@ -184,8 +184,8 @@ enum bstate_t { // the decoding status a block
    BS_BLOCK,         // a good block, but maybe parity errors or faked bits
    BS_MALFORMED };   // a malformed block: different tracks are different lengths
 
-struct blkstate_t {	// state of the block, when we're done
-   int tries;			   // how many times we tried to decode this block
+struct blkstate_t {  // state of the block, when we're done
+   int tries;           // how many times we tried to decode this block
    int parmset;         // which parm set we are currently using
    struct results_t {      // the results from the various parameter sets, in order
       enum bstate_t blktype;     // the ending state of the block
