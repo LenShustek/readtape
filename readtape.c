@@ -78,6 +78,13 @@ Copyright (C) 2018, Len Shustek
 - Add NRZI decoding for 9-track 800 BPI tapes
 - Add zero-band noise surpression, parametrized
 
+*** 21 Mar 2018, L. Shustek
+- Create separate parameter blocks for PE/NRZI/GCR
+- Fix decoding of NRZI CRC/LRC bytes, which are often delayed
+- NRZI: Create a new output file after each filemark
+- add option to create SIMH .tap format output file
+- implement AGC for NRZI
+
 **********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
@@ -155,18 +162,14 @@ bool verbose=DEBUG;
 bool quiet = false;
 bool filelist = false;
 bool multiple_tries = false;
+bool tap_format = false;
+bool hdr1_label = false;
 enum mode_t mode = PE;
 int starting_parmset=0;
 time_t start_time;
+int skip_samples = 0;
+int dlog_lines = 0;
 
-extern double timenow;
-extern struct parms_t parmsets[]; // sets of decoding parameters
-extern struct blkstate_t block;
-extern uint16_t data[];
-extern uint16_t data_faked[];
-extern double data_time[];
-extern struct nrzi_t nrzi;
-extern float nrzi_starting_bitrate, bpi;
 
 byte EBCDIC [256] = {	/* EBCDIC to ASCII */
    /* 0 */	 ' ',  '?',  '?',  '?',  '?',  '?',  '?',  '?',
@@ -202,9 +205,6 @@ byte EBCDIC [256] = {	/* EBCDIC to ASCII */
    /* f0*/	 '0',  '1',  '2',  '3',  '4',  '5',  '6',  '7',
    /* f8*/	 '8',  '9',  '?',  '?',  '?',  '?',  '?',  ' ' };
 
-
-
-#if VA_WORKS // passing a va_list crashes lcc-win64 sometimes!
 static void vlog(const char *msg, va_list args) {
    vfprintf(stdout, msg, args);
    if (logging && rlogf)
@@ -229,24 +229,6 @@ void assert(bool t, const char *msg, ...) {
    va_start(args, msg);
    if (!t) vfatal(msg, args);
    va_end(args); }
-#else
-void rlog(const char* format,...) { // write to the console and maybe a log file
-   va_list argptr;
-   va_start(argptr, format);
-   vfprintf(stdout, format, argptr);
-   va_end(argptr);
-   if (logging && rlogf) {
-      va_start(argptr, format);
-      vfprintf(rlogf, format, argptr);
-      va_end(argptr); } }
-void fatal(char *msg1, char *msg2) {
-   rlog("%s %s\n", msg1, msg2);
-   rlog("errno = %d\n", errno);
-   exit(99); }
-void assert(bool t, char *msg) {
-   if (!t) fatal("** FATAL ERROR **", msg); }
-#endif
-int dlog_lines = 0;
 
 void SayUsage (char *programName) {
    static char *usage[] = {
@@ -259,6 +241,8 @@ void SayUsage (char *programName) {
       " -nrzi  do NRZI decoding",
       " -gcr   do GCR decoding",
       " -br=n  for NRZI, the expected bit rate in hertz",
+      " -skip=n  skip the first n samples",
+      " -tap   create one SIMH .tap file from the data"
       "  -m    try multiple ways to decode a block",
       "  -l    create a log file",
       "  -t    terse mode",
@@ -275,9 +259,11 @@ int HandleOptions (int argc, char *argv[]) {
    int i, firstnonoption = 0;
    for (i = 1; i < argc; i++) {
       if (argv[i][0] == '/' || argv[i][0] == '-') {
-         if (strcmp(argv[i] + 1, "nrzi") == 0) mode = NRZI;
+         // This has gotten out of hand. Need to redo as a table...
+         if      (strcmp(argv[i] + 1, "nrzi") == 0) mode = NRZI;
          else if (strcmp(argv[i] + 1, "gcr") == 0) mode = GCR;
          else if (strcmp(argv[i] + 1, "pe") == 0) mode = PE;
+         else if (strcmp(argv[i] + 1, "tap") == 0) tap_format = true;
          else if (strncmp(argv[i] + 1, "br=", 3) == 0) {
             int nch, num;
             if (sscanf(argv[i] + 4, "%d%n",&num, &nch) != 1
@@ -285,7 +271,12 @@ int HandleOptions (int argc, char *argv[]) {
                goto opterror;
             if (argv[i][4 + nch] != '\0') goto opterror;
             nrzi_starting_bitrate = num;
-            rlog("NRZI bit rate is %f Hz\n", nrzi_starting_bitrate); }
+            rlog("NRZI initial bit rate is %f Hz\n", nrzi_starting_bitrate); }
+         else if (strncmp(argv[i] + 1, "skip=", 5) == 0) {
+            int nch, num;
+            if (sscanf(argv[i] + 6, "%d%n", &skip_samples, &nch) != 1)
+               goto opterror;
+            if (argv[i][6 + nch] != '\0') goto opterror; }
          else
             switch (toupper (argv[i][1])) {
             case 'H':
@@ -315,7 +306,7 @@ bool compare4(uint16_t *d, const char *c) { // string compare ASCII to EBCDIC
 void copy_EBCDIC (byte *to, uint16_t *from, int len) { // copy and translate to ASCII
    while (--len >= 0) to[len] = EBCDIC[from[len]>>1]; }
 
-byte parity (uint16_t val) { // compute te parity of one byte
+byte parity (uint16_t val) { // compute the parity of one byte
    byte p = val & 1;
    while (val >>= 1) p ^= val & 1;
    return p; }
@@ -360,24 +351,45 @@ void dumpdata (uint16_t *data, int len) { // display a data block in hex and EBC
          rlog("\n"); } }
    if (len%16 != 0) rlog("\n"); }
 
-void got_tapemark(void) {
-   ++numtapemarks;
-   rlog("\n*** tapemark\n");
-   blockstart = ftell(inf); // remember the file position for the start of the next block
-   dlog("got tapemark, file pos %s at %.7lf\n", longlongcommas(blockstart), timenow); }
+void output_tap_marker(uint32_t num) {  //output a 4-byte .TAP file marker, little-endian
+   for (int i = 0; i < 4; ++i) {
+      byte lsb = num & 0xff;
+      assert(fwrite(&lsb, 1, 1, outf) == 1, "fwrite failed in output_tap_marker");
+      num >>= 8; } }
 
 void close_file(void) {
-   if(outf) {
+   if (outf) {
       fclose(outf);
-      if(!terse) rlog("file closed with %s bytes written\n", intcommas(numfilebytes));
+      if (!terse) rlog("file closed with %s bytes written\n", intcommas(numfilebytes));
       outf = NULLP; } }
 
-void createfile(char *name) {
-   strcat(name, ".bin");
-   if (!terse) rlog("creating file \"%s\"\n", name);
-   outf = fopen(name, "wb");
-   assert (outf, "file create failed for \"%s\"", name);
+void create_file(const char *name) {
+   char fullname[MAXPATH];
+   if (outf) close_file();
+   if (name) { // we generated a name based on tape labels
+      assert(strlen(name) < MAXPATH - 5, "create_file name too big 1");
+      strcpy(fullname, name);
+      strcat(fullname, ".bin"); }
+   else { // otherwise create a generic name
+      assert(strlen(basefilename) < MAXPATH - 5, "create_file name too big 1");
+      if (tap_format)
+         sprintf(fullname, "%s\\%s.tap", basefilename, basefilename);
+      else sprintf(fullname, "%s\\%03d.bin", basefilename, numfiles++); }
+   if (!terse) rlog("creating file \"%s\"\n", fullname);
+   outf = fopen(fullname, "wb");
+   assert(outf, "file create failed for \"%s\"", fullname);
    numfilebytes = 0; }
+
+void got_tapemark(void) {
+   ++numtapemarks;
+   rlog("*** tapemark\n");
+   blockstart = ftell(inf); // remember the input file position for the start of the next block
+   dlog("got tapemark, file pos %s at %.7lf\n", longlongcommas(blockstart), timenow);
+   if (tap_format) {
+      if (!outf) create_file(NULLP);
+      output_tap_marker(0x00000000); }
+   else if (!hdr1_label) close_file(); // not tap format: close the file if we didn't see tape labels
+   hdr1_label = false; }
 
 void got_datablock(bool malformed) { // decoded a tape block
    int length=block.results[block.parmset].minbits;
@@ -387,7 +399,7 @@ void got_datablock(bool malformed) { // decoded a tape block
       struct IBM_vol_t hdr;
       copy_EBCDIC((byte *)&hdr, data, 80);
       rlog("\n*** tape label %.4s: %.6s, owner %.10s\n", hdr.id, hdr.serno, hdr.owner);
-      if (result->parity_errs) rlog("--> %d parity errors\n", result->parity_errs);
+      if (result->errcount) rlog("--> %d errors\n", result->errcount);
       //dumpdata(data, length);
    }
    else if (!malformed && length==80 && (compare4(data,"HDR1") || compare4(data,"EOF1") || compare4(data,"EOV1"))) {
@@ -396,50 +408,55 @@ void got_datablock(bool malformed) { // decoded a tape block
       rlog("\n*** tape label %.4s: %.17s, serno %.6s, created%.6s\n", hdr.id, hdr.dsid, hdr.serno, hdr.created);
       rlog("    volume %.4s, dataset %.4s\n", hdr.volseqno, hdr.dsseqno);
       if (compare4(data,"EOF1")) rlog("    block count: %.6s, system %.13s\n", hdr.blkcnt, hdr.syscode);
-      if (result->parity_errs) rlog("--> %d parity errors\n", result->parity_errs);
+      if (result->errcount) rlog("--> %d errors\n", result->errcount);
       //dumpdata(data, length);
       if (compare4(data,"HDR1")) { // create the output file from the name in the HDR1 label
          char filename[MAXPATH];
          sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles++, hdr.dsid, '\0');
          for (int i=strlen(filename); filename[i-1]==' '; --i) filename[i-1]=0;
-         createfile(filename); }
-      if (compare4(data,"EOF1")) close_file(); }
+         if (!tap_format) create_file(filename);
+         hdr1_label = true; }
+      if (compare4(data,"EOF1") && !tap_format) close_file(); }
    else if (!malformed && length==80 && (compare4(data,"HDR2") || compare4(data,"EOF2") || compare4(data, "EOV2"))) {
       struct IBM_hdr2_t hdr;
       copy_EBCDIC((byte *)&hdr, data, 80);
       rlog("\n*** tape label %.4s: RECFM=%.1s%.1s, BLKSIZE=%.5s, LRECL=%.5s\n",//
            hdr.id, hdr.recfm, hdr.blkattrib, hdr.blklen, hdr.reclen);
       rlog("    job: %.17s\n", hdr.job);
-      if (result->parity_errs) rlog("--> %d parity errors\n", result->parity_errs);
+      if (result->errcount) rlog("--> %d errors\n", result->errcount);
       //dumpdata(data, length);
    }
    else if (length>0) { // a normal non-label data block, but maybe malformed
       //dumpdata(data, length);
       if(!outf) { // create a generic data file if we didn't see a file header label
-         char filename[MAXPATH];
-         sprintf(filename, "%s\\%03d", basefilename, numfiles++);
-         createfile(filename); }
+         create_file(NULLP); }
+      uint32_t errflag = result->errcount ? 0x80000000 : 0;  // SIMH .tap file format error flag
+      if (tap_format) output_tap_marker(length | errflag); // leading record length
       for (int i=0; i<length; ++i) { // discard the parity bit track and write all the data bits
          byte b = data[i]>>1;
          assert(fwrite(&b, 1, 1, outf) == 1, "write failed"); }
+      if (tap_format) {
+         byte zero = 0;  // tap format needs an even number of data bytes
+         if (length & 1) assert(fwrite(&zero, 1, 1, outf) == 1, "write of odd byte failed");
+         output_tap_marker(length | errflag); // trailing record length
+      }
       numfilebytes += length;
       ++numblks;
-      if(DEBUG && (result->parity_errs != 0 || result->faked_bits != 0))
+      if(DEBUG && (result->errcount != 0 || result->faked_bits != 0))
          show_block_errs(result->maxbits);
       if (DEBUG && mode == NRZI) {
-         if (!result->crc_ok) dlog("bad CRC: %03x\n", result->crc);
-         if (!result->lrc_ok) dlog("bad LRC: %03x\n", result->lrc); }
-      if (result->parity_errs != 0 
-         || (mode==NRZI && (!result->crc_ok || !result->lrc_ok))) ++numbadparityblks;
+         if (result->crc_bad) dlog("bad CRC: %03x\n", result->crc);
+         if (result->lrc_bad) dlog("bad LRC: %03x\n", result->lrc); }
+      if (result->errcount != 0) ++numbadparityblks;
       if (!quiet) {
          if (mode == PE)
-            rlog("wrote block %3d, %d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, %d faked bits on %d trks, at time %.7lf\n", //
-                 numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->parity_errs, //
+            rlog("wrote block %3d, %4d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, %d faked bits on %d trks, at time %.7lf\n", //
+                 numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->vparity_errs, //
                  count_faked_bits(data_faked, length), count_faked_tracks(data_faked, length), timenow);
          if (mode == NRZI)
-            rlog("wrote block %3d, %d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, CRC %s, LRC %s, avg speed %.2f IPS, at time %.7lf\n", //
-                 numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->parity_errs, //
-                 result->crc_ok ? "ok ":"bad", result->lrc_ok ? "ok ":"bad", 1/(result->avg_bit_spacing * bpi), timenow);
+            rlog("wrote block %3d, %4d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, CRC %s, LRC %s, avg speed %.2f IPS, at time %.7lf\n", //
+                 numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->vparity_errs, //
+                 result->crc_bad ? "bad":"ok ", result->lrc_bad ? "bad":"ok ", 1/(result->avg_bit_spacing * bpi), timenow);
 
       }
       if (!quiet && malformed) {
@@ -557,7 +574,7 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
    }
    inf = fopen(filename, "r");
    assert(inf, "Unable to open input file \"%s\"", filename);
-   if (_mkdir(basefilename) != 0) assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", basefilename");
+   if (mkdir(basefilename) != 0) assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", basefilename");
 
    if (logging) { // Open the log file
       sprintf(logfilename, "%s\\%s.log", basefilename, basefilename);
@@ -567,6 +584,11 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
    //log("%s",line);
    fgets(line, MAXLINE, inf);
    //log("%s\n",line);
+
+   if (skip_samples > 0) {
+      rlog("skipping %d samples\n", skip_samples);
+      while (skip_samples--)
+         assert(fgets(line, MAXLINE, inf), "endfile with %d lines left to skip\n", skip_samples); }
 
    while (1) { // for all lines of the file
       init_blockstate();  // initialize for a new block
@@ -579,18 +601,18 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
       block.tries = 0;
       do { // keep reinterpreting a block with different parameters until we get a perfect block or we run out of parameter choices
          keep_trying = false;
-         ++parmsets[block.parmset].tried;  // note that we used this parameter set in another attempt
+         ++parmsetsptr[block.parmset].tried;  // note that we used this parameter set in another attempt
          last_parmset = block.parmset;
          init_trackstate();
-         dlog("\n     trying block %d with parmset %d at bytes %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
+         dlog("\n     trying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
          if (!readblock(block.tries>0)) goto endfile; // ***** read a block ******
          struct results_t *result = &block.results[block.parmset];
          if (result->blktype == BS_NONE) goto endfile; // stuff at the end wasn't a real block
          ++block.tries;
-         dlog("     block %d is type %d parmset %d, minlength %d, maxlength %d, %d parity errs, %d faked bits at %.7lf\n", //
-              numblks + 1, result->blktype, block.parmset, result->minbits, result->maxbits, result->parity_errs, result->faked_bits, timenow);
+         dlog("     block %d is type %d parmset %d, minlength %d, maxlength %d, %d errors, %d faked bits at %.7lf\n", //
+              numblks + 1, result->blktype, block.parmset, result->minbits, result->maxbits, result->errcount, result->faked_bits, timenow);
          if (result->blktype == BS_TAPEMARK) goto done;  // if we got a tapemake, we're done
-         if (result->blktype == BS_BLOCK && result->parity_errs == 0 && result->faked_bits == 0) { // if we got a perfect block, we're done
+         if (result->blktype == BS_BLOCK && result->errcount == 0 && result->faked_bits == 0) { // if we got a perfect block, we're done
             if (block.tries>1) ++numgoodmultipleblks;  // bragging rights; perfect blocks due to multiple parameter sets
             goto done; }
          if (multiple_tries && result->minbits != 0) { // if there are no dead tracks (which probably means we saw noise)
@@ -598,12 +620,12 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
             do {
                if (++next_parmset >= MAXPARMSETS) next_parmset = 0; }
             while (next_parmset != block.parmset &&
-                   (parmsets[next_parmset].clk_factor == 0 || block.results[next_parmset].blktype != BS_NONE));
+                   (parmsetsptr[next_parmset].active == 0 || block.results[next_parmset].blktype != BS_NONE));
             //log("found next parmset %d, block_parmset %d, keep_trying %d\n", next_parmset, block.parmset, keep_trying);
             if (next_parmset != block.parmset) { // we have a parmset, so can try again
                keep_trying = true;
                block.parmset = next_parmset;
-               dlog("   retrying block %d with parmset %d at bytes %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
+               dlog("   retrying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
                assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 1"); } } }
       while (keep_trying);
 
@@ -612,9 +634,9 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
       if (block.tries > 1) {
          dlog("looking for good parity blocks\n");
          int min_bad_bits = INT_MAX;
-         for (int i = 0; i<MAXPARMSETS; ++i) { // Try 1: find a decoding with good parity and the minimum number of faked bits
+         for (int i = 0; i<MAXPARMSETS; ++i) { // Try 1: find a decoding with no errors and the minimum number of faked bits
             struct results_t *result = &block.results[i];
-            if (result->blktype == BS_BLOCK && result->parity_errs == 0 && result->faked_bits<min_bad_bits) {
+            if (result->blktype == BS_BLOCK && result->errcount == 0 && result->faked_bits<min_bad_bits) {
                min_bad_bits = result->faked_bits;
                block.parmset = i;
                dlog("  best good parity choice is parmset %d\n", block.parmset); } }
@@ -623,10 +645,10 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
 
          dlog("looking for minimum bad parity blocks\n");
          min_bad_bits = INT_MAX;
-         for (int i = 0; i<MAXPARMSETS; ++i) { // Try 2: Find the decoding with the mininum number of parity errors
+         for (int i = 0; i<MAXPARMSETS; ++i) { // Try 2: Find the decoding with the mininum number of errors
             struct results_t *result = &block.results[i];
-            if (result->blktype == BS_BLOCK && result->parity_errs < min_bad_bits) {
-               min_bad_bits = result->parity_errs;
+            if (result->blktype == BS_BLOCK && result->errcount < min_bad_bits) {
+               min_bad_bits = result->errcount;
                block.parmset = i;
                dlog("  best bad parity choice is parmset %d\n", block.parmset); } }
          if (min_bad_bits < INT_MAX) goto done;
@@ -644,7 +666,7 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
 
 done:
       dlog("  chose parmset %d as best after %d tries\n", block.parmset, block.tries);
-      ++parmsets[block.parmset].chosen;  // count times that this parmset was chosen to be used
+      ++parmsetsptr[block.parmset].chosen;  // count times that this parmset was chosen to be used
       if (block.tries>1 // if we processed the block multiple times
             && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
          assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 2"); // then reprocess the chosen one to retrieve the data
@@ -652,8 +674,8 @@ done:
          init_trackstate();
          assert(readblock(true), "got endfile rereading a block");
          struct results_t *result = &block.results[block.parmset];
-         dlog("     reread block %d is type %d, minlength %d, maxlength %d, %d parity errs, %d faked bits at %.7lf\n", //
-              numblks + 1, result->blktype, result->minbits, result->maxbits, result->parity_errs, result->faked_bits, timenow); }
+         dlog("     reread block %d is type %d, minlength %d, maxlength %d, %d errors, %d faked bits at %.7lf\n", //
+              numblks + 1, result->blktype, result->minbits, result->maxbits, result->errcount, result->faked_bits, timenow); }
       switch (block.results[block.parmset].blktype) {  // process the block according to our best decoding, block.parmset
       case BS_TAPEMARK:
          got_tapemark();
@@ -670,19 +692,36 @@ done:
 #if USE_ALL_PARMSETS
       do { // If we start with a new parm set each time, we'll use them all relatively equally and can see which ones are best
          if (++starting_parmset >= MAXPARMSETS) starting_parmset = 0; }
-      while (parmsets[starting_parmset].clk_factor == 0);
+      while (parmsetsptr[starting_parmset].clk_factor == 0);
 #else
-      // otherwise we always start with parmset 0, which has proven to be the best for most tapes
+      // otherwise we always start with parmset 0, which is the best for most tapes
 #endif
 
    }  // next line of the file
-endfile:    close_file();
+endfile:
+   if (tap_format && outf) output_tap_marker(0xffffffffl);
+   close_file();
    return ok; }
 
 void breakpoint(void) { // for the debugger
    static int counter;
    ++counter; }
 
+/*-----------------------------------------------------------------
+  The basic structure for processing the data is:
+
+ main: 
+ process_file()
+    init_block()
+    for all parameter sets do
+       init_tracks()
+       readblock: do process_sample until end_of_block()
+   pick best decoding
+   reread block if necessary
+   got_datablock(), or got_tapemark()
+      decode standard labels, if any
+      write data block
+---------------------------------------------------------------------*/
 void main(int argc, char *argv[]) {
    int argno;
    char *cmdfilename;
@@ -713,9 +752,15 @@ void main(int argc, char *argv[]) {
    cmdfilename = argv[argno];
    start_time = time(NULL);
    assert(mode != GCR, "GCR is not implemented yet");
-   if (mode == PE) bpi = 1600;
-   if (mode == NRZI) bpi = 800;
-   if (mode == GCR) bpi = 9042; // the real bit rate for "6250 BPI" tapes
+   if (mode == PE) {
+      bpi = 1600;
+      parmsetsptr = parmsets_PE; }
+   if (mode == NRZI) {
+      bpi = 800;
+      parmsetsptr = parmsets_NRZI; }
+   if (mode == GCR) {
+      bpi = 9042; // the real bit rate for "6250 BPI" tapes
+      parmsetsptr = parmsets_GCR; }
 
    if (filelist) {  // process a list of files
       char filename[MAXPATH], logfilename[MAXPATH];
@@ -741,17 +786,17 @@ void main(int argc, char *argv[]) {
          double elapsed_time = difftime(time(NULL), start_time); // integer seconds!?!
          rlog("\n%s samples processed in %.0lf seconds\n"
               "created %d files and averaged %.2lf seconds/block\n" //
-              "detected %d tape marks, and %d data blocks of which %d had parity errors and %d were malformed.\n",//
+              "detected %d tape marks, and %d data blocks of which %d had errors and %d were malformed.\n",//
               intcommas(lines_in), elapsed_time,
               numfiles, numblks == 0 ? 0 : elapsed_time / numblks, //
               numtapemarks, numblks, numbadparityblks, nummalformedblks); } }
    if (verbose) {
       rlog("%d perfect blocks needed to try more than one parm set\n", numgoodmultipleblks);
       for (int i = 0; i < MAXPARMSETS; ++i) //
-         if (parmsets[i].tried > 0)
+         if (parmsetsptr[i].tried > 0)
             rlog("parm set %d was tried %4d times and used %4d times, or %5.1f%%: "
                  "clk factor %.1f, avg window %d, clk alpha %.2f, pulse adj %.2f, move threshold %.2fV\n",//
-                 i, parmsets[i].tried, parmsets[i].chosen, 100.*parmsets[i].chosen / parmsets[i].tried,
-                 parmsets[i].clk_factor, parmsets[i].avg_window, parmsets[i].clk_alpha, parmsets[i].pulse_adj_amt, parmsets[i].move_threshold); } }
+                 i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried,
+                 parmsetsptr[i].clk_factor, parmsetsptr[i].clk_window, parmsetsptr[i].clk_alpha, parmsetsptr[i].pulse_adj_amt, parmsetsptr[i].move_threshold); } }
 
 //*
