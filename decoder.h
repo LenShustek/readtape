@@ -69,7 +69,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define FAKE_BITS        true    	// should we fake bits during a dropout?
 #define USE_ALL_PARMSETS false		// should we try to use all the parameter sets, to be able to rate them?
 #define AGC_AVG    	 	 false 		// do automatic gain control for weak signals based on exponential averaging?
-#define AGC_MIN          false      // do automatic gain control for weak signals based on min of last n peaks?
+#define AGC_MIN          true       // do automatic gain control for weak signals based on min of last n peaks?
 #define AGC_MAX			 15			// max agc boost (making it higher causes block 6 to fail!)
 #define AGC_ALPHA        0.8        // for AGC_AVG: the weighting for the current data in the AGC exponential weighted average
 #define AGC_WINDOW       5          // for AGC_MIN: number of peaks to look back for the min peak
