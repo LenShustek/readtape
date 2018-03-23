@@ -30,9 +30,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
 #define DEBUG 0                  // generate debugging output?
-#define TRACEFILE true           // if DEBUG, are we also creating trace file?
+#define TRACEFILE true          // if DEBUG, are we also creating trace file?
 #define TRACETRK 4               // for which track
-#define MULTITRACK false         // or, are we plotting multi-track analog waveforms?
+#define MULTITRACK true         // or, are we plotting multi-track analog waveforms?
 #define DLOG_LINE_LIMIT 10000    // limit for debugging output
 
 #include <stdio.h>
@@ -59,18 +59,20 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define NRZI_CLK_DEFAULT (50*800)   // 50 ips x 800 bpi = 40 Khz
 #define NRZI_MIDPOINT    0.6        // how far beyond a bit clock is the NRZI "midpoint"
 #define NRZI_IBG_SECS    0.0001     // minimum interblock gap
+
 #define PEAK_THRESHOLD   0.005      // volts that define "same peak" (TYP: 0.02)
-#define BIT_SPACING      12.5e-6    // in seconds, the default bit spacing (1600 BPI x 50 IPS)
+#define BIT_SPACING      12.5e-6    // PE: in seconds, the default bit spacing (1600 BPI x 50 IPS)
 #define EPSILON_T        1.0e-7     // in seconds, time fuzz factor for comparisons
-#define CLK_FACTOR       1.4        // how much of a half-bit period to wait for the clock transition.
+#define CLK_FACTOR       1.4        // PE: how much of a half-bit period to wait for the clock transition.
 #define IDLE_FACTOR       2.5       // how much of the bit spacing to wait for before considering the track idle
 #define CLKRATE_WINDOW   10         // maximum window for clock averaging
 #define IDLE_TRK_LIMIT   9          // how many tracks must be idle to consider it an end-of-block
 #define FAKE_BITS        true       // should we fake bits during a dropout?
 #define USE_ALL_PARMSETS false      // should we try to use all the parameter sets, to be able to rate them?
+
 #define AGC_AVG          false      // do automatic gain control for weak signals based on exponential averaging?
 #define AGC_MIN          true       // do automatic gain control for weak signals based on min of last n peaks?
-#define AGC_MAX          15         // max agc boost (making it higher causes block 6 to fail!)
+#define AGC_MAX          15         // max agc boost (making it higher causes the famous block 6 to fail!)
 #define AGC_ALPHA        0.8        // for AGC_AVG: the weighting for the current data in the AGC exponential weighted average
 #define AGC_WINDOW       5          // for AGC_MIN: number of peaks to look back for the min peak
 

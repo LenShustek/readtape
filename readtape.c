@@ -85,6 +85,10 @@ Copyright (C) 2018, Len Shustek
 - add option to create SIMH .tap format output file
 - implement AGC for NRZI
 
+*** 22 Mar 2018, L. Shustek
+- Fix introduced bugs: NRZI AGC, parm selection sequence
+- Improve reporting of parameter set usage
+
 **********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
@@ -108,6 +112,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
 #include "decoder.h"
+
+// under Windows Visual Studio 2017, fseek/ftell use 32-bit integers!
 #define fseek(file,off,org) _fseeki64(file,off,org)
 #define ftell(file) _ftelli64(file)
 
@@ -237,18 +243,18 @@ void SayUsage (char *programName) {
       "   output files will be in the created directory <basefilename>\\",
       "   log file will also be there, as <basefilename>.log",
       "Options:",
-      " -pe    do PE decoding (the default)",
-      " -nrzi  do NRZI decoding",
-      " -gcr   do GCR decoding",
-      " -br=n  for NRZI, the expected bit rate in hertz",
+      " -pe      do PE decoding (the default)",
+      " -nrzi    do NRZI decoding",
+      " -gcr     do GCR decoding",
+      " -br=n    for NRZI, the expected bit rate in hertz",
       " -skip=n  skip the first n samples",
-      " -tap   create one SIMH .tap file from the data"
-      "  -m    try multiple ways to decode a block",
-      "  -l    create a log file",
-      "  -t    terse mode",
-      "  -v    verbose mode",
-      "  -q    quiet mode ",
-      "  -f    take file list from <basefilename>.txt",
+      " -tap     create one SIMH .tap file from the data",
+      " -m       try multiple ways to decode a block",
+      " -l       create a log file",
+      " -v       verbose mode (extra info)",
+      " -t       terse mode (no block info)",
+      " -q       quiet mode (only \"ok\" or \"bad\")",
+      " -f       take file list from <basefilename>.txt",
       NULL };
    int i = 0;
    while (usage[i] != NULL) fprintf (stderr, "%s\n", usage[i++]); }
@@ -284,8 +290,8 @@ int HandleOptions (int argc, char *argv[]) {
             case 'M': multiple_tries = true;  break;
             case 'L': logging = true;  break;
             case 'T': terse = true; verbose = false;  break;
-            case 'V': verbose = true; terse = false;  break;
-            case 'Q': quiet = terse = true;  break;
+            case 'V': verbose = true;  break;
+            case 'Q': quiet = terse = true;  verbose = false; break;
             case 'F': filelist = true;  break;
             /* add more  option switches here */
             default:
@@ -360,7 +366,7 @@ void output_tap_marker(uint32_t num) {  //output a 4-byte .TAP file marker, litt
 void close_file(void) {
    if (outf) {
       fclose(outf);
-      if (!terse) rlog("file closed with %s bytes written\n", intcommas(numfilebytes));
+      if (!quiet) rlog("file closed with %s bytes written\n", intcommas(numfilebytes));
       outf = NULLP; } }
 
 void create_file(const char *name) {
@@ -374,15 +380,16 @@ void create_file(const char *name) {
       assert(strlen(basefilename) < MAXPATH - 5, "create_file name too big 1");
       if (tap_format)
          sprintf(fullname, "%s\\%s.tap", basefilename, basefilename);
-      else sprintf(fullname, "%s\\%03d.bin", basefilename, numfiles++); }
-   if (!terse) rlog("creating file \"%s\"\n", fullname);
+      else sprintf(fullname, "%s\\%03d.bin", basefilename, numfiles); }
+   if (!quiet) rlog("creating file \"%s\"\n", fullname);
    outf = fopen(fullname, "wb");
    assert(outf, "file create failed for \"%s\"", fullname);
+   ++numfiles;
    numfilebytes = 0; }
 
 void got_tapemark(void) {
    ++numtapemarks;
-   rlog("*** tapemark\n");
+   if (!quiet) rlog("*** tapemark\n");
    blockstart = ftell(inf); // remember the input file position for the start of the next block
    dlog("got tapemark, file pos %s at %.7lf\n", longlongcommas(blockstart), timenow);
    if (tap_format) {
@@ -398,21 +405,23 @@ void got_datablock(bool malformed) { // decoded a tape block
    if (!malformed && length==80 && compare4(data,"VOL1")) { // IBM volume header
       struct IBM_vol_t hdr;
       copy_EBCDIC((byte *)&hdr, data, 80);
-      rlog("\n*** tape label %.4s: %.6s, owner %.10s\n", hdr.id, hdr.serno, hdr.owner);
-      if (result->errcount) rlog("--> %d errors\n", result->errcount);
+      if (!quiet) {
+         rlog("*** tape label %.4s: %.6s, owner %.10s\n", hdr.id, hdr.serno, hdr.owner);
+         if (result->errcount) rlog("--> %d errors\n", result->errcount); }
       //dumpdata(data, length);
    }
    else if (!malformed && length==80 && (compare4(data,"HDR1") || compare4(data,"EOF1") || compare4(data,"EOV1"))) {
       struct IBM_hdr1_t hdr;
       copy_EBCDIC((byte *)&hdr, data, 80);
-      rlog("\n*** tape label %.4s: %.17s, serno %.6s, created%.6s\n", hdr.id, hdr.dsid, hdr.serno, hdr.created);
-      rlog("    volume %.4s, dataset %.4s\n", hdr.volseqno, hdr.dsseqno);
-      if (compare4(data,"EOF1")) rlog("    block count: %.6s, system %.13s\n", hdr.blkcnt, hdr.syscode);
-      if (result->errcount) rlog("--> %d errors\n", result->errcount);
+      if (!quiet) {
+         rlog("*** tape label %.4s: %.17s, serno %.6s, created%.6s\n", hdr.id, hdr.dsid, hdr.serno, hdr.created);
+         rlog("    volume %.4s, dataset %.4s\n", hdr.volseqno, hdr.dsseqno);
+         if (compare4(data, "EOF1")) rlog("    block count: %.6s, system %.13s\n", hdr.blkcnt, hdr.syscode);
+         if (result->errcount) rlog("--> %d errors\n", result->errcount); }
       //dumpdata(data, length);
       if (compare4(data,"HDR1")) { // create the output file from the name in the HDR1 label
          char filename[MAXPATH];
-         sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles++, hdr.dsid, '\0');
+         sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles, hdr.dsid, '\0');
          for (int i=strlen(filename); filename[i-1]==' '; --i) filename[i-1]=0;
          if (!tap_format) create_file(filename);
          hdr1_label = true; }
@@ -420,10 +429,11 @@ void got_datablock(bool malformed) { // decoded a tape block
    else if (!malformed && length==80 && (compare4(data,"HDR2") || compare4(data,"EOF2") || compare4(data, "EOV2"))) {
       struct IBM_hdr2_t hdr;
       copy_EBCDIC((byte *)&hdr, data, 80);
-      rlog("\n*** tape label %.4s: RECFM=%.1s%.1s, BLKSIZE=%.5s, LRECL=%.5s\n",//
-           hdr.id, hdr.recfm, hdr.blkattrib, hdr.blklen, hdr.reclen);
-      rlog("    job: %.17s\n", hdr.job);
-      if (result->errcount) rlog("--> %d errors\n", result->errcount);
+      if (!quiet) {
+         rlog("*** tape label %.4s: RECFM=%.1s%.1s, BLKSIZE=%.5s, LRECL=%.5s\n",//
+              hdr.id, hdr.recfm, hdr.blkattrib, hdr.blklen, hdr.reclen);
+         rlog("    job: %.17s\n", hdr.job);
+         if (result->errcount) rlog("--> %d errors\n", result->errcount); }
       //dumpdata(data, length);
    }
    else if (length>0) { // a normal non-label data block, but maybe malformed
@@ -448,7 +458,7 @@ void got_datablock(bool malformed) { // decoded a tape block
          if (result->crc_bad) dlog("bad CRC: %03x\n", result->crc);
          if (result->lrc_bad) dlog("bad LRC: %03x\n", result->lrc); }
       if (result->errcount != 0) ++numbadparityblks;
-      if (!quiet) {
+      if (!terse) {
          if (mode == PE)
             rlog("wrote block %3d, %4d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, %d faked bits on %d trks, at time %.7lf\n", //
                  numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->vparity_errs, //
@@ -569,8 +579,8 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
    strncpy(filename, basefilename, MAXPATH - 5);
    filename[MAXPATH - 5] = '\0';
    strcat(filename, ".csv");
-   if (!terse) {
-      rlog("\nreading file \"%s\" on %s", filename, ctime(&start_time));//
+   if (!quiet) {
+      rlog("\nreading file  \"%s\" on %s", filename, ctime(&start_time));//
    }
    inf = fopen(filename, "r");
    assert(inf, "Unable to open input file \"%s\"", filename);
@@ -674,8 +684,8 @@ done:
          init_trackstate();
          assert(readblock(true), "got endfile rereading a block");
          struct results_t *result = &block.results[block.parmset];
-         dlog("     reread block %d is type %d, minlength %d, maxlength %d, %d errors, %d faked bits at %.7lf\n", //
-              numblks + 1, result->blktype, result->minbits, result->maxbits, result->errcount, result->faked_bits, timenow); }
+         dlog("     reread of block %d with parmset %d is type %d, minlength %d, maxlength %d, %d errors, %d faked bits at %.7lf\n", //
+              numblks + 1, block.parmset, result->blktype, result->minbits, result->maxbits, result->errcount, result->faked_bits, timenow); }
       switch (block.results[block.parmset].blktype) {  // process the block according to our best decoding, block.parmset
       case BS_TAPEMARK:
          got_tapemark();
@@ -710,7 +720,7 @@ void breakpoint(void) { // for the debugger
 /*-----------------------------------------------------------------
   The basic structure for processing the data is:
 
- main: 
+ main:
  process_file()
     init_block()
     for all parameter sets do
@@ -746,7 +756,7 @@ void main(int argc, char *argv[]) {
       exit(4); }
    argno = HandleOptions(argc, argv);
    if (argno == 0) {
-      fprintf(stderr, "\n*** No basefilename given\n\n");
+      fprintf(stderr, "\n*** No <basefilename> given\n\n");
       SayUsage(argv[0]);
       exit(4); }
    cmdfilename = argv[argno];
@@ -781,8 +791,10 @@ void main(int argc, char *argv[]) {
    else {  // process one file
       strncpy(basefilename, cmdfilename, MAXPATH - 5);
       basefilename[MAXPATH - 5] = '\0';
-      process_file();
-      if (!terse) {
+      bool result = process_file();
+      if (quiet) {
+         printf("%s: %s\n", basefilename, result ? "ok" : "bad"); }
+      else {
          double elapsed_time = difftime(time(NULL), start_time); // integer seconds!?!
          rlog("\n%s samples processed in %.0lf seconds\n"
               "created %d files and averaged %.2lf seconds/block\n" //
@@ -793,10 +805,19 @@ void main(int argc, char *argv[]) {
    if (verbose) {
       rlog("%d perfect blocks needed to try more than one parm set\n", numgoodmultipleblks);
       for (int i = 0; i < MAXPARMSETS; ++i) //
-         if (parmsetsptr[i].tried > 0)
-            rlog("parm set %d was tried %4d times and used %4d times, or %5.1f%%: "
-                 "clk factor %.1f, avg window %d, clk alpha %.2f, pulse adj %.2f, move threshold %.2fV\n",//
-                 i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried,
-                 parmsetsptr[i].clk_factor, parmsetsptr[i].clk_window, parmsetsptr[i].clk_alpha, parmsetsptr[i].pulse_adj_amt, parmsetsptr[i].move_threshold); } }
+         if (parmsetsptr[i].tried > 0) {
+            rlog("parm set %d was tried %4d times and used %4d times, or %5.1f%%: ",
+                 i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried);
+            if (parmsetsptr[i].clk_window) rlog("clk avg wind %d bits, ", parmsetsptr[i].clk_window);
+            else if (parmsetsptr[i].clk_alpha) rlog("clk avg alpha %.2f, ", parmsetsptr[i].clk_alpha);
+            else rlog("clk spacing %.2f usec, ", (mode == PE ? BIT_SPACING : nrzi.clkavg.t_bitspaceavg)*1e6);
+            rlog("move thresh %.2fV, ", parmsetsptr[i].move_threshold);
+            rlog("zero band %.2fV, ", parmsetsptr[i].zero_band);
+            if (mode == PE)
+               rlog("clk factor %.1f, pulse adj %.2f",//
+                    parmsetsptr[i].clk_factor, parmsetsptr[i].pulse_adj_amt);
+            rlog("\n");
+            //
+         } } }
 
 //*
