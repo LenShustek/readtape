@@ -89,7 +89,17 @@ Copyright (C) 2018, Len Shustek
 - Fix introduced bugs: NRZI AGC, parm selection sequence
 - Improve reporting of parameter set usage
 
-**********************************************************************
+*** 29 Mar 2018, L. Shustek
+- MAJOR REWRITE of low-level peak detection code to switch from a hill-
+  climbing algorithm to a moving-window shape detection algorithm.
+  This gets us to 100% success with some test cases!
+- Add NRZI pulse-shifting compensation based on expected transition
+  times, similar to PE.
+- Add AGC controls to the parameter block.
+- Create new trace file lines for NRZI
+- Remove bitrate ("br=") parameter and replace with bpi= and ips=.
+
+*********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
 to any person obtaining a copy of this software and associated
@@ -170,7 +180,10 @@ bool filelist = false;
 bool multiple_tries = false;
 bool tap_format = false;
 bool hdr1_label = false;
-enum mode_t mode = PE;
+
+enum mode_t mode = PE;      // default
+float bpi= 1600, ips = 50;
+
 int starting_parmset=0;
 time_t start_time;
 int skip_samples = 0;
@@ -221,7 +234,7 @@ void rlog(const char* msg,...) { // write to the console and maybe a log file
    vlog(msg, args);
    va_end(args); }
 static void vfatal(const char *msg, va_list args) {
-   vlog("***FATAL ERROR: ", 0);
+   vlog("\n***FATAL ERROR: ", 0);
    vlog(msg, args);
    rlog("\nI/O errno = %d\n", errno);
    exit(99); }
@@ -243,10 +256,11 @@ void SayUsage (char *programName) {
       "   output files will be in the created directory <basefilename>\\",
       "   log file will also be there, as <basefilename>.log",
       "Options:",
-      " -pe      do PE decoding (the default)",
-      " -nrzi    do NRZI decoding",
-      " -gcr     do GCR decoding",
-      " -br=n    for NRZI, the expected bit rate in hertz",
+      " -pe      do PE decoding; sets bpi=1600, ips=50",
+      " -nrzi    do NRZI decoding; sets bpi=800, ips=50",
+      " -gcr     do GCR decoding; sets bpi=6250, ips=25",
+      " -bpi=n   override value for density in bits/inch",
+      " -ips=n   override value for speed in inches/sec",
       " -skip=n  skip the first n samples",
       " -tap     create one SIMH .tap file from the data",
       " -m       try multiple ways to decode a block",
@@ -259,46 +273,67 @@ void SayUsage (char *programName) {
    int i = 0;
    while (usage[i] != NULL) fprintf (stderr, "%s\n", usage[i++]); }
 
+bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max) {
+   do {
+      if (toupper(*arg++) != *keyword++)
+         return false; }
+   while (*keyword);
+   int num, nch;
+   if (sscanf(arg, "%d%n", &num, &nch) != 1
+         || num < min || num > max || arg[nch] != '\0') return false;
+   *pval = num;
+   return true; }
+
+bool opt_flt(const char* arg, const char* keyword, float *pval, float min, float max) {
+   do {
+      if (toupper(*arg++) != *keyword++) return false; }
+   while (*keyword);
+   float num;  int nch;
+   if (sscanf(arg, "%f%n", &num, &nch) != 1
+         || num < min || num > max || arg[nch] != '\0') return false;
+   *pval = num;
+   return true; }
+
+bool opt_key(const char* arg, const char* keyword) {
+   do {
+      if (toupper(*arg++) != *keyword++) return false; }
+   while (*keyword);
+   return true; }
+
 int HandleOptions (int argc, char *argv[]) {
    /* returns the index of the first argument that is not an option; i.e.
    does not start with a dash or a slash */
    int i, firstnonoption = 0;
    for (i = 1; i < argc; i++) {
       if (argv[i][0] == '/' || argv[i][0] == '-') {
-         // This has gotten out of hand. Need to redo as a table...
-         if      (strcmp(argv[i] + 1, "nrzi") == 0) mode = NRZI;
-         else if (strcmp(argv[i] + 1, "gcr") == 0) mode = GCR;
-         else if (strcmp(argv[i] + 1, "pe") == 0) mode = PE;
-         else if (strcmp(argv[i] + 1, "tap") == 0) tap_format = true;
-         else if (strncmp(argv[i] + 1, "br=", 3) == 0) {
-            int nch, num;
-            if (sscanf(argv[i] + 4, "%d%n",&num, &nch) != 1
-                  || num < 1000 || num > 100000)
-               goto opterror;
-            if (argv[i][4 + nch] != '\0') goto opterror;
-            nrzi_starting_bitrate = num;
-            rlog("NRZI initial bit rate is %f Hz\n", nrzi_starting_bitrate); }
-         else if (strncmp(argv[i] + 1, "skip=", 5) == 0) {
-            int nch, num;
-            if (sscanf(argv[i] + 6, "%d%n", &skip_samples, &nch) != 1)
-               goto opterror;
-            if (argv[i][6 + nch] != '\0') goto opterror; }
-         else
-            switch (toupper (argv[i][1])) {
+         char *arg = argv[i] + 1;
+         if (opt_key(arg, "NRZI")) {
+            mode = NRZI; bpi = 800; ips = 50; }
+         else if (opt_key(arg, "PE")) {
+            mode = PE; bpi = 1600; ips = 50; }
+         else if (opt_key(arg, "GCR")) {
+            mode = GCR; bpi = 6250; ips = 25; }
+         else if (opt_flt(arg, "BPI=", &bpi, 100, 10000));
+         else if (opt_flt(arg, "IPS=", &ips, 10, 100));
+         else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX))
+            rlog("Will skip %d samples\n", skip_samples);
+         else if (opt_key(arg, "TAP")) tap_format = true;
+         else if (argv[i][2] == 0) // single-character switches
+            switch (toupper(argv[i][1])) {
             case 'H':
-            case '?': SayUsage (argv[0]); exit (1);
+            case '?': SayUsage(argv[0]); exit(1);
             case 'M': multiple_tries = true;  break;
             case 'L': logging = true;  break;
             case 'T': terse = true; verbose = false;  break;
             case 'V': verbose = true;  break;
             case 'Q': quiet = terse = true;  verbose = false; break;
             case 'F': filelist = true;  break;
-            /* add more  option switches here */
-            default:
+            default: goto opterror; }
+         else {
 opterror:
-               fprintf (stderr, "\n*** unknown option: %s\n\n", argv[i]);
-               SayUsage (argv[0]);
-               exit (4); } }
+            fprintf(stderr, "\n*** unknown option: %s\n\n", argv[i]);
+            SayUsage(argv[0]);
+            exit(4); } }
       else { // end of switches
          firstnonoption = i;
          break; } }
@@ -380,7 +415,7 @@ void create_file(const char *name) {
       assert(strlen(basefilename) < MAXPATH - 5, "create_file name too big 1");
       if (tap_format)
          sprintf(fullname, "%s\\%s.tap", basefilename, basefilename);
-      else sprintf(fullname, "%s\\%03d.bin", basefilename, numfiles); }
+      else sprintf(fullname, "%s\\%03d.bin", basefilename, numfiles+1); }
    if (!quiet) rlog("creating file \"%s\"\n", fullname);
    outf = fopen(fullname, "wb");
    assert(outf, "file create failed for \"%s\"", fullname);
@@ -421,7 +456,7 @@ void got_datablock(bool malformed) { // decoded a tape block
       //dumpdata(data, length);
       if (compare4(data,"HDR1")) { // create the output file from the name in the HDR1 label
          char filename[MAXPATH];
-         sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles, hdr.dsid, '\0');
+         sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles+1, hdr.dsid, '\0');
          for (int i=strlen(filename); filename[i-1]==' '; --i) filename[i-1]=0;
          if (!tap_format) create_file(filename);
          hdr1_label = true; }
@@ -556,12 +591,20 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
       &sample.voltage[6], &sample.voltage[7], &sample.voltage[8]);
       assert (items == NTRKS+1,"bad CSV line format"); */
       char *linep = line;
-      sample.time = scan_double(&linep);
-      for (int i=0; i<NTRKS; ++i) sample.voltage[i] =
-#if INVERTED
-            -
-#endif
-            scan_float(&linep);
+
+      sample.time = scan_double(&linep);  // get the time of this sample
+      static double last_sample_time = 0;
+      static bool window_set = false;
+      if (!window_set && last_sample_time != 0) { // have seen two sample: set peak window width
+         sample_deltat = sample.time - last_sample_time;
+         pkww_width = min(PKWW_MAX_WIDTH, (int)(PKWW_BITFRAC / (bpi*ips*sample_deltat)));
+         rlog("%d BPI, %d IPS, sampling rate %s Hz, peak window width %d samples\n", 
+            (int)bpi, (int) ips, intcommas((int)(1.0 / sample_deltat)), pkww_width);
+         window_set = true; }
+      last_sample_time = sample.time;
+
+      for (int i=0; i<NTRKS; ++i) sample.voltage[i] = scan_float(&linep);  // read voltages for all tracks
+
       if (process_sample(&sample) != BS_NONE)	 // process one voltage sample point for all tracks
          break;								 // until we recognize an end of block
       if (!fgets(line, MAXLINE, inf)) { // read the next line
@@ -569,26 +612,25 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
          break; } }
    return true; }
 
-bool process_file(void) { // process a complete file; return TRUE if all blocks were well-formed and had good parity
+bool process_file(void) { // process a complete input file; return TRUE if all blocks were well-formed and had good parity
    char filename[MAXPATH], logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
 
-   // open the input file and create the working directory for output files
-
-   strncpy(filename, basefilename, MAXPATH - 5);
-   filename[MAXPATH - 5] = '\0';
-   strcat(filename, ".csv");
-   if (!quiet) {
-      rlog("\nreading file  \"%s\" on %s", filename, ctime(&start_time));//
-   }
-   inf = fopen(filename, "r");
-   assert(inf, "Unable to open input file \"%s\"", filename);
-   if (mkdir(basefilename) != 0) assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", basefilename");
+   if (mkdir(basefilename) != 0) // create the working directory for output files
+      assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", basefilename");
 
    if (logging) { // Open the log file
       sprintf(logfilename, "%s\\%s.log", basefilename, basefilename);
       assert(rlogf = fopen(logfilename, "w"), "Unable to open log file \"%s\"", logfilename); }
+
+   strncpy(filename, basefilename, MAXPATH - 5);  // open the input file
+   filename[MAXPATH - 5] = '\0';
+   strcat(filename, ".csv");
+   if (!quiet) rlog("\nreading file \"%s\" on %s", filename, ctime(&start_time));
+   inf = fopen(filename, "r");
+   assert(inf, "Unable to open input file \"%s\"", filename);
+
 
    fgets(line, MAXLINE, inf); // first two lines in the input file are headers from Saleae
    //log("%s",line);
@@ -599,6 +641,7 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
       rlog("skipping %d samples\n", skip_samples);
       while (skip_samples--)
          assert(fgets(line, MAXLINE, inf), "endfile with %d lines left to skip\n", skip_samples); }
+   interblock_expiration = 0;
 
    while (1) { // for all lines of the file
       init_blockstate();  // initialize for a new block
@@ -611,7 +654,7 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
       block.tries = 0;
       do { // keep reinterpreting a block with different parameters until we get a perfect block or we run out of parameter choices
          keep_trying = false;
-         ++parmsetsptr[block.parmset].tried;  // note that we used this parameter set in another attempt
+         ++PARM.tried;  // note that we used this parameter set in another attempt
          last_parmset = block.parmset;
          init_trackstate();
          dlog("\n     trying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
@@ -636,7 +679,8 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
                keep_trying = true;
                block.parmset = next_parmset;
                dlog("   retrying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
-               assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 1"); } } }
+               assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 1");
+               interblock_expiration = 0; } } }
       while (keep_trying);
 
       // We didn't succeed in getting a perfect decoding of the block, so pick the best of the bad decodings.
@@ -676,10 +720,11 @@ bool process_file(void) { // process a complete file; return TRUE if all blocks 
 
 done:
       dlog("  chose parmset %d as best after %d tries\n", block.parmset, block.tries);
-      ++parmsetsptr[block.parmset].chosen;  // count times that this parmset was chosen to be used
+      ++PARM.chosen;  // count times that this parmset was chosen to be used
       if (block.tries>1 // if we processed the block multiple times
             && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
          assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 2"); // then reprocess the chosen one to retrieve the data
+         interblock_expiration = 0;
          dlog("     rereading parmset %d\n", block.parmset);
          init_trackstate();
          assert(readblock(true), "got endfile rereading a block");
@@ -727,7 +772,7 @@ void breakpoint(void) { // for the debugger
        init_tracks()
        readblock: do process_sample until end_of_block()
    pick best decoding
-   reread block if necessary
+   if necessary, readbock: do process_sample until end_of_block()
    got_datablock(), or got_tapemark()
       decode standard labels, if any
       write data block
@@ -763,13 +808,11 @@ void main(int argc, char *argv[]) {
    start_time = time(NULL);
    assert(mode != GCR, "GCR is not implemented yet");
    if (mode == PE) {
-      bpi = 1600;
       parmsetsptr = parmsets_PE; }
    if (mode == NRZI) {
-      bpi = 800;
       parmsetsptr = parmsets_NRZI; }
    if (mode == GCR) {
-      bpi = 9042; // the real bit rate for "6250 BPI" tapes
+      bpi = 9042; // the real bit rate for "6250 BPI" tapes; base it on the supplied BPI= ?
       parmsetsptr = parmsets_GCR; }
 
    if (filelist) {  // process a list of files
@@ -810,8 +853,7 @@ void main(int argc, char *argv[]) {
                  i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried);
             if (parmsetsptr[i].clk_window) rlog("clk avg wind %d bits, ", parmsetsptr[i].clk_window);
             else if (parmsetsptr[i].clk_alpha) rlog("clk avg alpha %.2f, ", parmsetsptr[i].clk_alpha);
-            else rlog("clk spacing %.2f usec, ", (mode == PE ? BIT_SPACING : nrzi.clkavg.t_bitspaceavg)*1e6);
-            rlog("move thresh %.2fV, ", parmsetsptr[i].move_threshold);
+            else rlog("clk spacing %.2f usec, ", (mode == PE ? 1/(ips*bpi) : nrzi.clkavg.t_bitspaceavg)*1e6);
             rlog("zero band %.2fV, ", parmsetsptr[i].zero_band);
             if (mode == PE)
                rlog("clk factor %.1f, pulse adj %.2f",//
