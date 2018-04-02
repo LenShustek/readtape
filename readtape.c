@@ -99,6 +99,15 @@ Copyright (C) 2018, Len Shustek
 - Create new trace file lines for NRZI
 - Remove bitrate ("br=") parameter and replace with bpi= and ips=.
 
+*** 1 Apr 2018, L. Shustek
+- Do interpolation for more accurate peak times when several
+  samples are very close to the peak.
+- Make the window width as a fraction of bit time be a parameter.
+- Change the number of tracks from a compile-time constant to
+  a run-time variable set by the "ntrks=" parameter.
+- Collect and output NRZI transition timing statistics.
+- Update reporting of parameter block statistics.
+
 *********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
@@ -180,9 +189,13 @@ bool filelist = false;
 bool multiple_tries = false;
 bool tap_format = false;
 bool hdr1_label = false;
+bool window_set;
+double last_sample_time;
+
 
 enum mode_t mode = PE;      // default
-float bpi= 1600, ips = 50;
+float bpi= 1600, ips= 50;
+int ntrks = 9;
 
 int starting_parmset=0;
 time_t start_time;
@@ -256,25 +269,26 @@ void SayUsage (char *programName) {
       "   output files will be in the created directory <basefilename>\\",
       "   log file will also be there, as <basefilename>.log",
       "Options:",
-      " -pe      do PE decoding; sets bpi=1600, ips=50",
-      " -nrzi    do NRZI decoding; sets bpi=800, ips=50",
-      " -gcr     do GCR decoding; sets bpi=6250, ips=25",
-      " -bpi=n   override value for density in bits/inch",
-      " -ips=n   override value for speed in inches/sec",
-      " -skip=n  skip the first n samples",
-      " -tap     create one SIMH .tap file from the data",
-      " -m       try multiple ways to decode a block",
-      " -l       create a log file",
-      " -v       verbose mode (extra info)",
-      " -t       terse mode (no block info)",
-      " -q       quiet mode (only \"ok\" or \"bad\")",
-      " -f       take file list from <basefilename>.txt",
+      " -ntrks=n  sets the number of tracks; default is 9",
+      " -pe       do PE decoding; sets bpi=1600, ips=50",
+      " -nrzi     do NRZI decoding; sets bpi=800, ips=50",
+      " -gcr      do GCR decoding; sets bpi=6250, ips=25",
+      " -bpi=n    override value for density in bits/inch",
+      " -ips=n    override value for speed in inches/sec",
+      " -skip=n   skip the first n samples",
+      " -tap      create a SIMH .tap file from the data",
+      " -m        try multiple ways to decode a block",
+      " -l        create a log file",
+      " -v        verbose mode (extra info)",
+      " -t        terse mode (no block info)",
+      " -q        quiet mode (only \"ok\" or \"bad\")",
+      " -f        take file list from <basefilename>.txt",
       NULL };
    int i = 0;
    while (usage[i] != NULL) fprintf (stderr, "%s\n", usage[i++]); }
 
 bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max) {
-   do {
+   do { // parse an integer "keyword=value" option
       if (toupper(*arg++) != *keyword++)
          return false; }
    while (*keyword);
@@ -285,7 +299,7 @@ bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max)
    return true; }
 
 bool opt_flt(const char* arg, const char* keyword, float *pval, float min, float max) {
-   do {
+   do { // parse a floating point "keyword=value" option
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
    float num;  int nch;
@@ -295,19 +309,20 @@ bool opt_flt(const char* arg, const char* keyword, float *pval, float min, float
    return true; }
 
 bool opt_key(const char* arg, const char* keyword) {
-   do {
+   do { // parse a keyword option
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
-   return true; }
+   return *arg == '\0'; }
 
 int HandleOptions (int argc, char *argv[]) {
-   /* returns the index of the first argument that is not an option; i.e.
-   does not start with a dash or a slash */
+   /* returns the index of the first argument that is not an option;
+   i.e. does not start with a dash or a slash */
    int i, firstnonoption = 0;
    for (i = 1; i < argc; i++) {
       if (argv[i][0] == '/' || argv[i][0] == '-') {
          char *arg = argv[i] + 1;
-         if (opt_key(arg, "NRZI")) {
+         if (opt_int(arg, "NTRKS=", &ntrks, 5, 9));
+         else if (opt_key(arg, "NRZI")) {
             mode = NRZI; bpi = 800; ips = 50; }
          else if (opt_key(arg, "PE")) {
             mode = PE; bpi = 1600; ips = 50; }
@@ -325,13 +340,13 @@ int HandleOptions (int argc, char *argv[]) {
             case 'M': multiple_tries = true;  break;
             case 'L': logging = true;  break;
             case 'T': terse = true; verbose = false;  break;
-            case 'V': verbose = true;  break;
+            case 'V': verbose = true; terse = false;  break;
             case 'Q': quiet = terse = true;  verbose = false; break;
             case 'F': filelist = true;  break;
             default: goto opterror; }
          else {
 opterror:
-            fprintf(stderr, "\n*** unknown option: %s\n\n", argv[i]);
+            fprintf(stderr, "\n*** bad option: %s\n\n", argv[i]);
             SayUsage(argv[0]);
             exit(4); } }
       else { // end of switches
@@ -441,7 +456,7 @@ void got_datablock(bool malformed) { // decoded a tape block
       struct IBM_vol_t hdr;
       copy_EBCDIC((byte *)&hdr, data, 80);
       if (!quiet) {
-         rlog("*** tape label %.4s: %.6s, owner %.10s\n", hdr.id, hdr.serno, hdr.owner);
+         rlog("*** tape label %.4s: \"%.6s\", owner \"%.10s\"\n", hdr.id, hdr.serno, hdr.owner);
          if (result->errcount) rlog("--> %d errors\n", result->errcount); }
       //dumpdata(data, length);
    }
@@ -449,7 +464,7 @@ void got_datablock(bool malformed) { // decoded a tape block
       struct IBM_hdr1_t hdr;
       copy_EBCDIC((byte *)&hdr, data, 80);
       if (!quiet) {
-         rlog("*** tape label %.4s: %.17s, serno %.6s, created%.6s\n", hdr.id, hdr.dsid, hdr.serno, hdr.created);
+         rlog("*** tape label %.4s: \"%.17s\", serno \"%.6s\", created%.6s\n", hdr.id, hdr.dsid, hdr.serno, hdr.created);
          rlog("    volume %.4s, dataset %.4s\n", hdr.volseqno, hdr.dsseqno);
          if (compare4(data, "EOF1")) rlog("    block count: %.6s, system %.13s\n", hdr.blkcnt, hdr.syscode);
          if (result->errcount) rlog("--> %d errors\n", result->errcount); }
@@ -467,7 +482,7 @@ void got_datablock(bool malformed) { // decoded a tape block
       if (!quiet) {
          rlog("*** tape label %.4s: RECFM=%.1s%.1s, BLKSIZE=%.5s, LRECL=%.5s\n",//
               hdr.id, hdr.recfm, hdr.blkattrib, hdr.blklen, hdr.reclen);
-         rlog("    job: %.17s\n", hdr.job);
+         rlog("    job: \"%.17s\"\n", hdr.job);
          if (result->errcount) rlog("--> %d errors\n", result->errcount); }
       //dumpdata(data, length);
    }
@@ -589,21 +604,23 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
       &sample.voltage[0], &sample.voltage[1], &sample.voltage[2],
       &sample.voltage[3], &sample.voltage[4], &sample.voltage[5],
       &sample.voltage[6], &sample.voltage[7], &sample.voltage[8]);
-      assert (items == NTRKS+1,"bad CSV line format"); */
+      assert (items == ntrks+1,"bad CSV line format"); */
       char *linep = line;
 
       sample.time = scan_double(&linep);  // get the time of this sample
-      static double last_sample_time = 0;
-      static bool window_set = false;
-      if (!window_set && last_sample_time != 0) { // have seen two sample: set peak window width
+      if (!window_set && last_sample_time != 0) { // have seen two samples: set the width of the peak-detect moving window
          sample_deltat = sample.time - last_sample_time;
-         pkww_width = min(PKWW_MAX_WIDTH, (int)(PKWW_BITFRAC / (bpi*ips*sample_deltat)));
-         rlog("%d BPI, %d IPS, sampling rate %s Hz, peak window width %d samples\n", 
-            (int)bpi, (int) ips, intcommas((int)(1.0 / sample_deltat)), pkww_width);
+         pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
+         static said_rates = false;
+         if (!quiet && !said_rates) {
+            rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz, initial peak window width is %d samples\n",
+                 mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : "???",
+                 (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), pkww_width);
+            said_rates = true; }
          window_set = true; }
       last_sample_time = sample.time;
 
-      for (int i=0; i<NTRKS; ++i) sample.voltage[i] = scan_float(&linep);  // read voltages for all tracks
+      for (int i=0; i<ntrks; ++i) sample.voltage[i] = scan_float(&linep);  // read voltages for all tracks
 
       if (process_sample(&sample) != BS_NONE)	 // process one voltage sample point for all tracks
          break;								 // until we recognize an end of block
@@ -642,8 +659,9 @@ bool process_file(void) { // process a complete input file; return TRUE if all b
       while (skip_samples--)
          assert(fgets(line, MAXLINE, inf), "endfile with %d lines left to skip\n", skip_samples); }
    interblock_expiration = 0;
+   starting_parmset = 0;
 
-   while (1) { // for all lines of the file
+   while (1) { // keep processing lines of the file
       init_blockstate();  // initialize for a new block
       block.parmset = starting_parmset;
       blockstart = ftell(inf);// remember the file position for the start of a block
@@ -656,6 +674,8 @@ bool process_file(void) { // process a complete input file; return TRUE if all b
          keep_trying = false;
          ++PARM.tried;  // note that we used this parameter set in another attempt
          last_parmset = block.parmset;
+         window_set = false;
+         last_sample_time = 0;
          init_trackstate();
          dlog("\n     trying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
          if (!readblock(block.tries>0)) goto endfile; // ***** read a block ******
@@ -683,9 +703,11 @@ bool process_file(void) { // process a complete input file; return TRUE if all b
                interblock_expiration = 0; } } }
       while (keep_trying);
 
-      // We didn't succeed in getting a perfect decoding of the block, so pick the best of the bad decodings.
+      // We didn't succeed in getting a perfect decoding of the block, so pick the best of multiple bad decodings.
 
-      if (block.tries > 1) {
+      if (block.tries == 1) { // unless we don't have multiple decoding tries
+         if (block.results[block.parmset].errcount > 0) ok = false; }
+      else {
          dlog("looking for good parity blocks\n");
          int min_bad_bits = INT_MAX;
          for (int i = 0; i<MAXPARMSETS; ++i) { // Try 1: find a decoding with no errors and the minimum number of faked bits
@@ -695,8 +717,8 @@ bool process_file(void) { // process a complete input file; return TRUE if all b
                block.parmset = i;
                dlog("  best good parity choice is parmset %d\n", block.parmset); } }
          if (min_bad_bits < INT_MAX) goto done;
-         ok = false; // we had at least one bad bock
 
+         ok = false; // we had at least one bad block
          dlog("looking for minimum bad parity blocks\n");
          min_bad_bits = INT_MAX;
          for (int i = 0; i<MAXPARMSETS; ++i) { // Try 2: Find the decoding with the mininum number of errors
@@ -717,7 +739,6 @@ bool process_file(void) { // process a complete input file; return TRUE if all b
                block.parmset = i;
                dlog("  best malformed block choice is parmset %d\n", block.parmset); } }
          assert(min_track_diff < INT_MAX, "bad malformed block status"); }
-
 done:
       dlog("  chose parmset %d as best after %d tries\n", block.parmset, block.tries);
       ++PARM.chosen;  // count times that this parmset was chosen to be used
@@ -772,16 +793,17 @@ void breakpoint(void) { // for the debugger
        init_tracks()
        readblock: do process_sample until end_of_block()
    pick best decoding
-   if necessary, readbock: do process_sample until end_of_block()
-   got_datablock(), or got_tapemark()
+   if necessary to regenerate a previous better decoding,
+      readbock: do process_sample until end_of_block()
+   call got_datablock() or got_tapemark()
       decode standard labels, if any
-      write data block
+      write output file data block
 ---------------------------------------------------------------------*/
 void main(int argc, char *argv[]) {
    int argno;
    char *cmdfilename;
 
-#if 0 // compiler check
+#if 0 // compiler checks
    assert(sizeof(struct IBM_vol_t) == 80, "bad vol type");
    assert(sizeof(struct IBM_hdr1_t) == 80, "bad hdr1 type");
    assert(sizeof(struct IBM_hdr2_t) == 80, "bad hdr2 type");
@@ -847,19 +869,30 @@ void main(int argc, char *argv[]) {
               numtapemarks, numblks, numbadparityblks, nummalformedblks); } }
    if (verbose) {
       rlog("%d perfect blocks needed to try more than one parm set\n", numgoodmultipleblks);
-      for (int i = 0; i < MAXPARMSETS; ++i) //
+
+      for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
          if (parmsetsptr[i].tried > 0) {
             rlog("parm set %d was tried %4d times and used %4d times, or %5.1f%%: ",
                  i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried);
-            if (parmsetsptr[i].clk_window) rlog("clk avg wind %d bits, ", parmsetsptr[i].clk_window);
-            else if (parmsetsptr[i].clk_alpha) rlog("clk avg alpha %.2f, ", parmsetsptr[i].clk_alpha);
+
+            if (parmsetsptr[i].clk_window) rlog("clk wind %d bits, ", parmsetsptr[i].clk_window);
+            else if (parmsetsptr[i].clk_alpha) rlog("clk alpha %.2f, ", parmsetsptr[i].clk_alpha);
             else rlog("clk spacing %.2f usec, ", (mode == PE ? 1/(ips*bpi) : nrzi.clkavg.t_bitspaceavg)*1e6);
-            rlog("zero band %.2fV, ", parmsetsptr[i].zero_band);
+
+            if (parmsetsptr[i].agc_window) rlog("AGC wind %d bits, ", parmsetsptr[i].agc_window);
+            else if (parmsetsptr[i].agc_alpha) rlog("AGC alpha %.2f, ", parmsetsptr[i].agc_alpha);
+            else rlog("AGC off");
+
             if (mode == PE)
-               rlog("clk factor %.1f, pulse adj %.2f",//
-                    parmsetsptr[i].clk_factor, parmsetsptr[i].pulse_adj_amt);
-            rlog("\n");
+               rlog("clk factor %.2f, ", parmsetsptr[i].clk_factor);
+
+            rlog("zero band %.2fV, pulse adj %.2f, ww frac %.1f\n",
+                 parmsetsptr[i].zero_band, parmsetsptr[i].pulse_adj_amt, parmsetsptr[i].pkww_bitfrac);
             //
-         } } }
+         } }
+#if PEAK_STATS
+   if (mode == NRZI && !quiet) nrzi_output_stats();
+#endif
+}
 
 //*

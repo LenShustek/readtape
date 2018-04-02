@@ -29,10 +29,12 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
-#define DEBUG 0                 // generate debugging output?
-#define TRACEFILE true          // if DEBUG, are we also creating trace file?
-#define TRACETRK 6               // for which track
+#define DEBUG 0                  // generate debugging output?
+#define TRACEFILE true           // if DEBUG, are we also creating trace file?
+#define TRACETRK 2               // for which track
 #define MULTITRACK false         // or, are we plotting multi-track analog waveforms?
+#define PEAK_STATS true          // accumulate peak timing statistics?
+
 #define DLOG_LINE_LIMIT 10000    // limit for debugging output
 
 #include <stdio.h>
@@ -47,23 +49,23 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <inttypes.h>
 #include <limits.h>
 
-#define NTRKS 9
+#define MAXTRKS 9
 #define MAXBLOCK 32768
 #define MAXPARMSETS 15
 #define MAXPATH 200
 
 // Here are lots of of parameters that control the decoding algorithm.
-// Some of these are defaults, for which the currently used values are in the parms_t structure.
+// Some of these are defaults or maxima, for which the currently used values are in the parms_t structure.
 
 #define NRZI_MIDPOINT    0.6        // how far beyond a bit clock is the NRZI "midpoint"
 #define NRZI_IBG_SECS    0.0002     // minimum interblock gap (depends on current IPS?)
-#define NRZI_RESET_SPEED true       // should we reset the tape speed based on the second peak of a block?
+#define NRZI_RESET_SPEED false      // should we reset the tape speed based on the second peak of a block?
 
-#define PKWW_MAX_WIDTH   20         // the maximum width, in samples, of the peak-detect moving window
-#define PKWW_RISE        0.1        // the required rise in volts that represents a peak (will be adjusted)
-#define PKWW_PEAKHEIGHT  4.0        // te rise assumes this peak-to-peak voltage
-#define PKWW_BITFRAC     0.8        // what fraction of the bit spacing the window width is
+#define PKWW_MAX_WIDTH   20         // the peak-detect moving window maximum width, in number of samples
+#define PKWW_RISE        0.1        // the required rise in volts that represents a peak (will be adjusted by AGC and peak height)
+#define PKWW_PEAKHEIGHT  4.0        // that rise assumes this peak-to-peak voltage
 
+#define PEAK_THRESHOLD   0.005      // volts of difference that define "same peak", scaled by AGC
 #define EPSILON_T        1.0e-7     // in seconds, time fuzz factor for comparisons
 #define PE_IDLE_FACTOR   2.5        // how much of the bit spacing to wait for before considering the track idle
 #define CLKRATE_WINDOW   10         // maximum window width for clock averaging
@@ -90,7 +92,7 @@ typedef unsigned char byte;
 
 struct sample_t {       // what we get from the digitizer hardware:
    double time;         //   the time of this sample
-   float voltage[NTRKS];   //   the voltage level from each track head
+   float voltage[MAXTRKS];   //   the voltage level from each track head
 };
 
 enum mode_t {
@@ -154,8 +156,7 @@ struct trkstate_t {  // track-by-track decoding state
 // That allows us to be insensitive to significant head skew.
 // For NRZI, which is not self-clocking, we compute one global clock and keep it synchronized
 // in frequency and phase to transitions on any track. That allows us to tolerate pretty wide
-// changes in tape speed. It means we can't tolerate much head skew, but that isn't generally 
-// an issue for 800 BPI and lower densities with fat bits. 
+// changes in tape speed. 
 struct nrzi_t { // NRZI decode state information
    double t_lastclock;     // time of the last clock 
    double t_last_midbit;   // time we did the last mid-bit processing
@@ -165,7 +166,7 @@ struct nrzi_t { // NRZI decode state information
    int post_counter;       // counter for post-data bit times: CRC is at 4, LRC is at 8
 }; // nrzi.
 
-struct parms_t {  // a set of parameters used for reading a block. We try again with different ones if we get errors.
+struct parms_t {  // a set of parameters used for decoding a block. We try again with different sets if we get errors.
    int active;             // 1 means this is an active parameter set
    int clk_window;         // how many bit times to average for clock rate; 0 means maybe use exponential averaging
    float clk_alpha;        // weighting for current data in the clock rate exponential weighted average; 0 means use constant
@@ -174,6 +175,7 @@ struct parms_t {  // a set of parameters used for reading a block. We try again 
    float zero_band;        // how many volts close to zero should be considered zero
    float clk_factor;       // PE: how much of a half-bit period to wait for a clock transition
    float pulse_adj_amt;    // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
+   float pkww_bitfrac;     // what fraction of the bit spacing the window width is
                            // ...add more dynamic parameters above here
    char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
    int tried;              // how many times this parmset was tried
@@ -194,7 +196,7 @@ enum bstate_t { // the decoding status a block
 
 struct blkstate_t {  // state of the block, when we're done
    int tries;           // how many times we tried to decode this block
-   int parmset;         // which parm set we are currently using
+   int parmset;         // which parameter set we are currently using
    struct results_t {      // the results from the various parameter sets, in order
       enum bstate_t blktype;     // the ending state of the block
       int minbits, maxbits;      // the min/max bits of all the tracks
@@ -202,8 +204,8 @@ struct blkstate_t {  // state of the block, when we're done
       int vparity_errs;          // how many vertical (byte) parity errors it has
       int faked_bits;            // how many faked bits it has
       int errcount;              // how many total errors it has: parity + CRC + LRC
-      bool crc_bad, lrc_bad;     // NRZI: are crc/lrc ok?
-      int crc, lrc;              // NRZI; the actual crc anc lrc values
+      bool crc_bad, lrc_bad;     // NRZI 800: are crc/lrc ok?
+      int crc, lrc;              // NRZI 800; the actual crc anc lrc values in the data
       float alltrk_max_agc_gain; // the maximum AGC gain we used for any track
    } results [MAXPARMSETS]; // results for each parm set we tried
 }; // block
@@ -214,15 +216,15 @@ void rlog(const char *, ...);
 void breakpoint(void);
 char *intcommas(int);
 char *longlongcommas(long long int);
-
 byte parity(uint16_t);
 void init_trackstate(void);
 void init_blockstate(void);
 enum bstate_t process_sample(struct sample_t *);
 void show_block_errs(int);
+void nrzi_output_stats(void);
 
 extern enum mode_t mode;
-extern bool terse, verbose, multiple_tries;
+extern bool terse, verbose, quiet,multiple_tries;
 extern int dlog_lines;
 extern double timenow;
 extern double interblock_expiration;
@@ -232,6 +234,7 @@ extern uint16_t data_faked[];
 extern double data_time[];
 extern struct nrzi_t nrzi;
 extern float bpi, ips;
+extern int ntrks;
 extern int pkww_width;
 extern float sample_deltat; 
 extern char basefilename[];
