@@ -20,6 +20,7 @@ Adding a new parameter requires:
  1. adding a field to struct blkstate_t in decoder.h
  2. adding a line to "parms" in this file, giving the type, name, and min/max values
  3. adding default values to all the struct parms_t parmsets_xxx initialization in this file
+ 4. perhaps adding a display at the end of readtape.c
 
 
 ---> See readtape.c for the merged change log <----
@@ -149,11 +150,17 @@ bool scan_to_blank(char **pptr, char *str) { // scan to a blank or newline
    return true; }
 
 void dump_parms(void) {
-   int n = 0;
+   rlog("  ");
+   for (int i = 0; i < MAXPARMSETS && parms[i].type != P_END; ++i)
+      rlog(parms[i].type == P_STR ? "%4s\n" : "%10.10s, ", parms[i].name);
    for (struct parms_t *setptr = parmsets; setptr->active == 1; ++setptr) {
-      rlog("  %d: {%d, %d, %.3f, %d, %.3f, %.3f, %.3f, %.3f, %.3f, \"%s\"}\n", n++,
-           setptr->active, setptr->clk_window, setptr->clk_alpha, setptr->agc_window, setptr->agc_alpha,
-           setptr->min_peak, setptr->clk_factor, setptr->pulse_adj, setptr->pkww_bitfrac, setptr->id); } }
+      rlog("{");
+      for (int i = 0; i < MAXPARMSETS && parms[i].type != P_END; ++i) {
+         switch (parms[i].type) {
+         case P_INT: rlog("%10d, ", *(int *)((char*)setptr + parms[i].offset)); break;
+         case P_FLT: rlog("%10.3f, ", *(float *)((char*)setptr + parms[i].offset)); break;
+         case P_STR: rlog("%6s }\n", (char *)setptr + parms[i].offset); break; //
+         } } } }
 
 struct parms_t *default_parmset(void) {
    if (mode == PE) return parmsets_PE;
@@ -179,6 +186,7 @@ void read_parms(void) {   // process the optional <basefilename>.parms file of p
          setptr = default_parmset();
          memcpy(parmsets, setptr, sizeof(parmsets));
          if (!quiet) rlog(".parms file not found; using defaults for parameter sets\n");
+         dump_parms();
          return; } }
 
    if (!quiet) rlog("reading parms from \"%s\"\n", filename);
