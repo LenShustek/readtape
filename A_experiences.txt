@@ -1,0 +1,24 @@
+The original motivation for this project was to recover the 50-year-old 
+source code of a PL/I compiler that I worked on as an undergraduate 
+student at what was then the Polytechnic Institute of Brooklyn. I had 
+paid a large data recovery firm $1000 to restore the data from an 800 
+BPI 9-track tape that had been in my attic for many decades, and they 
+failed. But as of March 29, 2018, my code ruminating on the analog 
+signals I got from the tape via the Qualstar 1052 tape drive recovered 
+100% of the data. The results are here, translated from EBCDIC to ASCII: 
+http://shustek.com/plago/source/ .If you are interested, there is 
+scanned documentation on the PL/I compiler project here: 
+http://shustek.com/plago/. 
+
+For the PL/I compiler tape with 17 files I continuously recorded data 
+for 70 seconds at 781 Khz, which created an 8 GB file of Saleae raw 
+data. I then exported the 64 seconds of useful data to a CSV (comma 
+separated value) text file, where each line contains 10 floating-point 
+numbers: a timestamp, and the 9 channels of calibrated sampled analog 
+voltages. That file is 9.5 GB, and has 49,396,912 x 9 voltage samples 
+that I process in 87 seconds to produce the 17 data files. 
+
+Those 17 data files have 1.4 MB of data, so look at the expansion 
+penalty for using analog data samples: 9.5 GB to 1.4 MB is about 7000 to 
+1. But who cares, as long as it works? 
+
