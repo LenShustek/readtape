@@ -2,19 +2,19 @@ READTAPE: A program to recover data from old computer magnetic tapes
 
 OVERVIEW 
 
-This software being developed analyzes the analog signal from a 
+This software,still in development, analyzes the analog signal from a 
 multi-track digital magnetic tape to reconstruct the original digital 
 data. The motivation for starting with the analog data is to be able to 
 recover data that has degraded to the point where conventional tape 
 drives won't read it. 
 
-The input to the program is a series of periodic samples of the analog 
+The input to the program is a sequence of periodic samples of the analog 
 voltage from all channels of the read head as the tape is moving. It is a 
 CSV (comma-separated-value) text file with a series of floating point 
 numbers. The first number on each line is a timestamp in seconds, and 
 the next N values on the lines are the voltages from the N tracks. 
 
-I am current using a Qualstar 1052 tape drive, with either a 9-track or 
+I am currently using a Qualstar 1052 tape drive with either a 9-track or 
 7-track head installed. The drive manual is here: 
 http://bitsavers.trailing-edge.com/pdf/qualstar/500150B_1052serviceMan.pdf.  
 The analog samples are taken from the output of the second-stage 
@@ -26,7 +26,7 @@ commands over the computer interface.
 The analog to digital conversion is done with a Saleae 16-channel logic 
 analyzer (https://www.saleae.com/), which does 12-bit digitization (4096 
 possible values) of single-ended signals from -10V to +10V. Having 
-bipolar inputs is important, because the output of the differential 
+bipolar inputs is important, because the output of the second operational 
 amplifier is typically +-2V to +-6V. For degraded areas of the tapes it 
 goes lower, but automatic gain control in the software allows it to 
 decode signals that go as low as +-0.1V. 
@@ -43,7 +43,7 @@ for many minutes to create files that take dozens of gigabytes hasn't
 been a problem. Files are saved in Saleae's proprietary format, but
 some of all of the file can exported to a CSV file.
 
-THE PROGRAM 
+USING THE PROGRAM 
 
 This is a command-line (non-GUI) program written in standard C. I've 
 been testing on a Windows PC, but it should work in other environments 
@@ -83,14 +83,14 @@ program will try as many as necessary to get a perfect decoding of a
 block, or pick the one that generates the minimum number of errors. 
 
 Each set of records between tapemarks is stored as separate file. If it
-detects IBM standard labels, it uses those to name the files but doesn't
+detects IBM standard labels, it uses those to name the files and doesn't
 write the labels themselves. In -tap mode, it creates one tape image
 file in SIMH format, http://simh.trailing-edge.com/docs/simh_magtape.pdf.
 
 The parameter sets that control the decoding algorithms can be read in 
 from a file that is specific to the tape data being decoded 
 (<basefilename>.parms), or from a generic file for that encoding type 
-(NRZI.parms, etc.). If no parameter file is given, the program uses 
+(NRZI.parms, etc.). If no parameter file is provided, the program uses 
 built-in defaults. 
 
 This program is still a work in progress, so the parameter sets continue 
@@ -107,7 +107,7 @@ to evolve. The current set of parameters are these:
    float pkww_bitfrac;     // what fraction of the bit spacing the window width is
    char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
 
-The format of the parameter file is as follows:
+The format of a parameter file is as follows:
 
 //  comments
 readtape <additional command line options>
@@ -120,23 +120,109 @@ The leading 1 indicates an active parameter set, and the trailing "PRM"
 is for error checking. The numbers in between are the parameters in the 
 order given by the "parms" line of the file. 
 
-If there is a now-obsolete parm name in the file that the program no 
-longer knows about, it is ignored with a warning. If a parm name that 
-the program expects is missing, the value from the first built-in 
-parmset is used. That scheme allows us to add and remove parm types in 
-the program without invalidating existing .parm files. 
+If there is a now-obsolete parameter name in the file that the program 
+no longer knows about, it is ignored with a warning. If a parameter name 
+that the program expects is missing, the value from the first built-in 
+parmset is used. This scheme allows us to add and remove parameters 
+types in the program without completely invalidating existing .parm 
+files. 
+
+THE ALGORITHMS
+
+This is a work-in-progress, so the algorithms will probably will have 
+changed by the time you read these descriptions. 
+
+Peak Detection
+
+As the tape moves past the head, a flux transition on any track creates 
+a voltage peak, either positive or negative, in accordance with 
+Faraday's Law, V = dB/dT. The amplitude of the voltage depends on many 
+things: tape speed, bit density, head design, track alignment, and the 
+exact sequence of flux transitions. 
+
+We record the analog signal after a differential amplifier, a low-pass 
+filter, and a differential to single-ended amplifier in the drive 
+electronics. The signal is amazingly clean, with little noise or jitter 
+that isn't attributable to the data on the tape. 
+
+The first version of software peak detection used a hill-climbing 
+algorithm to detect a local minimum or maximum. We kept track of whether 
+we were going uphill or downhill, and recorded a peak when the direction 
+changed by a non-trivial amount. The actual time of the peak was 
+calculated by interpolating the times of samples that were close the the 
+peak. 
+
+The problem was that, especially when combined with the AGC algorithm 
+described later, it was subject to false positives when the signal is 
+small or when there are small variations. It would work when the 
+parameters were carefully tweaked, but it was not robust. 
+
+The second version of peak detection, which seems to work better, uses a 
+moving window shape detector. We keep track of the last N samples for 
+each track, of course using a circular buffer with head and tail 
+pointers so the data doesn't have to be moved. As each new data point is 
+entered, we look to see if the maximum (minimum) sample is much higher 
+(lower) than the oldest and newest values, and record a peak if so. We 
+then become blind to peaks until that peak exits the window. 
+
+The number of samples in the window is set dynamically based on the 
+expected bit rate and a settable parameter. The amount by which a peak 
+has to exceed the oldest and newest values is also parametrized and 
+varies with the current AGC. The time of the peak is interpolated based 
+on the previous and next sample values, so that if two or three values 
+close to the peak are averaged. 
+
+Compensation for "pulse shifting", which depends on the sequence and 
+proximity of flux transitions, is done by computing the difference 
+between the possible expected position of the pulse (which depends on 
+the kind of encoding used) and the observed position. A parameter 
+controls what fraction of that distance should be used to adjust the 
+time of the peak before using it in the decoding algorithm. 
+
+AGC: Automatic Gain Control
+
+To compensate for differences in signal amplitude between tapes, between 
+blocks, and between bits, we keep track of the average or expected peak 
+heights for each track separately. The calculation produces an AGC value 
+between 0.1 (for big signals) and 20 (for low signals). We change it by 
+one of two algorithms: 
+
+- exponential averaging: the new value is alpha * current + (1-alpha) * 
+old average. This provide a kind of low-pass filter so that it changes 
+slowly. 
+
+- recent minimum: the value is based on the minimum peak of the 
+last N peaks we've seen. (Again, implemented with a circular buffer with 
+head and tail pointers so data doesn't have to be moved.) This works 
+better for some tapes where there are isolated very small peaks.
+
+The AGC value is used for the following two calculations: 
+
+- choosing how high (low) a voltage must be to be considered a peak 
+
+- adjusting how close adjacent peaks need to be for their times to be 
+averaged 
+
+High values of AGC let us detect peaks that are as small as 0.1V during 
+dropouts on a particular track, yet still be able to ignore noise at 
+other times when the signal is strong. 
+
+Clock Recovery
+
+...TBD..  window and exponential averaging...
 
 
-PE DECODING TECHNIQUES
+PE Decoding Techniques
 
 PE (phase encoding) has a negative flux transition for a 0-bit and a 
 positive flux transition for a 1-bit. At the midpoint between bits, 
 there is an optional flux transition if needed to prepare for the 
-correct next bit flux transition. 
+correct next bit flux transition. This is sometimes described as 
+"Manchester" encoding. 
 
-...description TBD... 
+...TBD... 
 
-NRZI DECODING TECHNIQUES
+NRZI Decoding Techniques
 
 NRZI (non return to zero inverted) encoding has a flux transition of 
 either direction for a 1-bit, and no transition for a 0-bit. Recovering 
@@ -177,5 +263,5 @@ and minimal leakage between adjacent tracks.
 
 ....more to come....
 
-L. Shustek, 9 April 2018
+L. Shustek, 10 April 2018
 
