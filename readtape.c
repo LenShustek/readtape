@@ -11,7 +11,7 @@ MSB...LSB, parity. The first two rows are text column headings.
 *************************************************************************
 Copyright (C) 2018, Len Shustek
 
----CHANGE LOG
+---CHANGE LOG ---
 
 *** 20 Jan 2018, L. Shustek, Started first version
 
@@ -117,7 +117,14 @@ Copyright (C) 2018, Len Shustek
 - Don't decode tape labels when writing a SIMH .tap file.
 - Don't display trailing blanks in standard label fields.
 
-*********************************************************************
+*** 12 Apr 2018, L. Shustek
+- Rewrite the debugging trace routines to be deeply buffered, so
+we can "change history" for events that are discovered late -- for
+example, with the new moving-window algorithm, the signal peaks.
+- Better display of parmsets in verbose mode.
+*********************************************************************/
+#define VERSION "12Apr2018"
+/********************************************************************
  default bit and track numbering, where 0=msb and P=parity
             on tape       memory here    written to disk
  7-track    P012345         012345P        012345
@@ -194,12 +201,13 @@ struct IBM_hdr2_t {
 FILE *inf,*outf, *rlogf;
 fpos_t blockstart; // use fseek/ftell, because fgetpos/fsetpos is buggy in lcc-win64!
 char basefilename[MAXPATH];
-int lines_in=0, lines_out=0;
-int numfiles=0, numblks=0, numbadparityblks=0, nummalformedblks=0, numgoodmultipleblks=0, numtapemarks=0;
+long long lines_in = 0;
+int numfiles = 0, numblks = 0, numbadparityblks = 0, nummalformedblks = 0, numgoodmultipleblks = 0, numtapemarks = 0;
 int numfilebytes, numfileblks;
-bool logging=false;
-bool verbose=true;
-bool terse=false;
+long long numoutbytes = 0;
+bool logging = false;
+bool verbose = true;
+bool terse = false;
 bool quiet = false;
 bool filelist = false;
 bool multiple_tries = false;
@@ -214,7 +222,7 @@ enum mode_t mode = PE;      // default
 float bpi= 1600, ips= 50;
 int ntrks = 9;
 
-int starting_parmset=0;
+int starting_parmset = 0;
 time_t start_time;
 int skip_samples = 0;
 int dlog_lines = 0;
@@ -399,6 +407,7 @@ opterror:  fatal("bad option: %s\n\n", option);
    return true; }
 
 int HandleOptions (int argc, char *argv[]) {
+
    /* returns the index of the first argument that is not an option;
    i.e. does not start with a dash or a slash */
    int i, firstnonoption = 0;
@@ -469,7 +478,8 @@ void output_tap_marker(uint32_t num) {  //output a 4-byte .TAP file marker, litt
    for (int i = 0; i < 4; ++i) {
       byte lsb = num & 0xff;
       assert(fwrite(&lsb, 1, 1, outf) == 1, "fwrite failed in output_tap_marker");
-      num >>= 8; } }
+      num >>= 8; }
+   numoutbytes += 4; }
 
 void close_file(void) {
    if (outf) {
@@ -560,9 +570,11 @@ void got_datablock(bool malformed) { // decoded a tape block
          if (tap_format) {
             byte zero = 0;  // tap format needs an even number of data bytes
             if (length & 1) assert(fwrite(&zero, 1, 1, outf) == 1, "write of odd byte failed");
+            numoutbytes += 1;
             output_tap_marker(length | errflag); // trailing record length
          }
-         numfilebytes += length;
+          numoutbytes += length;
+        numfilebytes += length;
          ++numfileblks;
          ++numblks;
          if (DEBUG && (result->errcount != 0 || result->faked_bits != 0))
@@ -572,7 +584,7 @@ void got_datablock(bool malformed) { // decoded a tape block
             if (result->lrc_bad) dlog("bad LRC: %03x\n", result->lrc); }
          if (result->errcount != 0) ++numbadparityblks;
          if (verbose || (terse && (result->errcount > 0 || malformed))) {
-            rlog("wrote block %3d, %4d bytes, %d tries, parms %d, max AGC %.2f, %d parity errs, ",
+            rlog("wrote block %3d, %4d bytes, %d tries, parmset %d, max AGC %.2f, %d parity errs, ",
                  numblks, length, block.tries, block.parmset, result->alltrk_max_agc_gain, result->vparity_errs);
             if (mode == PE)
                rlog("%d faked bits on %d trks", count_faked_bits(data_faked, length), count_faked_tracks(data_faked, length));
@@ -651,8 +663,7 @@ char *longlongcommas(long long n) { // 64 bits
    return p + 1; }
 
 char *modename(void) {
-   return mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : "???";
-}
+   return mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : "???"; }
 
 bool readblock(bool retry) { // read the CSV file until we get to the end of a block on the tape
    // return false if we are already at the endfile
@@ -695,12 +706,10 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
          break; } }
    return true; }
 
-bool process_file(void) { // process a complete input file; return TRUE if all blocks were well-formed and had good parity
+bool process_file(int argc, char *argv[]) { // process a complete input file; return TRUE if all blocks were well-formed and had good parity
    char filename[MAXPATH], logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
-
-   read_parms(); // read the .parm file, if anyu
 
    if (mkdir(basefilename) != 0) // create the working directory for output files
       assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", basefilename");
@@ -712,10 +721,17 @@ bool process_file(void) { // process a complete input file; return TRUE if all b
    strncpy(filename, basefilename, MAXPATH - 5);  // open the input file
    filename[MAXPATH - 5] = '\0';
    strcat(filename, ".csv");
-   if (!quiet) rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
    inf = fopen(filename, "r");
    assert(inf, "Unable to open input file \"%s\"", filename);
 
+   if (!quiet) {
+      for (int i = 0; i < argc; ++i)  // for documentation in the log, print invocation options
+         rlog("%s ", argv[i]);
+      rlog("\n");
+      rlog("readtape version \"%s\" compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+      rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
+   }
+   read_parms(); // read the .parm file, if anyu
 
    fgets(line, MAXLINE, inf); // first two lines in the input file are headers from Saleae
    //log("%s",line);
@@ -814,7 +830,7 @@ done:
             && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
          assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 2"); // then reprocess the chosen one to recompute that best data
          interblock_expiration = 0;
-         dlog("     rereading parmset %d\n", block.parmset);
+         dlog("     rereading with parmset %d\n", block.parmset);
          init_trackstate();
          assert(readblock(true), "got endfile rereading a block");
          struct results_t *result = &block.results[block.parmset];
@@ -835,7 +851,7 @@ done:
          fatal("bad block state after decoding", ""); }
 
 #if USE_ALL_PARMSETS
-      do { // If we start with a new parm set each time, we'll use them all relatively equally and can see which ones are best
+      do { // If we start with a new parmset each time, we'll use them all relatively equally and can see which ones are best
          if (++starting_parmset >= MAXPARMSETS) starting_parmset = 0; }
       while (parmsetsptr[starting_parmset].clk_factor == 0);
 #else
@@ -929,29 +945,29 @@ void main(int argc, char *argv[]) {
          if (line[0] != 0) {
             strncpy(basefilename, line, MAXPATH - 5);
             basefilename[MAXPATH - 5] = '\0';
-            bool result = process_file();
+            bool result = process_file(argc, argv);
             printf("%s: %s\n", basefilename, result ? "ok" : "bad"); } } }
 
    else {  // process one file
       strncpy(basefilename, cmdfilename, MAXPATH - 5);
       basefilename[MAXPATH - 5] = '\0';
-      bool result = process_file();
+      bool result = process_file(argc, argv);
       if (quiet) {
          printf("%s: %s\n", basefilename, result ? "ok" : "bad"); }
       else {
          double elapsed_time = difftime(time(NULL), start_time); // integer seconds!?!
-         rlog("\n%s samples processed in %.0lf seconds\n"
-              "created %d files and averaged %.2lf seconds/block\n" //
-              "detected %d tape marks, and %d data blocks of which %d had errors and %d were malformed.\n",//
-              intcommas(lines_in), elapsed_time,
-              numfiles, numblks == 0 ? 0 : elapsed_time / numblks, //
+         rlog("\n%s samples processed in %.0lf seconds, or %.2lf seconds/block\n",
+              longlongcommas(lines_in), elapsed_time, numblks == 0 ? 0 : elapsed_time / numblks);
+         rlog("created %d files with %s bytes\n",
+              numfiles, longlongcommas(numoutbytes));
+         rlog("detected %d tape marks, and %d data blocks of which %d had errors and %d were malformed.\n",//
               numtapemarks, numblks, numbadparityblks, nummalformedblks); } }
    if (!quiet) {
-      rlog("%d perfect blocks needed to try more than one parm set\n", numgoodmultipleblks);
+      rlog("%d perfect blocks needed to try more than one parmset\n", numgoodmultipleblks);
 
       for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
          if (parmsetsptr[i].tried > 0) {
-            rlog("parm set %d was tried %4d times and used %4d times, or %5.1f%%: ",
+            rlog("parmset %d was tried %4d times and used %4d times, or %5.1f%%: ",
                  i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried);
 
             if (parmsetsptr[i].clk_window) rlog("clk wind %d bits, ", parmsetsptr[i].clk_window);

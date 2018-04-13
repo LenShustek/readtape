@@ -54,24 +54,25 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 struct parmdescr_t {    // define the currently known parameters in a parameter set
    enum { P_INT, P_FLT, P_STR, P_END } type;
    char *name;
+   enum mode_t mode;
    float min, max;
    int offset; // offset in the parms_t structure,
-#define DEFINE_PARM(t,n,min,max) {t,#n,min,max,offsetof(struct parms_t,n)}
+#define DEFINE_PARM(t,n,m,min,max) {t,#n,m,min,max,offsetof(struct parms_t,n)}
    // That funny business lets us assign to variables whose name is given at runtime.
    // This would be a reason to use Python instead of C, except it's *much* too slow!
 }
 parms[] = { // list of: type, name, min value, max value
    // can reorder between 'active" and "id", as long as the order agrees with the defaults below
-   DEFINE_PARM(P_INT, active, 0.0, 1.0),
-   DEFINE_PARM(P_INT, clk_window, 0.0, CLKRATE_WINDOW),
-   DEFINE_PARM(P_FLT, clk_alpha, 0.0, 1.0),
-   DEFINE_PARM(P_INT, agc_window, 0.0, AGC_MAX_WINDOW),
-   DEFINE_PARM(P_FLT, agc_alpha, 0.0, 1.0),
-   DEFINE_PARM(P_FLT, min_peak, 0.0, 5.0),
-   DEFINE_PARM(P_FLT, clk_factor, 0.0, 2.0),
-   DEFINE_PARM(P_FLT, pulse_adj, 0.0, 1.0),
-   DEFINE_PARM(P_FLT, pkww_bitfrac, 0.0, 1.0),
-   DEFINE_PARM(P_STR, id, 0, 0),
+   DEFINE_PARM(P_INT, active, ALL, 0.0, 1.0),
+   DEFINE_PARM(P_INT, clk_window, ALL, 0.0, CLKRATE_WINDOW),
+   DEFINE_PARM(P_FLT, clk_alpha, ALL, 0.0, 1.0),
+   DEFINE_PARM(P_INT, agc_window, ALL, 0.0, AGC_MAX_WINDOW),
+   DEFINE_PARM(P_FLT, agc_alpha, ALL, 0.0, 1.0),
+   DEFINE_PARM(P_FLT, min_peak, ALL, 0.0, 5.0),
+   DEFINE_PARM(P_FLT, clk_factor, PE, 0.0, 2.0),
+   DEFINE_PARM(P_FLT, pulse_adj, ALL, 0.0, 1.0),
+   DEFINE_PARM(P_FLT, pkww_bitfrac, ALL, 0.0, 1.0),
+   DEFINE_PARM(P_STR, id, ALL, 0, 0),
    {P_END } };
 
 struct parms_t parmsets_PE[MAXPARMSETS] = {  //*** default parmsets for 1600 BPI PE ***
@@ -149,18 +150,20 @@ bool scan_to_blank(char **pptr, char *str) { // scan to a blank or newline
    skip_blanks(pptr);
    return true; }
 
-void dump_parms(void) {
+void dump_parms(bool showall) {
    rlog("  ");
    for (int i = 0; i < MAXPARMSETS && parms[i].type != P_END; ++i)
-      rlog(parms[i].type == P_STR ? "%4s\n" : "%10.10s, ", parms[i].name);
+      if (showall || parms[i].mode == ALL || parms[i].mode == mode)
+         rlog(parms[i].type == P_STR ? "%4s\n" : "%10.10s, ", parms[i].name);
    for (struct parms_t *setptr = parmsets; setptr->active == 1; ++setptr) {
       rlog("{");
       for (int i = 0; i < MAXPARMSETS && parms[i].type != P_END; ++i) {
-         switch (parms[i].type) {
-         case P_INT: rlog("%10d, ", *(int *)((char*)setptr + parms[i].offset)); break;
-         case P_FLT: rlog("%10.3f, ", *(float *)((char*)setptr + parms[i].offset)); break;
-         case P_STR: rlog("%6s }\n", (char *)setptr + parms[i].offset); break; //
-         } } } }
+         if (showall || parms[i].mode == ALL || parms[i].mode == mode)
+            switch (parms[i].type) {
+            case P_INT: rlog("%10d, ", *(int *)((char*)setptr + parms[i].offset)); break;
+            case P_FLT: rlog("%10.3f, ", *(float *)((char*)setptr + parms[i].offset)); break;
+            case P_STR: rlog("%6s },\n", (char *)setptr + parms[i].offset); break; //
+            } } } }
 
 struct parms_t *default_parmset(void) {
    if (mode == PE) return parmsets_PE;
@@ -185,11 +188,12 @@ void read_parms(void) {   // process the optional <basefilename>.parms file of p
          // no parameter sets file: use the default set for this type of tape
          setptr = default_parmset();
          memcpy(parmsets, setptr, sizeof(parmsets));
-         if (!quiet) rlog(".parms file not found; using defaults for parameter sets\n");
-         dump_parms();
+         if (!quiet) {
+            rlog(".parms file not found; using defaults for parameter sets\n");
+            dump_parms(false); }
          return; } }
 
-   if (!quiet) rlog("reading parms from \"%s\"\n", filename);
+   if (!quiet) rlog("reading parmsets from \"%s\"\n", filename);
 
    bool got_parmnames = false;
    int numsets = 0;
@@ -215,7 +219,7 @@ void read_parms(void) {   // process the optional <basefilename>.parms file of p
 
       else if (scan_key(&ptr, "parms")) { // process parameter names
          for (int filendx = 0; ; ++filendx) { // scan file parm names
-            assert(scan_str(&ptr, str), "missing parmname at %s", ptr);
+            assert(scan_str(&ptr, str), "missing parm name at %s", ptr);
             assert(++numfileparms < MAXPARMS, "too many parm names at %s", ptr);
             for (int i = 0; i < MAXPARMS; ++i) { // search for a match in our table
                if (parms[i].type == P_END) { // no match
@@ -246,7 +250,7 @@ void read_parms(void) {   // process the optional <basefilename>.parms file of p
             scan_key(&ptr, ","); }
          assert(scan_key(&ptr, "\"prm\""), "missing \"PRM\" at %s", ptr);
          strcpy(setptr->id, "PRM");
-         assert(scan_key(&ptr, "}"), "missing parmset }");
+         assert(scan_key(&ptr, "}"), "missing parmset closing }");
          ++setptr;  // next slot to fill
       }
       else fatal("bad parmset file input: \"%s\"", ptr);
@@ -266,6 +270,7 @@ void read_parms(void) {   // process the optional <basefilename>.parms file of p
                *(int*)((char*)&parmsets[setndx] + parms[ourparmndx].offset) = defaultval;
                if (setndx == 0) rlog("  --->missing parm %s; using default of %d for all parmsets\n", parms[ourparmndx].name, defaultval); } } }
 
-   if (verbose) dump_parms(); }
+   if (verbose) dump_parms(false); // show the parms as read from the file
+}
 
 //*

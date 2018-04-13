@@ -29,7 +29,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
-#define DEBUG 0                  // generate debugging output?
+#define DEBUG 0                // generate debugging output?
 #define TRACEFILE true           // if DEBUG, are we also creating trace file?
 #define TRACETRK 0               // for which track
 #define MULTITRACK false         // or, are we plotting multi-track analog waveforms?
@@ -100,7 +100,7 @@ struct sample_t {       // what we get from the digitizer hardware:
 };
 
 enum mode_t {
-   PE, NRZI, GCR };
+   PE, NRZI, GCR, ALL };
 
 // the track state structure
 
@@ -142,8 +142,8 @@ struct trkstate_t {  // track-by-track decoding state
    int heightndx;                // index into v_heights of next spot to use
    double t_lastbit;       // time of last data bit transition
    double t_firstbit;      // time of first data bit transition in the data block
-   float t_clkwindow;      // PE: how late a clock transition can be, before we consider it data
-   float t_pulse_adj;      // PE: how much to adjust the pulse by, based on previous pulse's timing
+   float t_clkwindow;      // PE: how late, in usec, a clock transition can be before we consider it data
+   float t_pulse_adj;      // PE: how much, in usec, to adjust the pulse by based on previous pulse's timing
    struct clkavg_t clkavg; // data for computing average clock
    int datacount;          // how many data bits we've seen
    int peakcount;          // how many peaks (flux reversals) we've seen
@@ -210,7 +210,7 @@ struct blkstate_t {  // state of the block, when we're done
       bool crc_bad, lrc_bad;     // NRZI 800: are crc/lrc ok?
       int crc, lrc;              // NRZI 800; the actual crc anc lrc values in the data
       float alltrk_max_agc_gain; // the maximum AGC gain we used for any track
-   } results [MAXPARMSETS]; // results for each parm set we tried
+   } results [MAXPARMSETS]; // results for each parmset we tried
 }; // block
 
 void fatal(const char *, ...);
