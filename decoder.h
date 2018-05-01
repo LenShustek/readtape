@@ -30,9 +30,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
 #define DEBUG 0                // generate debugging output?
-#define TRACEFILE true           // if DEBUG, are we also creating trace file?
-#define TRACETRK 0               // for which track
-#define MULTITRACK false         // or, are we plotting multi-track analog waveforms?
+
+#define TRACEFILE DEBUG          // if DEBUG, are we also creating trace file?
+#define TRACETRK 0               // for which track?
+#define TRACEALL true            // are we plotting all analog waveforms? Otherwise just TRACETRK.
+#define TRACESCALE 0.2           // scaling factor for voltages on the chart
+
 #define PEAK_STATS true          // accumulate peak timing statistics?
 
 #define DLOG_LINE_LIMIT 5000     // limit for debugging output
@@ -95,14 +98,12 @@ typedef unsigned char byte;
 #endif
 
 struct sample_t {       // what we get from the digitizer hardware:
-   double time;         //   the time of this sample
-   float voltage[MAXTRKS];   //   the voltage level from each track head
+   double time;            // the time of this sample
+   float voltage[MAXTRKS]; // the voltage level from each track head
 };
 
 enum mode_t {
    PE, NRZI, GCR, ALL };
-
-// the track state structure
 
 struct clkavg_t { // structure for keeping track of clock rate
    // we either do window averaging or exponential averaging, depending on parms
@@ -156,9 +157,11 @@ struct trkstate_t {  // track-by-track decoding state
 
 // For PE and GCR, which are self-clocking, the clock for each track is separately computed.
 // That allows us to be insensitive to significant head skew.
+
 // For NRZI, which is not self-clocking, we compute one global clock and keep it synchronized
 // in frequency and phase to transitions on any track. That allows us to tolerate pretty wide
 // changes in tape speed.
+
 struct nrzi_t { // NRZI decode state information
    double t_lastclock;     // time of the last clock
    double t_last_midbit;   // time we did the last mid-bit processing

@@ -122,8 +122,13 @@ Copyright (C) 2018, Len Shustek
 we can "change history" for events that are discovered late -- for
 example, with the new moving-window algorithm, the signal peaks.
 - Better display of parmsets in verbose mode.
+
+*** 16 Apr 2018, L. Shustek
+- Generalize tracing to allow multitrack voltage displays along
+with the event data.
+
 *********************************************************************/
-#define VERSION "12Apr2018"
+#define VERSION "16Apr2018"
 /********************************************************************
  default bit and track numbering, where 0=msb and P=parity
             on tape       memory here    written to disk
@@ -279,7 +284,8 @@ void debuglog(const char* msg, ...) { // debugging log
 static void vfatal(const char *msg, va_list args) {
    vlog("\n***FATAL ERROR: ", 0);
    vlog(msg, args);
-   rlog("\nI/O errno = %d\n", errno);
+   rlog("\n");
+   //rlog("I/O errno = %d\n", errno);
    exit(99); }
 
 void fatal(const char *msg, ...) {
@@ -407,7 +413,6 @@ opterror:  fatal("bad option: %s\n\n", option);
    return true; }
 
 int HandleOptions (int argc, char *argv[]) {
-
    /* returns the index of the first argument that is not an option;
    i.e. does not start with a dash or a slash */
    int i, firstnonoption = 0;
@@ -418,7 +423,7 @@ int HandleOptions (int argc, char *argv[]) {
          break; } }
    return firstnonoption; }
 
-bool compare4(uint16_t *d, const char *c) { // string compare ASCII to EBCDIC
+bool compare4(uint16_t *d, const char *c) { // 4-character string compare ASCII to EBCDIC
    for (int i=0; i<4; ++i)
       if (EBCDIC[d[i]>>1] != c[i]) return false;
    return true; }
@@ -429,6 +434,7 @@ void copy_EBCDIC (byte *to, uint16_t *from, int len) { // copy and translate to 
 char *trim(char *p, int len) { // remove trailing blanks
    while (len && p[--len] == ' ') p[len] = '\0';
    return p; }
+
 byte parity (uint16_t val) { // compute the parity of one byte
    byte p = val & 1;
    while (val >>= 1) p ^= val & 1;
@@ -573,8 +579,8 @@ void got_datablock(bool malformed) { // decoded a tape block
             numoutbytes += 1;
             output_tap_marker(length | errflag); // trailing record length
          }
-          numoutbytes += length;
-        numfilebytes += length;
+         numoutbytes += length;
+         numfilebytes += length;
          ++numfileblks;
          ++numblks;
          if (DEBUG && (result->errcount != 0 || result->faked_bits != 0))
@@ -615,6 +621,7 @@ float scanfast_float(char **p) { // *** fast scanning routines for the CSV numbe
          n += (*(*p)++ -'0')/divisor;
          divisor *= 10; } }
    return negative ? -n : n; }
+
 double scanfast_double(char **p) {
    double n=0;
    bool negative=false;
@@ -636,10 +643,9 @@ double scanfast_double(char **p) {
 // So here are a couple of special-purpose routines for that.
 // *** THEY USE A STATIC BUFFER, SO YOU CAN ONLY DO ONE CALL PER LINE!
 char *intcommas(int n) { // 32 bits
-   assert(n >= 0, "bad call to intcommas");
+   assert(n >= 0, "bad call to intcommas: %d", n);
    static char buf[14]; //max: 2,147,483,647
-   char *p = buf + 13;
-   int ctr = 4;
+   char *p = buf + 13;  int ctr = 4;
    *p-- = '\0';
    if (n == 0)  *p-- = '0';
    else while (n > 0) {
@@ -649,10 +655,9 @@ char *intcommas(int n) { // 32 bits
          n = n / 10; }
    return p + 1; }
 char *longlongcommas(long long n) { // 64 bits
-   assert(n >= 0, "bad call to longlongcommas");
+   assert(n >= 0, "bad call to longlongcommas: %ld", n);
    static char buf[26]; //max: 9,223,372,036,854,775,807
-   char *p = buf + 25;
-   int ctr = 4;
+   char *p = buf + 25; int ctr = 4;
    *p-- = '\0';
    if (n == 0)  *p-- = '0';
    else while (n > 0) {
@@ -686,9 +691,11 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
 
       char *linep = line;
       sample.time = scanfast_double(&linep);  // get the time of this sample
-      for (int i=0; i<ntrks; ++i) sample.voltage[input_permutation[i]] = scanfast_float(&linep);  // read voltages for all tracks
+      for (int i=0; i<ntrks; ++i) // read voltages for all tracks, and permute as necessary
+         sample.voltage[input_permutation[i]] = scanfast_float(&linep);  
 
-      if (!window_set && last_sample_time != 0) { // have seen two samples: set the width of the peak-detect moving window
+      if (!window_set && last_sample_time != 0) { 
+         // we have seen two samples, so set the width of the peak-detect moving window
          sample_deltat = sample.time - last_sample_time;
          pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
          static said_rates = false;
@@ -733,7 +740,7 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
    }
    read_parms(); // read the .parm file, if anyu
 
-   fgets(line, MAXLINE, inf); // first two lines in the input file are headers from Saleae
+   fgets(line, MAXLINE, inf); // first two (why?) lines in the input file are headers from Saleae
    //log("%s",line);
    fgets(line, MAXLINE, inf);
    //log("%s\n",line);
@@ -918,19 +925,10 @@ void main(int argc, char *argv[]) {
       SayUsage();
       exit(4); }
    if (input_permutation[0] == -1) // no input value permutation was given
-      for (int i = 0; i < ntrks; ++i) input_permutation[i] = i;
+      for (int i = 0; i < ntrks; ++i) input_permutation[i] = i; // create default
    cmdfilename = argv[argno];
    start_time = time(NULL);
    assert(mode != GCR, "GCR is not implemented yet");
-#if 0
-   if (mode == PE) {
-      parmsetsptr = parmsets_PE; }
-   if (mode == NRZI) {
-      parmsetsptr = parmsets_NRZI; }
-   if (mode == GCR) {
-      bpi = 9042; // the real bit rate for "6250 BPI" tapes; base it on the supplied BPI= ?
-      parmsetsptr = parmsets_GCR; }
-#endif
 
    if (filelist) {  // process a list of files
       char filename[MAXPATH], logfilename[MAXPATH];

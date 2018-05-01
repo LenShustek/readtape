@@ -21,8 +21,8 @@ Adding a new parameter requires:
  2. adding a line to "parms" in this file, giving the type, name, and min/max values
  3. adding default values to all the struct parms_t parmsets_xxx initialization in this file
  4. perhaps adding a display at the end of readtape.c
-
-
+ 5. referencing the parameter as PARM.xxxx, where appropriate
+ 
 ---> See readtape.c for the merged change log <----
 
 ***********************************************************************
