@@ -327,7 +327,7 @@ void SayUsage (void) {
       " -even     even parity for 7-track NRZI BCD tapes",
       " -skip=n   skip the first n samples",
       " -tap      create one SIMH .tap file from the data",
-      " -deskew   do NRZI track deskew based on initial samples", 
+      " -deskew   do NRZI track deskew based on initial samples",
       " -m        try multiple ways to decode a block",
       " -l        create a log file",
       " -v        verbose mode (all info)",
@@ -707,19 +707,10 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
          // we have seen two samples, so set the width of the peak-detect moving window
          sample_deltat = sample.time - last_sample_time;
          pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
-
-#if 0 //TEMP DESKEW
-         static float skew[] = { 4.95, 4.18, 3.68, 2.52, 1.78,  0, 5.56 }; //TEMP try skew adjustment
-         for (int i = 0; i < ntrks; ++i)
-            skew_set_delay(i, (5.56-skew[i])/1e6);
-#endif
          static said_rates = false;
          if (!quiet && !said_rates) {
             rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz (%.2f usec), initial peak window width is %d samples\n",
                  modename(), (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), sample_deltat*1e6, pkww_width);
-#if 0 //TEMP DESKEW
-            skew_display();
-#endif
             said_rates = true; }
          window_set = true; }
       last_sample_time = sample.time;
@@ -781,8 +772,7 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
       nrzi_set_deskew();
       assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed at deskew");
       interblock_expiration = 0;
-      doing_deskew = false;
-   }
+      doing_deskew = false; }
 #endif
 
    while (1) { // keep processing lines of the file

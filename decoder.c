@@ -117,6 +117,7 @@ struct skew_t {
    int ndx_next;            // the next slot to use for the newest data
 } skew[MAXTRKS];            // (This structure is cleared at the start of each block.)
 int skew_delaycnt[MAXTRKS] = { 0 };    // the skew delay, in number of samples, for each track. (This is persistent.)
+int skew_samplecnt[MAXTRKS] = { 0 };   // how many flux transitions that was based on
 
 void skew_set_delay(int trknum, float time) { // set the skew delay for a track
    assert(sample_deltat, "delta T not set yet in skew_set_delay");
@@ -131,7 +132,8 @@ void skew_display(void) { // show the track skews
    for (int trknum = 0; trknum < ntrks; ++trknum) sumdelay += skew_delaycnt[trknum];
    if (sumdelay > 0) {
       for (int trknum = 0; trknum < ntrks; ++trknum)
-         rlog("  skew compensation: track %d delayed by %d clocks (%.2f usec)\n", trknum, skew_delaycnt[trknum], skew_delaycnt[trknum] * sample_deltat * 1e6); } };
+         rlog("  skew compensation: track %d delayed by %d clocks (%.2f usec) based on %d observed flux transitions\n",
+              trknum, skew_delaycnt[trknum], skew_delaycnt[trknum] * sample_deltat * 1e6, skew_samplecnt[trknum]); } };
 #endif
 
 /*****************************************************************************************************************************
@@ -595,7 +597,8 @@ void nrzi_set_deskew(void) {  // set the deskew amounts based on where we see mo
       for (trksum = avgsum = bkt = 0; bkt < PEAK_STATS_NUMBUCKETS; ++bkt) {
          trksum += peak_counts[trk][bkt];
          avgsum += peak_counts[trk][bkt] * (PEAK_STATS_BINWIDTH*1e6 * bkt + peak_stats_leftbin *1e6); }
-      avg[trk] = (float)avgsum / (float)trksum; }
+      avg[trk] = (float)avgsum / (float)trksum;
+      skew_samplecnt[trk] = trksum; }
    float maxpeak = 0;
    for (trk = 0; trk < ntrks; ++trk) // see which track has the last transitions
       maxpeak = max(maxpeak, avg[trk]);
@@ -953,7 +956,6 @@ double process_peak (struct trkstate_t *t, float val, bool top, float required_r
 
 // Process one voltage sample with data for all tracks.
 // Return with the status of the block we're working on.
-
 
 enum bstate_t process_sample(struct sample_t *sample) {
    float deltaT;
