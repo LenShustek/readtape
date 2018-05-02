@@ -127,8 +127,13 @@ example, with the new moving-window algorithm, the signal peaks.
 - Generalize tracing to allow multitrack voltage displays along
 with the event data.
 
+*** 1 May 2018, L. Shustek
+- Add explicit optional deskewing delays when reading raw head data.
+- Add "-deskew" option, which does a test read of the first block to
+determine the track skew values.
+
 *********************************************************************/
-#define VERSION "16Apr2018"
+#define VERSION "1May2018"
 /********************************************************************
  default bit and track numbering, where 0=msb and P=parity
             on tape       memory here    written to disk
@@ -216,6 +221,8 @@ bool terse = false;
 bool quiet = false;
 bool filelist = false;
 bool multiple_tries = false;
+bool deskew = false;
+bool doing_deskew = false;
 bool tap_format = false;
 bool hdr1_label = false;
 byte expected_parity = 1;
@@ -320,6 +327,7 @@ void SayUsage (void) {
       " -even     even parity for 7-track NRZI BCD tapes",
       " -skip=n   skip the first n samples",
       " -tap      create one SIMH .tap file from the data",
+      " -deskew   do NRZI track deskew based on initial samples", 
       " -m        try multiple ways to decode a block",
       " -l        create a log file",
       " -v        verbose mode (all info)",
@@ -392,9 +400,10 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_flt(arg, "BPI=", &bpi, 100, 10000));
    else if (opt_flt(arg, "IPS=", &ips, 10, 100));
    else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX)) {
-      if (!quiet) rlog("Will skip %d samples\n", skip_samples); }
+      if (!quiet) rlog("Will skip the first %d samples\n", skip_samples); }
    else if (opt_key(arg, "TAP")) tap_format = true;
    else if (opt_key(arg, "EVEN")) expected_parity = 0;
+   else if (opt_key(arg, "DESKEW")) deskew = true;
    else if (option[2] == '\0') // single-character switches
       switch (toupper(option[1])) {
       case 'H':
@@ -641,7 +650,7 @@ double scanfast_double(char **p) {
 // While we're at it: Microsoft Visual Studio C doesn't support the wonderful POSIX %' format
 // specifier for nicely displaying big numbers with commas separating thousands, millions, etc.
 // So here are a couple of special-purpose routines for that.
-// *** THEY USE A STATIC BUFFER, SO YOU CAN ONLY DO ONE CALL PER LINE!
+// *** BEWARE *** THEY USE A STATIC BUFFER, SO YOU CAN ONLY DO ONE CALL PER LINE!
 char *intcommas(int n) { // 32 bits
    assert(n >= 0, "bad call to intcommas: %d", n);
    static char buf[14]; //max: 2,147,483,647
@@ -692,16 +701,25 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
       char *linep = line;
       sample.time = scanfast_double(&linep);  // get the time of this sample
       for (int i=0; i<ntrks; ++i) // read voltages for all tracks, and permute as necessary
-         sample.voltage[input_permutation[i]] = scanfast_float(&linep);  
+         sample.voltage[input_permutation[i]] = scanfast_float(&linep);
 
-      if (!window_set && last_sample_time != 0) { 
+      if (!window_set && last_sample_time != 0) {
          // we have seen two samples, so set the width of the peak-detect moving window
          sample_deltat = sample.time - last_sample_time;
          pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
+
+#if 0 //TEMP DESKEW
+         static float skew[] = { 4.95, 4.18, 3.68, 2.52, 1.78,  0, 5.56 }; //TEMP try skew adjustment
+         for (int i = 0; i < ntrks; ++i)
+            skew_set_delay(i, (5.56-skew[i])/1e6);
+#endif
          static said_rates = false;
          if (!quiet && !said_rates) {
-            rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz, initial peak window width is %d samples\n",
-                 modename(), (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), pkww_width);
+            rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz (%.2f usec), initial peak window width is %d samples\n",
+                 modename(), (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), sample_deltat*1e6, pkww_width);
+#if 0 //TEMP DESKEW
+            skew_display();
+#endif
             said_rates = true; }
          window_set = true; }
       last_sample_time = sample.time;
@@ -752,6 +770,21 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
    interblock_expiration = 0;
    starting_parmset = 0;
 
+#if DESKEW     // automatic deskew determination based on the first block
+   if (mode == NRZI && deskew) { // currently only for NRZI
+      doing_deskew = true;
+      init_blockstate(); // do one block
+      block.parmset = starting_parmset;
+      blockstart = ftell(inf);// remember the file position for the start of a block
+      init_trackstate();
+      readblock(true);
+      nrzi_set_deskew();
+      assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed at deskew");
+      interblock_expiration = 0;
+      doing_deskew = false;
+   }
+#endif
+
    while (1) { // keep processing lines of the file
       init_blockstate();  // initialize for a new block
       block.parmset = starting_parmset;
@@ -790,7 +823,7 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
                keep_trying = true;
                block.parmset = next_parmset;
                dlog("   retrying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
-               assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 1");
+               assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed at retry");
                interblock_expiration = 0; } } }
       while (keep_trying);
 
@@ -835,7 +868,7 @@ done:
       ++PARM.chosen;  // count times that this parmset was chosen to be used
       if (block.tries>1 // if we processed the block multiple times
             && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
-         assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed 2"); // then reprocess the chosen one to recompute that best data
+         assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed at reprocess"); // then reprocess the chosen one to recompute that best data
          interblock_expiration = 0;
          dlog("     rereading with parmset %d\n", block.parmset);
          init_trackstate();

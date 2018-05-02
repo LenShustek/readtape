@@ -108,6 +108,33 @@ int peak_counts[MAXTRKS][PEAK_STATS_NUMBUCKETS] = { 0 };
 #endif
 
 /*****************************************************************************************************************************
+Routines for deskewing the intput data by delaying some of the channel data
+******************************************************************************************************************************/
+
+#if DESKEW
+struct skew_t {
+   float vdelayed[MAXSKEW]; // the buffered voltages
+   int ndx_next;            // the next slot to use for the newest data
+} skew[MAXTRKS];            // (This structure is cleared at the start of each block.)
+int skew_delaycnt[MAXTRKS] = { 0 };    // the skew delay, in number of samples, for each track. (This is persistent.)
+
+void skew_set_delay(int trknum, float time) { // set the skew delay for a track
+   assert(sample_deltat, "delta T not set yet in skew_set_delay");
+   assert(time >= 0, "negative skew amount %f", time);
+   int delay = time / sample_deltat;
+   //rlog("set skew trk %d to %f usec, %d samples\n", trknum, time*1e6, delay);
+   if (delay > MAXSKEW) rlog("track %d skew of %.1f usec is too big\n", trknum, time*1e6);
+   skew_delaycnt[trknum] = min(delay, MAXSKEW); };
+
+void skew_display(void) { // show the track skews
+   int sumdelay = 0;
+   for (int trknum = 0; trknum < ntrks; ++trknum) sumdelay += skew_delaycnt[trknum];
+   if (sumdelay > 0) {
+      for (int trknum = 0; trknum < ntrks; ++trknum)
+         rlog("  skew compensation: track %d delayed by %d clocks (%.2f usec)\n", trknum, skew_delaycnt[trknum], skew_delaycnt[trknum] * sample_deltat * 1e6); } };
+#endif
+
+/*****************************************************************************************************************************
 Routines for creating the trace file
 ******************************************************************************************************************************/
 /* This stuff creates a CSV trace file with one or all tracks of voltage data
@@ -128,7 +155,7 @@ bool trace_on = false, trace_done = false;
 int trace_lines = 0;
 FILE *tracef;
 
-#define TRACE_DEPTH 30
+#define TRACE_DEPTH 60
 #define TRACE(var,time,tickdirection,t) {if(TRACEFILE) trace_event(trace_##var, time, tickdirection, t);}
 #define TRACING (DEBUG && trace_on && t->trknum == TRACETRK)
 
@@ -207,13 +234,18 @@ void trace_writeline(int ndx) {  // write out one buffered trace line
 
 void trace_newtime(double time, float deltat, struct sample_t *sample, struct trkstate_t *t) {
    // create a new timestamped entry in the trace history buffer
-   if (trace_on) {
+   if (tracef && trace_on) {
       traceblk.deltat = deltat;
       if (traceblk.num_entries++ >= TRACE_DEPTH)
          trace_writeline(traceblk.ndx_next);  // write out the oldest entry being evicted
       traceblk.times[traceblk.ndx_next] = traceblk.time_newest = time; // insert new entry timestamp
-      for (int trk=0; trk<ntrks; ++trk)  // and new voltages
-         traceblk.voltages[traceblk.ndx_next][trk] = sample->voltage[trk];
+      for (int trk = 0; trk < ntrks; ++trk)  // and new voltages
+         traceblk.voltages[traceblk.ndx_next][trk] =
+#if DESKEW
+            trkstate[trk].v_now;
+#else
+            sample->voltage[trk];
+#endif
       traceblk.datacount[traceblk.ndx_next] = t->datacount; // and "extra credit" info for the special track
       traceblk.agc_gain[traceblk.ndx_next] = t->agc_gain;
       traceblk.bitspaceavg[traceblk.ndx_next] = t->clkavg.t_bitspaceavg;
@@ -279,6 +311,7 @@ void trace_event(enum trace_names_t tracenum, double time, float tickdirection, 
 /*****************************************************************************************************************************
    Routines for all encoding types
 ******************************************************************************************************************************/
+
 void init_blockstate(void) {	// initialize block state information for multiple reads of a block
    static bool wrote_config = false;
    for (int i=0; i<MAXPARMSETS; ++i) {
@@ -290,6 +323,9 @@ void init_blockstate(void) {	// initialize block state information for multiple 
 void init_trackstate(void) {  // initialize all track and some block state information for a new decoding of a block
    num_trks_idle = ntrks;
    num_samples = 0;
+#if DESKEW
+   memset(&skew, 0, sizeof(skew));
+#endif
    if (!trace_on) torigin = timenow - sample_deltat; // for cleaner error messages after the first block
    memset(&block.results[block.parmset], 0, sizeof(struct results_t));
    block.results[block.parmset].blktype = BS_NONE;
@@ -550,6 +586,22 @@ void nrzi_output_stats(void) { // Create an Excel .CSV file with flux transition
       totalcount += trksum; }
    fclose(statsf);
    if (!quiet) rlog("created statistics file \"%s\" from %s measurements of flux transition positions\n", filename, intcommas(totalcount)); }
+
+void nrzi_set_deskew(void) {  // set the deskew amounts based on where we see most of the transitions
+   int trk, bkt, trksum;
+   long long int avgsum;
+   float avg[MAXTRKS]; // the average peak position for each track
+   for (trk = 0; trk < ntrks; ++trk) {
+      for (trksum = avgsum = bkt = 0; bkt < PEAK_STATS_NUMBUCKETS; ++bkt) {
+         trksum += peak_counts[trk][bkt];
+         avgsum += peak_counts[trk][bkt] * (PEAK_STATS_BINWIDTH*1e6 * bkt + peak_stats_leftbin *1e6); }
+      avg[trk] = (float)avgsum / (float)trksum; }
+   float maxpeak = 0;
+   for (trk = 0; trk < ntrks; ++trk) // see which track has the last transitions
+      maxpeak = max(maxpeak, avg[trk]);
+   for (trk = 0; trk < ntrks; ++trk)
+      skew_set_delay(trk, (maxpeak - avg[trk])/1e6); // delay the other tracks relative to it
+   if (!quiet) skew_display(); }
 #endif
 
 void nrzi_end_of_block(void) {
@@ -891,9 +943,6 @@ double process_peak (struct trkstate_t *t, float val, bool top, float required_r
             bucket = max(0, min(bucket, PEAK_STATS_NUMBUCKETS - 1));
             ++peak_counts[t->trknum][bucket]; }
 
-         //static float skew[] = { 4.95, 4.18, 3.68, 2.52, 1.78,  0, 5.56 }; //TEMP try skew adjustment
-         //time -= skew[t->trknum] / 1e6; //TEMP
-
          return time; }
       ++left_distance;
       if (ndx == t->pkww_right) break;
@@ -905,6 +954,7 @@ double process_peak (struct trkstate_t *t, float val, bool top, float required_r
 // Process one voltage sample with data for all tracks.
 // Return with the status of the block we're working on.
 
+
 enum bstate_t process_sample(struct sample_t *sample) {
    float deltaT;
 
@@ -915,13 +965,24 @@ enum bstate_t process_sample(struct sample_t *sample) {
    deltaT = sample->time - timenow;  //(incorrect for the first sample)
    timenow = sample->time;
 
-   if (TRACEFILE && tracef) {
-      // create one entry for this sample
-      trace_newtime(timenow, deltaT, sample, &trkstate[TRACETRK]);
-      // or create some number of evenly-spaced trace entries for this sample, for more accuracy
-      //trace_newtime(timenow, sample_deltat / 2, sample, &trkstate[TRACETRK]);
-      //trace_newtime(timenow + sample_deltat / 2, sample_deltat / 2, sample, &trkstate[TRACETRK]);
-   }
+#if DESKEW
+   for (int trknum = 0; trknum < ntrks; ++trknum) { // preprocess all tracks to do deskewing
+      struct trkstate_t *t = &trkstate[trknum];
+      if (skew_delaycnt[trknum] == 0) t->v_now = sample->voltage[trknum]; // no skew delay for this track
+      else {
+         struct skew_t *skewp = &skew[trknum];
+         t->v_now = skewp->vdelayed[skewp->ndx_next]; // use the oldest voltage
+         skewp->vdelayed[skewp->ndx_next] = sample->voltage[trknum]; // store the newest voltage, FIFO order
+         if (++skewp->ndx_next >= skew_delaycnt[trknum]) skewp->ndx_next = 0; } }
+#endif
+
+#if TRACEFILE
+   // create one entry for this sample
+   trace_newtime(timenow, deltaT, sample, &trkstate[TRACETRK]);
+   // or create some number of evenly-spaced trace entries for this sample, for more accuracy
+   //trace_newtime(timenow, sample_deltat / 2, sample, &trkstate[TRACETRK]);
+   //trace_newtime(timenow + sample_deltat / 2, sample_deltat / 2, sample, &trkstate[TRACETRK]);
+#endif
 
    if (interblock_expiration && timenow < interblock_expiration) // if we're waiting for an IBG to really start
       goto exit;
@@ -932,8 +993,9 @@ enum bstate_t process_sample(struct sample_t *sample) {
 
    for (int trknum = 0; trknum < ntrks; ++trknum) {  // look at the analog signal on each track
       struct trkstate_t *t = &trkstate[trknum];
-      t->v_now = sample->voltage[trknum];
-
+#if !DESKEW
+      t->v_now = sample->voltage[trknum]; // no deskewing was done in preprocessing
+#endif
       // Zero-banding doesn't work because jitter near the band edge causes false peaks
       //float zero_band = PARM.zero_band / t->agc_gain;
       //if (t->v_now < zero_band && t->v_now > -zero_band) t->v_now = 0;

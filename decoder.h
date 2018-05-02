@@ -36,7 +36,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define TRACEALL true            // are we plotting all analog waveforms? Otherwise just TRACETRK.
 #define TRACESCALE 0.2           // scaling factor for voltages on the chart
 
-#define PEAK_STATS true          // accumulate peak timing statistics?
+#define PEAK_STATS true          // accumulate NRZI peak timing statistics?
+#define DESKEW true              // also do track deskewing?
 
 #define DLOG_LINE_LIMIT 5000     // limit for debugging output
 
@@ -52,6 +53,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <inttypes.h>
 #include <limits.h>
 #include <stddef.h>
+#include <float.h> 
 
 #define MAXTRKS 9
 #define MAXBLOCK 32768
@@ -59,6 +61,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define MAXPARMS 15
 #define MAXPATH 200
 #define MAXLINE 400
+#define MAXSKEW 20   // maximum skew in number of samples
 
 
 // Here are lots of of parameters that control the decoding algorithm.
@@ -90,6 +93,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 typedef unsigned char byte;
 #define NULLP (void *)0
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif
 
 #if DEBUG
 #define dlog(...) {debuglog(__VA_ARGS__);}
@@ -230,9 +237,12 @@ void show_block_errs(int);
 void nrzi_output_stats(void);
 bool parse_option(char *);
 char *modename(void);
+void skew_display(void);
+void skew_set_delay(int trknum, float time);
+void nrzi_set_deskew(void);
 
 extern enum mode_t mode;
-extern bool terse, verbose, quiet, multiple_tries;
+extern bool terse, verbose, quiet, multiple_tries, deskew, doing_deskew;
 byte expected_parity;
 extern int dlog_lines;
 extern double timenow;
