@@ -128,12 +128,25 @@ example, with the new moving-window algorithm, the signal peaks.
 with the event data.
 
 *** 1 May 2018, L. Shustek
-- Add explicit optional deskewing delays when reading raw head data.
+- Add explicit optional deskewing delays when reading raw head data:
+data for each track is independently delayed by some amount.
 - Add "-deskew" option, which does a test read of the first block to
 determine the track skew values.
 
+*** 4 May 2018, L. Shustek
+- Add better trace info for NRZI decoding, since we're having problems.
+- Tweak the default NRZI parameters. The deskewing is definitely a win.
+- In computing skew, round up. That helps some.
+- Fix bug: if skew comp took n blocks, we skipped decoding n-1 blocks.
+- Add density autodetect: if BPI isn't specified, then look at the
+first few thousand transition to determine the minimum delta, and see
+if the density we derive from that is one of the standard densities.
+
+
+TODO: treat the NRZI "bits before midbit" warning as a weak error, and
+try to find a better perfect decoding that doesn't generate it.
 *********************************************************************/
-#define VERSION "1May2018"
+#define VERSION "6May2018"
 /********************************************************************
  default bit and track numbering, where 0=msb and P=parity
             on tape       memory here    written to disk
@@ -141,7 +154,8 @@ determine the track skew values.
  9-track    P37521064     01234567P      01234567
 
  Permutation of the "on tape" sequence to the "memory here" sequence
- is done by appropriately connecting the logic analyzer probes.
+ is done by appropriately connecting the logic analyzer probes,
+ and can be overridden by using the -order option.
 *********************************************************************
 The MIT License (MIT):
 Permission is hereby granted, free of charge,
@@ -223,15 +237,16 @@ bool filelist = false;
 bool multiple_tries = false;
 bool deskew = false;
 bool doing_deskew = false;
+bool doing_density_detection = false;
 bool tap_format = false;
 bool hdr1_label = false;
 byte expected_parity = 1;
-bool window_set;
-double last_sample_time;
 int input_permutation[MAXTRKS] = { -1 };
 
 enum mode_t mode = PE;      // default
-float bpi= 1600, ips= 50;
+float bpi_specified = 0; // 0 means do auto-detect
+float bpi = 0;
+float ips = 50;
 int ntrks = 9;
 
 int starting_parmset = 0;
@@ -317,16 +332,16 @@ void SayUsage (void) {
       "   the log file will also be there, as <basefilename>.log",
       "Options:",
       " -ntrks=n  sets the number of tracks; default is 9",
-      " -order=   set input data order for bits 0..ntrks-2 and P",
-      "           0=MSB; default is 01234567P for 9 trks",
-      " -pe       do PE decoding; sets bpi=1600, ips=50",
-      " -nrzi     do NRZI decoding; sets bpi=800, ips=50",
-      " -gcr      do GCR decoding; sets bpi=6250, ips=25",
-      " -bpi=n    override density in bits/inch",
-      " -ips=n    override speed in inches/sec",
-      " -even     even parity for 7-track NRZI BCD tapes",
+      " -order=   set input data order for bits 0..ntrks-2 and P, where 0=MSB",
+      "           default is 01234567P for 9 trks, 012345P for 7 trks",
+      " -pe       do PE decoding",
+      " -nrzi     do NRZI decoding",
+      " -gcr      do GCR decoding",
+      " -ips=n    specify speed in inches/sec",
+      " -bpi=n    specify density in bits/inch (default: autodetect)",
+      " -even     expect even parity (for 7-track NRZI BCD tapes)",
       " -skip=n   skip the first n samples",
-      " -tap      create one SIMH .tap file from the data",
+      " -tap      create one SIMH .tap file from all the data",
       " -deskew   do NRZI track deskew based on initial samples",
       " -m        try multiple ways to decode a block",
       " -l        create a log file",
@@ -391,13 +406,10 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    if (opt_int(arg, "NTRKS=", &ntrks, 5, 9));
    else if (opt_str(arg, "ORDER=", &str)
             && parse_track_order(str));
-   else if (opt_key(arg, "NRZI")) {
-      mode = NRZI; bpi = 800; ips = 50; }
-   else if (opt_key(arg, "PE")) {
-      mode = PE; bpi = 1600; ips = 50; }
-   else if (opt_key(arg, "GCR")) {
-      mode = GCR; bpi = 6250; ips = 25; }
-   else if (opt_flt(arg, "BPI=", &bpi, 100, 10000));
+   else if (opt_key(arg, "NRZI")) mode = NRZI;
+   else if (opt_key(arg, "PE")) mode = PE;
+   else if (opt_key(arg, "GCR")) mode = GCR;
+   else if (opt_flt(arg, "BPI=", &bpi_specified, 100, 10000));
    else if (opt_flt(arg, "IPS=", &ips, 10, 100));
    else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX)) {
       if (!quiet) rlog("Will skip the first %d samples\n", skip_samples); }
@@ -475,7 +487,8 @@ void show_block_errs (int len) { // report on parity errors and faked bits in al
    for (int i=0; i<len; ++i) {
       byte curparity=parity(data[i]);
       if (curparity != expected_parity || data_faked[i]) { // something wrong with this data
-         dlog("  %s parity at byte %4d, time %11.7lf", curparity == expected_parity ? "good" : "bad ", i, data_time[i]);
+         dlog("  %s parity at byte %4d, time %11.7lf tick %.1lf, data %02X P %d",
+              curparity == expected_parity ? "good" : "bad ", i, data_time[i], TICK(data_time[i]), data[i]>>1, data[i]&1);
          if (data_faked[i]) dlog(", faked bits: %03X", data_faked[i]); //Visual Studio doesn't support %b
          dlog("\n"); } } }
 
@@ -522,9 +535,8 @@ void create_file(const char *name) {
 
 void got_tapemark(void) {
    ++numtapemarks;
-   if (!quiet) rlog("*** tapemark\n");
    blockstart = ftell(inf); // remember the input file position for the start of the next block
-   dlog("got tapemark, file pos %s at %.7lf\n", longlongcommas(blockstart), timenow);
+   if (!quiet) rlog("*** tapemark at file position %s and time %.7lf\n", longlongcommas(blockstart), timenow);
    if (tap_format) {
       if (!outf) create_file(NULLP);
       output_tap_marker(0x00000000); }
@@ -703,17 +715,19 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
       for (int i=0; i<ntrks; ++i) // read voltages for all tracks, and permute as necessary
          sample.voltage[input_permutation[i]] = scanfast_float(&linep);
 
-      if (!window_set && last_sample_time != 0) {
+      if (!block.window_set && block.last_sample_time != 0) {
          // we have seen two samples, so set the width of the peak-detect moving window
-         sample_deltat = sample.time - last_sample_time;
-         pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
+         sample_deltat = sample.time - block.last_sample_time;
+         if (bpi)
+            pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
+         else pkww_width = 8; // a random reasonable choice if we don't have BPI specified
          static said_rates = false;
          if (!quiet && !said_rates) {
             rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz (%.2f usec), initial peak window width is %d samples\n",
                  modename(), (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), sample_deltat*1e6, pkww_width);
             said_rates = true; }
-         window_set = true; }
-      last_sample_time = sample.time;
+         block.window_set = true; }
+      block.last_sample_time = sample.time;
 
       if (process_sample(&sample) != BS_NONE)  // process one voltage sample point for all tracks
          break;  // until we recognize an end of block
@@ -744,10 +758,10 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
       for (int i = 0; i < argc; ++i)  // for documentation in the log, print invocation options
          rlog("%s ", argv[i]);
       rlog("\n");
-      rlog("readtape version \"%s\" compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+      rlog("readtape version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
       rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
    }
-   read_parms(); // read the .parm file, if anyu
+   read_parms(); // read the .parm file, if any
 
    fgets(line, MAXLINE, inf); // first two (why?) lines in the input file are headers from Saleae
    //log("%s",line);
@@ -761,17 +775,42 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
    interblock_expiration = 0;
    starting_parmset = 0;
 
-#if DESKEW     // automatic deskew determination based on the first block
+   bpi = bpi_specified;
+   if (bpi == 0) {  // do auto-detect of density by looking at how close transitions are at the start of the tape
+      doing_density_detection = true;
+      estden_init(); 
+      int numblks = 0;
+      fpos_t filestart = ftell(inf); // remember the file position for the start of the file
+      do {
+         init_blockstate(); // do one block
+         block.parmset = starting_parmset;
+         init_trackstate();
+         if (!readblock(true)) break; // break at endfile
+         ++numblks;
+      } // keep going until we have enough transitions
+      while (!estden_done());
+      interblock_expiration = 0;
+      //estden_show();
+      estden_setdensity(numblks);
+      assert(fseek(inf, filestart, SEEK_SET) == 0, "seek failed at estden");
+      doing_density_detection = false; }
+
+#if DESKEW     // automatic deskew determination based on the first few blocks
    if (mode == NRZI && deskew) { // currently only for NRZI
       doing_deskew = true;
-      init_blockstate(); // do one block
-      block.parmset = starting_parmset;
-      blockstart = ftell(inf);// remember the file position for the start of a block
-      init_trackstate();
-      readblock(true);
-      nrzi_set_deskew();
-      assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed at deskew");
+      int numblks = 0;
+      fpos_t filestart = ftell(inf); // remember the file position for the start of the file
+      do {
+         init_blockstate(); // do one block
+         block.parmset = starting_parmset;
+         init_trackstate();
+         if (!readblock(true)) break; // break at endfile
+      } // keep going until we have enough transitions or have processed too many blocks
+      while (++numblks < MAXSKEWBLKS && skew_min_transitions() < MINSKEWTRANS);
       interblock_expiration = 0;
+      if (!quiet) rlog("skew compensation after reading %d blocks:\n", numblks);
+      skew_set_deskew();
+      assert(fseek(inf, filestart, SEEK_SET) == 0, "seek failed at deskew");
       doing_deskew = false; }
 #endif
 
@@ -788,8 +827,8 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
          keep_trying = false;
          ++PARM.tried;  // note that we used this parameter set in another attempt
          last_parmset = block.parmset;
-         window_set = false;
-         last_sample_time = 0;
+         //window_set = false;
+         //last_sample_time = 0;
          init_trackstate();
          dlog("\n     trying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
          if (!readblock(block.tries>0)) goto endfile; // ***** read a block ******
@@ -866,6 +905,9 @@ done:
          struct results_t *result = &block.results[block.parmset];
          dlog("     reread of block %d with parmset %d is type %d, minlength %d, maxlength %d, %d errors, %d faked bits at %.7lf\n", //
               numblks + 1, block.parmset, result->blktype, result->minbits, result->maxbits, result->errcount, result->faked_bits, timenow); }
+      if (mode == NRZI && !doing_deskew && block.results[block.parmset].missed_midbits > 0)
+         rlog("*** WARNING: %d bits were before the midbit using parmset %d for block %d at %.7lf\n",
+              block.results[block.parmset].missed_midbits, block.parmset, numblks + 1, timenow);
 
       switch (block.results[block.parmset].blktype) {  // process the block according to our best decoding
       case BS_TAPEMARK:
@@ -1007,7 +1049,7 @@ void main(int argc, char *argv[]) {
             //
          } }
 #if PEAK_STATS
-   if (mode == NRZI && !quiet) nrzi_output_stats();
+   if (mode == NRZI && !quiet) output_peakstats();
 #endif
 }
 

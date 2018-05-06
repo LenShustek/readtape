@@ -29,12 +29,12 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *************************************************************************/
 
-#define DEBUG 0                // generate debugging output?
+#define DEBUG 0               // generate debugging output?
 
 #define TRACEFILE DEBUG          // if DEBUG, are we also creating trace file?
-#define TRACETRK 0               // for which track?
+#define TRACETRK 6               // for which track?
 #define TRACEALL true            // are we plotting all analog waveforms? Otherwise just TRACETRK.
-#define TRACESCALE 0.2           // scaling factor for voltages on the chart
+#define TRACESCALE 0.4           // scaling factor for voltages on the chart
 
 #define PEAK_STATS true          // accumulate NRZI peak timing statistics?
 #define DESKEW true              // also do track deskewing?
@@ -53,7 +53,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <inttypes.h>
 #include <limits.h>
 #include <stddef.h>
-#include <float.h> 
+#include <float.h>
 
 #define MAXTRKS 9
 #define MAXBLOCK 32768
@@ -61,7 +61,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define MAXPARMS 15
 #define MAXPATH 200
 #define MAXLINE 400
-#define MAXSKEW 20   // maximum skew in number of samples
+
+#define MAXSKEWSAMP 20     // maximum skew amount in number of samples
+#define MAXSKEWBLKS 10     // maximum blocks to preprocess to calibrate skew
+#define MINSKEWTRANS 100   // the minumum number of transitions we would like to base skew calibration on
 
 
 // Here are lots of of parameters that control the decoding algorithm.
@@ -103,6 +106,8 @@ typedef unsigned char byte;
 #else
 #define dlog(...) {}
 #endif
+
+#define TICK(x) ((x - torigin) / sample_deltat - 1)
 
 struct sample_t {       // what we get from the digitizer hardware:
    double time;            // the time of this sample
@@ -186,7 +191,8 @@ struct parms_t {  // a set of parameters used for decoding a block. We try again
    float agc_alpha;        // weighting for current data in the AGC exponential weight average; 0 means no AGC
    float min_peak;         // the minimum height of a peak in volts
    float clk_factor;       // PE: how much of a half-bit period to wait for a clock transition
-   float pulse_adj;        // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
+   float pulse_adj;        // PE: how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
+   // NRZI: how much of the actual transition avg position to use to adjust the next expected
    float pkww_bitfrac;     // what fraction of the bit spacing the window width is
    // ...add more dynamic parameters above here, and in the arrays at the top of decoder.c
    char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
@@ -210,10 +216,13 @@ enum bstate_t { // the decoding status a block
 struct blkstate_t {  // state of the block, when we're done
    int tries;           // how many times we tried to decode this block
    int parmset;         // which parameter set we are currently using
+   bool window_set;
+   double last_sample_time;
    struct results_t {      // the results from the various parameter sets, in order
       enum bstate_t blktype;     // the ending state of the block
       int minbits, maxbits;      // the min/max bits of all the tracks
       float avg_bit_spacing;     // what the average bit spacing was, in secs
+      int missed_midbits;        // how many times transitions were recognized after the midbit
       int vparity_errs;          // how many vertical (byte) parity errors it has
       int faked_bits;            // how many faked bits it has
       int errcount;              // how many total errors it has: parity + CRC + LRC
@@ -234,18 +243,23 @@ void init_trackstate(void);
 void init_blockstate(void);
 enum bstate_t process_sample(struct sample_t *);
 void show_block_errs(int);
-void nrzi_output_stats(void);
+void output_peakstats(void);
 bool parse_option(char *);
 char *modename(void);
 void skew_display(void);
 void skew_set_delay(int trknum, float time);
-void nrzi_set_deskew(void);
+void skew_set_deskew(void);
+void estden_init(void);
+void estden_setdensity(int numblks);
+void estden_show(void);
+bool estden_numtransitions(void);
 
 extern enum mode_t mode;
-extern bool terse, verbose, quiet, multiple_tries, deskew, doing_deskew;
+extern bool terse, verbose, quiet, multiple_tries;
+extern bool deskew, doing_deskew, doing_density_detection;
 byte expected_parity;
 extern int dlog_lines;
-extern double timenow;
+extern double timenow, torigin;
 extern double interblock_expiration;
 extern struct blkstate_t block;
 extern uint16_t data[];
@@ -254,6 +268,7 @@ extern double data_time[];
 extern struct nrzi_t nrzi;
 extern float bpi, ips;
 extern int ntrks;
+extern int numblks;
 extern int pkww_width;
 extern float sample_deltat;
 extern char basefilename[];

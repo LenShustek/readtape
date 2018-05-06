@@ -87,11 +87,14 @@ struct parms_t parmsets_PE[MAXPARMSETS] = {  //*** default parmsets for 1600 BPI
    { 0 } };
 
 struct parms_t parmsets_NRZI[MAXPARMSETS] = { //*** default parmsets for 800 BPI NRZI ***
-   // clkwin  clkalpha  agcwin agcalpha  minpk  clkfact  pulseadj bitfrac
-   { 1,   0,     0.2,      0,     0.3,     1.3,   0,     0.5,   0.7, "PRM" },
-   { 1,   0,     0.3,      0,     0.3,     1.3,   0,     0.5,   0.7, "PRM" },
-   { 1,   2,     0.0,      0,     0.3,     1.3,   0,     0.5,   0.7, "PRM" },
-   { 1,   0,     0.6,      0,     0.3,     1.3,   0,     0.5,   0.8, "PRM" },
+   // clkwin  clkalpha  agcwin agcalpha  minpk  clkfact  pulseadj  bitfrac
+   { 1,   0,     0.05,     0,     0.3,     1.0,   0,       0.5,     0.4, "PRM" },
+   { 1,   0,     0.3,      0,     0.3,     1.5,   0,       0.5,     0.8, "PRM" },
+   { 1,   0,     0.1,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
+   { 1,   2,     0.0,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
+   { 1,   0,     0.2,      0,     0.3,     0.5,   0,       0.5,     0.5, "PRM" },
+   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.7, "PRM" },
+   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.8, "PRM" },
    { 0 } };
 
 struct parms_t parmsets_GCR[MAXPARMSETS] = { //*** default parmsets for 6250 BPI GCR ***
