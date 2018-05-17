@@ -1,33 +1,28 @@
 // file: decoder.h
-/**********************************************************************
+/******************************************************************************
 
-header file for readtape.c and decoder.c
+   header file for readtape.c and decoder.c
 
 ---> See readtape.c for the merged change log.
 
-***********************************************************************
+/******************************************************************************
 Copyright (C) 2018, Len Shustek
-***********************************************************************
-The MIT License (MIT):
-Permission is hereby granted, free of charge,
-to any person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use, copy,
-modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished
-to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*************************************************************************/
+The MIT License (MIT): Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom
+the Software is furnished to do so, subject to the following conditions:
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+******************************************************************************/
 
 #define DEBUG 0               // generate debugging output?
 
@@ -44,7 +39,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdio.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <direct.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -54,8 +48,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <limits.h>
 #include <stddef.h>
 #include <float.h>
+typedef unsigned char byte;
 
-#define MAXTRKS 9
+#include "csvtbin.h"
+
+#define MAXTRKS 10
 #define MAXBLOCK 32768
 #define MAXPARMSETS 15
 #define MAXPARMS 15
@@ -94,7 +91,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define AGC_STARTBASE     5         // starting peak for baseline voltage measurement
 #define AGC_ENDBASE      15         // ending peak for baseline voltage measurement
 
-typedef unsigned char byte;
 #define NULLP (void *)0
 #ifndef max
 #define max(a,b) (((a) > (b)) ? (a) : (b))
@@ -114,8 +110,8 @@ struct sample_t {       // what we get from the digitizer hardware:
    float voltage[MAXTRKS]; // the voltage level from each track head
 };
 
-enum mode_t {
-   PE, NRZI, GCR, ALL };
+//enum mode_t {  // now defined in csvtbin.h
+//   UNKNOWN, PE, NRZI, GCR, ALL };
 
 struct clkavg_t { // structure for keeping track of clock rate
    // we either do window averaging or exponential averaging, depending on parms
@@ -195,7 +191,7 @@ struct parms_t {  // a set of parameters used for decoding a block. We try again
    // NRZI: how much of the actual transition avg position to use to adjust the next expected
    float pkww_bitfrac;     // what fraction of the bit spacing the window width is
    // ...add more dynamic parameters above here, and in the arrays at the top of decoder.c
-   char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
+   char id[4];             // "PRM", to make sure the structure initialization isn't screwed up
    int tried;              // how many times this parmset was tried
    int chosen;             // how many times this parmset was chosen
 }; // array: parmsets_xxx[block.parmset]
@@ -211,7 +207,8 @@ enum bstate_t { // the decoding status a block
    BS_NONE,          // no status available yet
    BS_TAPEMARK,      // a tape mark
    BS_BLOCK,         // a good block, but maybe parity errors or faked bits
-   BS_MALFORMED };   // a malformed block: different tracks are different lengths
+   BS_MALFORMED,     // a malformed block: different tracks are different lengths
+   BS_ABORTED};      // we aborted processing for some reason
 
 struct blkstate_t {  // state of the block, when we're done
    int tries;           // how many times we tried to decode this block
@@ -226,6 +223,7 @@ struct blkstate_t {  // state of the block, when we're done
       int vparity_errs;          // how many vertical (byte) parity errors it has
       int faked_bits;            // how many faked bits it has
       int errcount;              // how many total errors it has: parity + CRC + LRC
+      int warncount;             // how many warnings it has: NRZI midbit errors, etc.
       bool crc_bad, lrc_bad;     // NRZI 800: are crc/lrc ok?
       int crc, lrc;              // NRZI 800; the actual crc anc lrc values in the data
       float alltrk_max_agc_gain; // the maximum AGC gain we used for any track
@@ -253,13 +251,18 @@ void estden_init(void);
 void estden_setdensity(int numblks);
 void estden_show(void);
 bool estden_numtransitions(void);
+bool ibm_label(void);
 
 extern enum mode_t mode;
-extern bool terse, verbose, quiet, multiple_tries;
+extern bool terse, verbose, quiet, multiple_tries, tap_format;
 extern bool deskew, doing_deskew, doing_density_detection;
+extern bool hdr1_label;
 byte expected_parity;
 extern int dlog_lines;
 extern double timenow, torigin;
+extern int64_t timenow_ns;
+extern float sample_deltat;
+extern int64_t sample_deltat_ns;
 extern double interblock_expiration;
 extern struct blkstate_t block;
 extern uint16_t data[];
@@ -267,11 +270,8 @@ extern uint16_t data_faked[];
 extern double data_time[];
 extern struct nrzi_t nrzi;
 extern float bpi, ips;
-extern int ntrks;
-extern int numblks;
+extern int ntrks, numblks, numfiles;
 extern int pkww_width;
-extern float sample_deltat;
 extern char basefilename[];
-extern byte EBCDIC[];
 
 //*

@@ -8,11 +8,10 @@ data. The motivation for starting with the analog data is to be able to
 recover data that has degraded to the point where conventional tape 
 drives won't read it. 
 
-The input to the program is a sequence of periodic samples of the analog 
-voltage from all channels of the read head as the tape is moving. It is a 
-CSV (comma-separated-value) text file with a series of floating point 
-numbers. The first number on each line is a timestamp in seconds, and 
-the next N values on the lines are the voltages from the N tracks. 
+The input to the "readtape" program is a sequence of periodic samples of 
+the analog voltage from all channels of the read head as the tape is 
+moving. The output is the reconstructed original data that was recorded
+on the tape, and a log that indicates how successful it was.
 
 We are currently using Qualstar 1052 tape drives to generate the data,
 with either a 9-track or 7-track head installed. The drive manual is here: 
@@ -20,16 +19,20 @@ http://bitsavers.trailing-edge.com/pdf/qualstar/500150B_1052serviceMan.pdf.
 The analog samples are taken from the output of the second-stage 
 amplifiers in the front end, which is pin 1 of Ux02A shown in the 
 schematic on page 91. The drive is put in diagnostic read mode, which 
-causes the tape to move past the heads without needing to send any 
+causes the tape to move past the head without needing to send any 
 commands over the computer interface. 
 
-The analog to digital conversion is done with a Saleae 16-channel logic 
+The analog to digital conversion is from a Saleae 16-channel logic 
 analyzer (https://www.saleae.com/), which does 12-bit digitization (4096 
 possible values) of single-ended signals from -10V to +10V. Having 
 bipolar inputs is important, because the output of the second operational 
 amplifier is typically +-2V to +-6V. For degraded areas of the tapes it 
 goes lower, but automatic gain control in the software allows it to 
 decode signals that go as low as +-0.1V. 
+
+The canonical order for the track data is: MSB...LSB, and then PARITY, 
+connected to logical analyzer probes starting with number 0. If another 
+order is used, the program can be told about that. 
 
 I've used different sample rates depending on the density and drive speed, 
 but I try to get about 20 samples per cycle. For 800 BPI NRZI at 50 IPS, 
@@ -41,61 +44,77 @@ port. The data is stored in the computer's virtual memory, so the time
 and space limits are set by the memory+disk speed and size. Recording 
 for many minutes to create files that take dozens of gigabytes hasn't 
 been a problem. Files are saved in Saleae's proprietary format, and then
-some of all of the file can exported to a CSV text file.
+some of all of the file can exported to a text file.
+
+The only form in which data can be exported from the Saleae analyzer 
+software is a CSV (comma-separated-value) text file with a series of 
+floating point numbers. The first number on each line is a timestamp in 
+seconds, and the next N values on the lines are the voltages from the N 
+tracks. The program can read that file. 
+
+But the CSV files can be huge -- many tens of gigabytes for a few 
+minutes of recording -- so for archival purposes we've defined a binary 
+compressed "TBIN" format, and I wrote a utility program that can convert 
+between CSV and TBIN. The compression factor is about 10:1, and the 
+processing is about 2x faster when the program reads that file format.
+There is some loss of precision in the compressed format, but it doesn't
+affect the decoding.
 
 USING THE PROGRAM 
 
 This is a command-line (non-GUI) program written in standard C. I've 
-been testing on a Windows PC, but it should work in other environments 
-too. 
+been testing it on a Windows PC, but it should work in other 
+environments too. 
 
-The program is invoked as follows: 
-
-readtape <options> <basefilename>
-   the input file is <basefilename>.csv
-   the optional decoding parameter file is <basefilename>.parms
+use: readtape <options> <basefilename>
+   the input file is <basefilename>.csv or .tbin
+   the optional parameter set file is <basefilename>.parms
      (or NRZI.parms or PE.parms)
    the output files will be in the created directory <basefilename>\
-   the log file will be put in that directory as <basefilename>.log
-Options:
- -ntrks=n  sets the number of tracks; default is 9
- -order=   set input data order for bits 0..ntrks-2 and P
-           0=MSB; default is 01234567P for 9 trks
- -pe       do PE decoding; sets bpi=1600, ips=50
- -nrzi     do NRZI decoding; sets bpi=800, ips=50
- -gcr      do GCR decoding; sets bpi=6250, ips=25
- -bpi=n    override density in bits/inch
- -ips=n    override speed in inches/sec
- -even     even parity for 7-track NRZI BCD tapes
- -skip=n   skip the first n samples
- -tap      create one SIMH .tap file from the data
- -m        try multiple ways to decode a block
- -l        create a log file
- -v        verbose mode (all info)
- -t        terse mode (only bad block info)
- -q        quiet mode (only say "ok" or "bad")
- -f        take file list from <basefilename>.txt
+   
+options:
+  -ntrks=n   set the number of tracks; default is 9
+  -order=    set input data order for bits 0..ntrks-2 and P, where 0=MSB
+             default is 01234567P for 9 trks, 012345P for 7 trks
+  -pe        do PE decoding
+  -nrzi      do NRZI decoding
+  -gcr       do GCR decoding
+  -ips=n     speed in inches/sec
+  -bpi=n     density in bits/inch (default: autodetect)
+  -even      expect even parity (for 7-track NRZI BCD tapes)
+  -skip=n    skip the first n samples
+  -tap       create one SIMH .tap file from all the data
+  -deskew    do NRZI track deskew based on initial samples
+  -addparity include the parity bit in the data, if ntrks<9
+  -tbin      only look for a .tbin input file, not .csv
+  -m         try multiple ways to decode a block
+  -l         create a log file in the output directory
+  -v         verbose mode (show all info)
+  -t         terse mode (show only bad block info)
+  -q         quiet mode (only say "ok" or "bad")
+  -f         take a file list from <basefilename>.txt
+
+By default, each set of records between tapemarks is stored as separate 
+file. If it detects IBM standard labels, it uses those to name the files 
+and doesn't write the labels themselves. In -tap mode, it instead creates
+one tape image file in SIMH .tap format; see
+http://simh.trailing-edge.com/docs/simh_magtape.pdf. 
 
 Decoding is controlled by a set of parameters that adjust the 
-algorithms. No one set of parameters will work for all tapes or even all 
-blocks of one tape. You can specify multiple sets of parameters, and the 
-program will try as many as necessary to get a perfect decoding of a 
-block, or will try them all and pick the one that generates the minimum 
-number of errors. 
+algorithms. No one set of parameters will necessarily work for all tapes 
+or even all blocks of one tape. You can specify multiple sets of 
+parameters, and the program will try as many as necessary to get a 
+perfect decoding of a block, or will try them all and pick the one that 
+generates the minimum number of errors. 
 
-Each set of records between tapemarks is stored as separate file. If it
-detects IBM standard labels, it uses those to name the files and doesn't
-write the labels themselves. In -tap mode, it creates one tape image
-file in SIMH format, http://simh.trailing-edge.com/docs/simh_magtape.pdf.
-
-The sets of parameters that control the decoding algorithms can be read in 
-from a file that is specific to the tape data being decoded 
-(<basefilename>.parms), or from a generic file for that encoding type 
+These sets of parameters that are used for the decoding algorithms can 
+be read from a file that is specific to the tape data being decoded, 
+<basefilename>.parms, or from a generic file for that encoding type 
 (NRZI.parms, etc.). If no parameter file is provided, the program uses 
 built-in defaults. 
 
-This program is still a work in progress, so the parameter sets continue 
-to evolve. The current set of parameters are these: 
+The algorithms are still a work in progress, so the parameter sets 
+continue to evolve. The current set of parameters are these: 
 
    int active;             // 1 means this is an active parameter set
    int clk_window;         // how many bit times to average for clock rate; 0 means maybe use exponential averaging
@@ -104,9 +123,10 @@ to evolve. The current set of parameters are these:
    float agc_alpha;        // weighting for current data in the AGC exponential weight average; 0 means no AGC
    float min_peak;         // the minimum height of a peak in volts
    float clk_factor;       // PE: how much of a half-bit period to wait for a clock transition
-   float pulse_adj;        // how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
+   float pulse_adj;        // PE: how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
+                           // NRZI: how much of the actual transition avg position to use to adjust the next expected
    float pkww_bitfrac;     // what fraction of the bit spacing the window width is
-   char id[4];             // "PRM", to make sure the sructure initialization isn't screwed up
+   char id[4];             // "PRM", to make sure the structure initialization isn't screwed up
 
 The format of a parameter file is as follows:
 
@@ -118,23 +138,85 @@ parms active, clk_window,  clk_alpha, agc_window, agc_alpha, min_peak, clk_facto
 ...
 
 The leading 1 indicates an active parameter set, and the trailing "PRM" 
-is for error checking. The numbers in between are the parameters in the 
-order given by the "parms" line of the file. Parameter sets are used in
-sequence for each block on the tape to find the best decoding. In verbose
-mode, the program reports on how many times each parameter set was
-successfully used to decode a block.
+is for error checking. The numbers in between are the parameters, in the 
+order given by the "parms" line of the file. 
 
 If there is a now-obsolete parameter name in the file that the program 
 no longer knows about, it is ignored with a warning. If a parameter name 
 that the program expects is missing, the value from the first built-in 
-parmset is used. This scheme allows us to add and remove parameters 
+parameter set is used. This scheme allows us to add and remove parameters 
 types in the program without completely invalidating existing .parm 
 files. 
 
+Parameter sets are used in sequence for each block on the tape to find 
+the best decoding. In verbose mode, the program reports on how many 
+times each parameter set was successfully used to decode any block. 
+
+There are other constant parameters for the algorithms that are defined 
+in the decoder.h header file. As we discover any of them that need to 
+have multiple values to decode all blocks we've encountered, they get 
+moved into the parameter sets. 
+
+UTILITY PROGRAMS
+
+CSVTBIN: This standalone program converts between CSV format text files 
+and TBIN format compressed binary files. 
+
+use: csvtbin <options> <infilename> <outfilename>
+options:
+  -ntrks=n  the number of tracks; default is 9
+  -order=   input data order for bits 0..ntrks-2 and P, where 0=MSB
+            default is 01234567P for 9 trks, 012345P for 7 trks
+  -skip=n   skip the first n samples
+  -read     read tbin and create csv (otherwise, the opposite)
+optional documentation that can be recorded in the TBIN file:
+  -descr=txt            what is on the tape
+  -pe                   PE enecoding
+  -nrzi                 NRZI encding
+  -gcr                  GCR enoding
+  -ips=n                speed in inches/sec
+  -bpi=n                density in bits/inch
+  -datewritten=ddmmyyyy when the tape was originally written
+  -dateread=ddmmyyyy    when the tape was read and digitized
+
+Although not required, it is strongly suggested that the track order
+be specified if it is not the standard MSB...LSB, PARITY.
+By doing so the .tbin files will be in the canonical order, and
+the readtape program won't need to be told about the non-standard order.
+
+DUMPTAP: This standalone program displays the content of SIMH .tap 
+format files with numbers in hex or octal, and/or characters in ASCII, 
+EBCDIC, BCD, or Burroughs BIC code, in the style of an old-fashioned 
+memory dump. 
+
+use: dumptap <options> <filename>
+  the input file is expected to be a SIMH .tap tape image
+  the output is to stdout, but can be piped elsewhere
+options:
+  -b     show BCD characters
+  -e     show EBCDIC characters
+  -a     show ASCII characters
+  -u     show Burroughs B5500 Internal Code characters
+  -o     show octal numeric data
+  -h     show hex numeric data
+  -lnn   each line displays nn bytes
+
+The default is 80 ASCII characters per line and no numeric data.
+If the options are "-o -u -l20", the output looks like this:
+
+  file:102784151.tap
+     80: 6043212225436060004364422562606000232162   LABEL  0LUKES  0CAS
+         6360606000000106110005010001061100050300  T   0016905101690530
+         0000000000000000000000000000000000000000  00000000000000000000
+         0000050600000005060000000000000000000000  00560005600000000000
+  .tap tape mark
+  .tap end of medium
+
+
 THE ALGORITHMS
 
-This is a work-in-progress, so the algorithms will probably will have 
-changed by the time you read these descriptions. 
+This system is still under development, so the algorithms will probably 
+have changed by the time you read these descriptions. 
 
 Peak Detection
 
@@ -246,24 +328,40 @@ number of bits or by exponential weighting.
 - The time of any particular track's transition is compared to the 
 expected bit time, and a settable fraction (50% seems to work well) of 
 the deviation is used to adjust the transition time. (That tweak was 
-added to compensate for data-dependent peak-shifting, but it should help 
-for skew too.) 
+added to compensate for data-dependent peak-shifting, but it helps
+for modest amounts of track skew too.) 
 
 - The decision about whether a track lacked a transition at a bit time 
 isn't made until about halfway (0.6 seems to work well) between bit 
 times. 
 
-The bottom line is that it can probably tolerate track skew up to about 
-25% of the inter-bit time, which seems to work well for most tapes. 
+Automatic density detection
 
-If we need to insert large track de-skewing data delays, they could be 
+The recorded density of the tape is not always known. If the density is 
+not specified by the -bpi option, the program will try to determine it 
+by calculating the average minimum time between the first several thousand 
+flux transitions. If it corresponds to one of the standard densities 
+(200, 556, 800, 1600, or 6250), it will choose that for the decoding. 
+
+Track skew compensation
+
+If the head isn't perfectly vertical during either writing or reading, 
+there will be consistent timing differences between data from the 
+different tracks. If they are too big, it can causes errors in the 
+decoding. 
+
+If we need to insert track de-skewing data delays, they could be 
 set by first reading a "master skew tape", if one is available. 
-Alternatively, we can could do statistical analysis of the transitions 
-before trying to decode. For example: preprocess some blocks of a random 
-data tape and look for the differences in timing between the tracks 
-whose block data starts with a 1-bit, or any 1-bits near each other. See 
+What we do instead is a statistical analysis of some of the 
+transitions before trying to decode. See 
 https://github.com/LenShustek/readtape/blob/master/flux_transition_dispersion.JPG
-for an example graph of data that could be useful for this.
+for an illustrative graph of data that shows track skew.
+
+If the -deskew parameter is given, the program will attempt to calibrate 
+the track skew by looking at the deviation between the actual times of 
+the first several thousand flux transitions and the expected times. It 
+then uses that to set up delays for the data from the heads whose 
+transitions come early. 
 
 One aspect of head alignment can't be fixed in software and is critical: 
 we need a high enough signal-to-noise ratio so that the AGC algorithm 
@@ -273,4 +371,6 @@ can see the transitions, and minimal leakage between adjacent tracks.
 ....more to come....
 
 L. Shustek, 10 April 2018
+L. Shustek, 17 May 2018
+
 

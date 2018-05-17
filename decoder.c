@@ -1,10 +1,10 @@
 //file: decoder.c
-/**********************************************************************
+/*****************************************************************************
 
 Decode analog magnetic tape data in one of several flavors:
   -- Manchester phase encoded (PE)
   -- NRZI (non-return-to-zero inverted) encoded
-  -- GCR group coded recording (coming soon)
+  -- GCR group coded recording (coming someday)
 
 We are called once for each set of read head voltages on 9 data tracks.
 
@@ -35,12 +35,12 @@ Then during the data part of the block, we increase the simulated
 gain when the peak-to-peak amplitude decreases. This AGC (automatic
 gain control) works well for partial dropouts during a block.
 
-If we see a total dropout in a track, we wait for data to
+If we see a total dropout in a PE track, we wait for data to
 return. Then we create "faked" bits to cover for the dropout, and
 keep a record of which bits have been faked. Unfortunately this
 doesn't work as well for NRZI, since the dropout might be in the
-only track that has transitions and we have to estimate the clock
-by dead-reckoning.
+only track that has transitions and we would have to estimate the
+clock by dead-reckoning.
 
 The major routine here is process_sample(). It returns an indication
 of whether the current sample represents the end of a block, whose
@@ -48,54 +48,52 @@ state is then in struct blkstate_t block.
 
 ----> See readtape.c for the merged change log.
 
-***********************************************************************
+*******************************************************************************
 Copyright (C) 2018, Len Shustek
-***********************************************************************
-The MIT License (MIT): Permission is hereby granted, free of charge,
-to any person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use, copy,
-modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished
-to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*************************************************************************/
+The MIT License (MIT): Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom
+the Software is furnished to do so, subject to the following conditions:
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+******************************************************************************/
 
 #include "decoder.h"
 
-// Variables for time relative to the start must be double-precision.
+// Variables for time relative to the start must be at least double-precision.
 // Delta times for samples close to each other can be single-precision,
-// although the compiler will complain about loss of precision.
+// although the compiler might complain about loss of precision.
+// Time calculations that are subject to cumulative errors must be done
+// in 64-bit integer number of nanoseconds.
 
-double timenow=0;
-double torigin = 0;
 int num_trks_idle;
 int num_samples;
 int errcode=0;
+struct nrzi_t nrzi = { 0 };   // NRZI decoding status
+int pkww_width = 0;           // the width of the peak detection window, in number of samples
+
+double timenow = 0;           // time of last sample in seconds
+int64_t timenow_ns = 0;       // time of last sample in nanoseconds (used when reading .tbin files)
+double torigin = 0;           // time origin for debugging displays, in seconds
+float sample_deltat = 0;      // time between samples, in seconds
+int64_t sample_deltat_ns = 0; // time between samples, in nanoseconds
 double interblock_expiration = 0; // interblock gap expiration time
 
-struct nrzi_t nrzi = { 0 }; // NRZI decoding status
-float sample_deltat = 0;
-int pkww_width = 0;
+struct trkstate_t trkstate[MAXTRKS] = { 0 };// the current state of all tracks
 
-struct trkstate_t trkstate[MAXTRKS] = { // the current state of all tracks
-   0 };
-uint16_t data[MAXBLOCK+1] = { 		  // the reconstructed data in bits 8..0 for tracks 0..7, then P as the LSB
-   0 };
-uint16_t data_faked[MAXBLOCK+1] = {   // flag for "data was faked" in bits 8..0 for tracks 0..7, then P as the LSB
-   0 };
-double data_time[MAXBLOCK+1] = { 	  // the time the last track contributed to this data byte
-   0 };
+uint16_t data[MAXBLOCK+1] = { 0 };		     // the reconstructed data in bits 8..0 for tracks 0..7, then P as the LSB
+uint16_t data_faked[MAXBLOCK+1] = { 0 };    // flag for "data was faked" in bits 8..0 for tracks 0..7, then P as the LSB
+double data_time[MAXBLOCK+1] = { 0 };	     // the time the last track contributed to this data byte
+
 struct blkstate_t block;  // the status of the current data block as decoded with the various sets of parameters
 
 #if PEAK_STATS
@@ -181,14 +179,15 @@ void output_peakstats(void) { // Create an Excel .CSV file with flux transition 
 #endif
 
 /***********************************************************************************************************************
-Routines for estimating the bit density on the tape, based on
-the first thousand samples of flux transition timing
+Routines for estimating the bit density on the tape based on
+the first several thousand samples of flux transition timing.
+We pick one of the standard tape densities if we are close.
 ************************************************************************************************************************/
 
-#define ESTDEN_BINWIDTH 0.5e-6      // quantize of transition delta times into bins of this width, in seconds
+#define ESTDEN_BINWIDTH 0.5e-6      // quantize transition delta times into bins of this width, in seconds
 #define ESTDEN_MAXDELTA 120e-6      // ignore transition delta times bigger than this
-#define ESTDEN_NUMBINS 100          // how many bins for different delta times we have
-#define ESTDEN_COUNTNEEDED 1000     // how many transitions we need to see for a good estimate
+#define ESTDEN_NUMBINS 150          // how many bins for different delta times we have
+#define ESTDEN_COUNTNEEDED 9999     // how many transitions we need to see for a good estimate
 #define ESTDEN_MINPERCENT 5         // the minimum transition delta time must be seen at least this many percent of the total
 #define ESTDEN_CLOSEPERCENT 20      // how close, in percent, to one of the standard densities we need to be
 
@@ -201,10 +200,13 @@ struct {
 void estden_init(void) {
    memset(&estden, 0, sizeof(estden)); }
 
-void estden_transition(float deltasecs) { // count a transition distance
+bool estden_done(void) {
+   return estden.totalcount >= ESTDEN_COUNTNEEDED; }
+
+bool estden_transition(float deltasecs) { // count a transition distance
    int delta = deltasecs / ESTDEN_BINWIDTH;  // round down to multiple of BINWIDTH
    int ndx;
-   assert(deltasecs > 0, "negative delta %f in estden_transition", deltasecs);
+   assert(deltasecs > 0, "negative delta %f usec in estden_transition", deltasecs*1e6);
    if (deltasecs <= ESTDEN_MAXDELTA) {
       for (ndx = 0; ndx < estden.binsused; ++ndx) // do we have it already?
          if (estden.deltas[ndx] == delta) break;  // yes
@@ -212,10 +214,8 @@ void estden_transition(float deltasecs) { // count a transition distance
          assert(estden.binsused < ESTDEN_NUMBINS, "estden: too many transition delta values: %d", estden.binsused);
          estden.deltas[estden.binsused++] = delta; }
       ++estden.counts[ndx];
-      ++estden.totalcount; } }
-
-bool estden_done(void) {
-   return estden.totalcount >= ESTDEN_COUNTNEEDED; }
+      ++estden.totalcount; }
+   return estden_done(); }
 
 void estden_show(void) {
    rlog("density estimation buckets, %.2f usec each:\n", ESTDEN_BINWIDTH*1e6);
@@ -223,7 +223,6 @@ void estden_show(void) {
       rlog(" %2d: %5.1f usec cnt %d\n", ndx, estden.deltas[ndx] * ESTDEN_BINWIDTH * 1e6, estden.counts[ndx]); }
 
 void estden_setdensity(int numblks) { // figure out the tape density
-   static int standard_densities[] = { 200, 556, 800, 1600, 9214 /* GCR at "6250" */, 0 };
    int ndx;
    int mindist = INT_MAX;
    // Look for the smallest transition distance that occurred at least 5% of the time.
@@ -234,17 +233,18 @@ void estden_setdensity(int numblks) { // figure out the tape density
          mindist = estden.deltas[ndx]; }
    // estimate the density from that minimum transition delta time
    float density = 1.0 / (ips * (float)(mindist+0.5) * ESTDEN_BINWIDTH);
-   if (mode == PE) density /= 2;  // twice the transitions for PE
-   // search for a standard density that's close
+   if (mode == PE) density /= 2;  // twice the transitions for phase encoded data
+   // search for a standard density that is close
+   static int standard_densities[] = { 200, 556, 800, 1600, 9214 /* GCR at "6250" */, 0 };
    for (int ndx = 0; standard_densities[ndx]; ++ndx) {
       float stddensity = standard_densities[ndx];
       if (abs(density - stddensity) < stddensity * ESTDEN_CLOSEPERCENT / 100) {
          bpi = stddensity;
-         if (!quiet) rlog("Set density to %.0f BPI after reading %d blocks and seeing %d transitions implying %.0f BPI\n",
-              bpi, numblks, estden.totalcount, density);
+         if (!quiet) rlog("Set density to %.0f BPI after reading %d blocks and seeing %s transitions in %d bins that imply %.0f BPI\n",
+                             bpi, numblks, intcommas(estden.totalcount), estden.binsused, density);
          return; } }
-   fatal("The detected density of %.0f (%.1f usec) after seeing %d transitions is non-standard; please specify", 
-      density, (float)(mindist + 0.5) * ESTDEN_BINWIDTH * 1e6, estden.totalcount); }
+   fatal("The detected density of %.0f (%.1f usec) after seeing %s transitions is non-standard; please specify",
+         density, (float)(mindist + 0.5) * ESTDEN_BINWIDTH * 1e6, intcommas(estden.totalcount)); }
 
 /*****************************************************************************************************************************
 Routines for creating the trace file
@@ -559,8 +559,6 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
    float avg_bit_spacing = 0;
    result->minbits=MAXBLOCK;
    result->maxbits=0;
-   //for (int i=60; i<120; ++i)
-   //    rlog("%3d: %02X, %c, %d\n", i, data[i]>>1, EBCDIC[data[i]>>1], data[i]&1);
 
    for (int trk=0; trk<ntrks; ++trk) { // process postable bits on all tracks
       struct trkstate_t *t = &trkstate[trk];
@@ -822,7 +820,7 @@ void nrzi_top(struct trkstate_t *t) {  // detected a top
       else adjust_agc(t); // otherwise adjust AGC
    } }
 
-void nrzi_midbit(void) { // we're in between NRZI bit times
+void nrzi_midbit(void) { // we're in between NRZI bit times: make decisions about the previous bits
    int numbits = 0;
    double avg_pos = 0;
    trace_event(trace_midbit, timenow, UPTICK, NULLP);
@@ -1034,9 +1032,10 @@ double process_peak (struct trkstate_t *t, float val, bool top, float required_r
    fatal( "Can't find max or min %f in trk %d window at time %.7lf", val, t->trknum, timenow);
    return 0; }
 
+//-----------------------------------------------------------------------------
 // Process one voltage sample with data for all tracks.
 // Return with the status of the block we're working on.
-
+//-----------------------------------------------------------------------------
 enum bstate_t process_sample(struct sample_t *sample) {
    float deltaT;
 
@@ -1045,7 +1044,6 @@ enum bstate_t process_sample(struct sample_t *sample) {
       return BS_NONE; }
 
    deltaT = sample->time - timenow;  //(incorrect for the first sample)
-   timenow = sample->time;
 
 #if DESKEW
    for (int trknum = 0; trknum < ntrks; ++trknum) { // preprocess all tracks to do deskewing
@@ -1135,8 +1133,10 @@ enum bstate_t process_sample(struct sample_t *sample) {
             //if (TRACING) dlog("hit top on trk %d of %.2fV at %.7lf tick %.1f \n", t->trknum, t->v_top, t->t_top, TICK(t->t_top));
             TRACE(peak, t->t_top, UPTICK, t);
             ++t->peakcount;
-            if (doing_density_detection)
-               estden_transition(t->t_top - t->t_lastpeak);
+            if (doing_density_detection) {
+               if (estden_transition(t->t_top - t->t_lastpeak))
+                  block.results[block.parmset].blktype = BS_ABORTED; // got enough transitions for density detect
+            }
             else {
                if (mode == PE) pe_top(t);
                else if (mode == NRZI) nrzi_top(t);
@@ -1153,8 +1153,10 @@ enum bstate_t process_sample(struct sample_t *sample) {
             //if (TRACING) dlog("hit bot on trk %d of %.2fV at %.7lf tick %.1f \n", t->trknum, t->v_bot, t->t_bot, TICK(t->t_bot));
             TRACE(peak, t->t_bot, DNTICK, t);
             ++t->peakcount;
-            if (doing_density_detection)
-               estden_transition(t->t_bot - t->t_lastpeak);
+            if (doing_density_detection) {
+               if (estden_transition(t->t_bot - t->t_lastpeak))
+                  block.results[block.parmset].blktype = BS_ABORTED; // got enough transitions for density detect
+            }
             else {
                if (mode == PE) pe_bot(t);
                else if (mode == NRZI) nrzi_bot(t);

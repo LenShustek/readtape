@@ -1,14 +1,19 @@
 //file: readtape.c
-/************************************************************************
+/*****************************************************************************
 
-Read an IBM formatted 1600 BPI 9-track labelled tape
-and create one disk file for each tape file.
+Read the analog signals recorded from the heads of a magnetic tape,
+decode the data in any of several formats and speeds,
+and create one or more files with the original information.
 
-The input is a CSV file with 10 columns:a timestamp in seconds,
-and then the read head voltage for 9 tracks in the order
-MSB...LSB, parity. The first two rows are text column headings.
+The input is either:
+  - a CSV file with multiple columns:a timestamp in seconds,
+    and then the read head voltages at that time for each of the tracks.
+  - a TBIN binary compressed data file; see csvtbin.h
 
-*************************************************************************
+See the "A_documentation.txt" file for a narrative about usage, 
+internal operation, and the algorithms we use.
+
+******************************************************************************
 Copyright (C) 2018, Len Shustek
 
 ---CHANGE LOG ---
@@ -119,19 +124,19 @@ Copyright (C) 2018, Len Shustek
 
 *** 12 Apr 2018, L. Shustek
 - Rewrite the debugging trace routines to be deeply buffered, so
-we can "change history" for events that are discovered late -- for
-example, with the new moving-window algorithm, the signal peaks.
+  we can "change history" for events that are discovered late -- for
+  example, with the new moving-window algorithm, the signal peaks.
 - Better display of parmsets in verbose mode.
 
 *** 16 Apr 2018, L. Shustek
 - Generalize tracing to allow multitrack voltage displays along
-with the event data.
+  with the event data.
 
 *** 1 May 2018, L. Shustek
 - Add explicit optional deskewing delays when reading raw head data:
-data for each track is independently delayed by some amount.
+  data for each track is independently delayed by some amount.
 - Add "-deskew" option, which does a test read of the first block to
-determine the track skew values.
+  determine the track skew values.
 
 *** 4 May 2018, L. Shustek
 - Add better trace info for NRZI decoding, since we're having problems.
@@ -139,91 +144,52 @@ determine the track skew values.
 - In computing skew, round up. That helps some.
 - Fix bug: if skew comp took n blocks, we skipped decoding n-1 blocks.
 - Add density autodetect: if BPI isn't specified, then look at the
-first few thousand transition to determine the minimum delta, and see
-if the density we derive from that is one of the standard densities.
+  first few thousand transition to determine the minimum delta, and see
+  if the density we derive from that is one of the standard densities.
 
+*** 14 May 2018, L. Shustek
+- Add reading of compressed .tbin binary format files. Much faster!
+- Add -addparity option to include 7-track parity bit with the data.
+- Switch from ftell/fseek to fgetpos/fsetpos, which are more portable.
+- Treat the NRZI "bits before midbit" warning as a weak error, and
+  try to find a better perfect decoding that doesn't generate it.
+- Move IBM standard label processing from got_datablock() into a
+  a separate file, just for neatness.
 
-TODO: treat the NRZI "bits before midbit" warning as a weak error, and
-try to find a better perfect decoding that doesn't generate it.
 *********************************************************************/
-#define VERSION "6May2018"
-/********************************************************************
+#define VERSION "16May2018"
+/*
  default bit and track numbering, where 0=msb and P=parity
-            on tape       memory here    written to disk
+            on tape     in memory here    written to disk
  7-track    P012345         012345P        012345
  9-track    P37521064     01234567P      01234567
 
  Permutation of the "on tape" sequence to the "memory here" sequence
  is done by appropriately connecting the logic analyzer probes,
- and can be overridden by using the -order option.
-*********************************************************************
-The MIT License (MIT):
-Permission is hereby granted, free of charge,
-to any person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use, copy,
-modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished
-to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*************************************************************************/
+ but can be overridden by using the -order option.
+ */
+ /******************************************************************************
+ Copyright (C) 2018, Len Shustek
+ 
+ The MIT License (MIT): Permission is hereby granted, free of charge, to any
+ person obtaining a copy of this software and associated documentation files
+ (the "Software"), to deal in the Software without restriction, including
+ without limitation the rights to use, copy, modify, merge, publish, distribute,
+ sublicense, and/or sell copies of the Software, and to permit persons to whom
+ the Software is furnished to do so, subject to the following conditions:
+   The above copyright notice and this permission notice shall be
+   included in all copies or substantial portions of the Software.
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ ******************************************************************************/
 
 #include "decoder.h"
 
-// In Windows Visual Studio 2017 fseek and ftell use 32-bit integers,
-// which fails for files bigger than 2 GB!
-#define fseek(file,off,org) _fseeki64(file,off,org)
-#define ftell(file) _ftelli64(file)
-
-// The format of IBM standard labeled tape headers
-// All fields not reserved are in EBCDIC characters
-
-struct IBM_vol_t {
-   char id[4]; 		   // "VOL1"
-   char serno[6];		   // volume serial number
-   char rsvd1[31];
-   char owner[10];		// owner in EBCDIC
-   char rxvd2[29]; };
-struct IBM_hdr1_t {
-   char id[4];		   	// "HDR1" or "EOF1" or "EOV1"
-   char dsid[17];       // dataset identifier
-   char serno[6];       // dataset serial number
-   char volseqno[4];    // volume sequence numer
-   char dsseqno[4];     // dataset sequence number
-   char genno[4];       // generation number
-   char genver[2];      // version number of generation
-   char created[6];     // creation date as yyddd
-   char expires[6];     // expiration date as yyddd
-   char security[1];    // security: 0=none, 1=rwe, 2=we
-   char blkcnt[6];      // block count (in EOF)
-   char syscode[13];    // system code
-   char rsvd1[7]; };
-struct IBM_hdr2_t {
-   char id[4];          // "HDR2" or "EOF2" or "EOV2"
-   char recfm[1];       // F, V, or U
-   char blklen[5];      // block length
-   char reclen[5];      // record length
-   char density[1];     // 3 for 1600 BPI
-   char dspos[1];       // dataset position
-   char job[17];        // job and job step id
-   char recording[2];   // blank for 9-track tape: "odd, no translate"
-   char controlchar[1]; // A for ASCII, M for machine, blank for none
-   char rsvd1[1];
-   char blkattrib[1];   // B=blocked, S=spanned, R=both, b=neither
-   char rsvd2[41]; };
-
 FILE *inf,*outf, *rlogf;
-fpos_t blockstart; // use fseek/ftell, because fgetpos/fsetpos is buggy in lcc-win64!
 char basefilename[MAXPATH];
 long long lines_in = 0;
 int numfiles = 0, numblks = 0, numbadparityblks = 0, nummalformedblks = 0, numgoodmultipleblks = 0, numtapemarks = 0;
@@ -234,14 +200,19 @@ bool verbose = true;
 bool terse = false;
 bool quiet = false;
 bool filelist = false;
+bool tbin_file = false;
 bool multiple_tries = false;
 bool deskew = false;
+bool add_parity = false;
 bool doing_deskew = false;
 bool doing_density_detection = false;
 bool tap_format = false;
 bool hdr1_label = false;
+bool little_endian;
 byte expected_parity = 1;
 int input_permutation[MAXTRKS] = { -1 };
+struct tbin_hdr_t tbin_hdr = { 0 };
+struct tbin_dat_t tbin_dat = { 0 };
 
 enum mode_t mode = PE;      // default
 float bpi_specified = 0; // 0 means do auto-detect
@@ -254,32 +225,9 @@ time_t start_time;
 int skip_samples = 0;
 int dlog_lines = 0;
 
-
-byte EBCDIC [256] = {/* EBCDIC to ASCII */
-   /*0x*/ ' ', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?',
-   /*1x*/ '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?',
-   /*2x*/ '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?',
-   /*3x*/ '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?',
-   /*4x*/ ' ', '?', '?', '?', '?', '?', '?', '?', '?', '?', '[', '.', '<', '(', '+', '|',
-   /*5x*/ '&', '?', '?', '?', '?', '?', '?', '?', '?', '?', '!', '$', '*', ')', ';', '^',
-   /*6x*/ '-', '/', '?', '?', '?', '?', '?', '?', '?', '?', '|', ',', '%', '_', '>', '?',
-   /*7x*/ '?', '?', '?', '?', '?', '?', '?', '?', '?', '`', ':', '#', '|', '\'', '=', '"',
-   /*8x*/ '?', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', '?', '?', '?', '?', '?', '?',
-   /*9x*/ '?', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', '?', '?', '?', '?', '?', '?',
-   /*ax*/ '?', '~', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '?', '?', '?', '?', '?', '?',
-   /*bx*/ '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?',
-   /*cx*/ '{', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', '?', '?', '?', '?', '?', '?',
-   /*dx*/ '}', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', '?', '?', '?', '?', '?', '?',
-   /*ex*/ '\\', '?', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '?', '?', '?', '?', '?', '?',
-   /*fx*/ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '?', '?', '?', '?', '?', ' ' };
-
-byte BCD1401 [64] = { // IBM 1401 BCD to ASCII
-   /*0x*/ ' ', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '#', '@', ':', '>', 't',  // t=tapemark
-   /*1x*/ ' ', '/', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'r', ',', '%', '=', '\'', '"', // r=recordmark
-   /*2x*/ '-', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', '!', '$', '*', ')', ';', 'd',  // d=delta symbol
-   /*3x*/ '&', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', '?', '.', '?', '(', '<', 'g' };// g=groupmark
-// blank is 00 in memory, but x10 on tape
-
+/********************************************************************
+Routines for logging and errors
+*********************************************************************/
 static void vlog(const char *msg, va_list args) {
    vfprintf(stdout, msg, args);  // to the console
    if (logging && rlogf)  // and maybe also the log file
@@ -322,33 +270,38 @@ void assert(bool t, const char *msg, ...) {
    if (!t) vfatal(msg, args);
    va_end(args); }
 
+/********************************************************************
+Routines for processing options
+*********************************************************************/
 void SayUsage (void) {
    static char *usage[] = {
-      "Use: readtape <options> <basefilename>",
-      "   the input file is <basefilename>.csv",
-      "   the optional parmset file is <basefilename>.parms",
+      "use: readtape <options> <basefilename>",
+      "  the input file is <basefilename>.csv or .tbin",
+      "  the optional parameter set file is <basefilename>.parms",
       "     (or NRZI.parms or PE.parms)",
-      "   the output files will be in the created directory <basefilename>\\",
-      "   the log file will also be there, as <basefilename>.log",
-      "Options:",
-      " -ntrks=n  sets the number of tracks; default is 9",
-      " -order=   set input data order for bits 0..ntrks-2 and P, where 0=MSB",
-      "           default is 01234567P for 9 trks, 012345P for 7 trks",
-      " -pe       do PE decoding",
-      " -nrzi     do NRZI decoding",
-      " -gcr      do GCR decoding",
-      " -ips=n    specify speed in inches/sec",
-      " -bpi=n    specify density in bits/inch (default: autodetect)",
-      " -even     expect even parity (for 7-track NRZI BCD tapes)",
-      " -skip=n   skip the first n samples",
-      " -tap      create one SIMH .tap file from all the data",
-      " -deskew   do NRZI track deskew based on initial samples",
-      " -m        try multiple ways to decode a block",
-      " -l        create a log file",
-      " -v        verbose mode (all info)",
-      " -t        terse mode (only bad block info)",
-      " -q        quiet mode (only say \"ok\" or \"bad\")",
-      " -f        take file list from <basefilename>.txt",
+      "  the output files will be in the created directory <basefilename>\\",
+      "",
+      "options:",
+      "  -ntrks=n   set the number of tracks; default is 9",
+      "  -order=    set input data order for bits 0..ntrks-2 and P, where 0=MSB",
+      "             default is 01234567P for 9 trks, 012345P for 7 trks",
+      "  -pe        do PE decoding",
+      "  -nrzi      do NRZI decoding",
+      "  -gcr       do GCR decoding",
+      "  -ips=n     speed in inches/sec",
+      "  -bpi=n     density in bits/inch (default: autodetect)",
+      "  -even      expect even parity (for 7-track NRZI BCD tapes)",
+      "  -skip=n    skip the first n samples",
+      "  -tap       create one SIMH .tap file from all the data",
+      "  -deskew    do NRZI track deskew based on initial samples",
+      "  -addparity include the parity bit in the data, if ntrks<9",
+      "  -tbin      only look for a .tbin input file, not .csv",
+      "  -m         try multiple ways to decode a block",
+      "  -l         create a log file in the output directory",
+      "  -v         verbose mode (show all info)",
+      "  -t         terse mode (show only bad block info)",
+      "  -q         quiet mode (only say \"ok\" or \"bad\")",
+      "  -f         take a file list from <basefilename>.txt",
       NULLP };
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]); }
 
@@ -416,6 +369,8 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "TAP")) tap_format = true;
    else if (opt_key(arg, "EVEN")) expected_parity = 0;
    else if (opt_key(arg, "DESKEW")) deskew = true;
+   else if (opt_key(arg, "ADDPARITY")) add_parity = true;
+   else if (opt_key(arg, "TBIN")) tbin_file = true;
    else if (option[2] == '\0') // single-character switches
       switch (toupper(option[1])) {
       case 'H':
@@ -444,18 +399,9 @@ int HandleOptions (int argc, char *argv[]) {
          break; } }
    return firstnonoption; }
 
-bool compare4(uint16_t *d, const char *c) { // 4-character string compare ASCII to EBCDIC
-   for (int i=0; i<4; ++i)
-      if (EBCDIC[d[i]>>1] != c[i]) return false;
-   return true; }
-
-void copy_EBCDIC (byte *to, uint16_t *from, int len) { // copy and translate to ASCII
-   while (--len >= 0) to[len] = EBCDIC[from[len]>>1]; }
-
-char *trim(char *p, int len) { // remove trailing blanks
-   while (len && p[--len] == ' ') p[len] = '\0';
-   return p; }
-
+/********************************************************************
+utility routines
+*********************************************************************/
 byte parity (uint16_t val) { // compute the parity of one byte
    byte p = val & 1;
    while (val >>= 1) p ^= val & 1;
@@ -492,16 +438,6 @@ void show_block_errs (int len) { // report on parity errors and faked bits in al
          if (data_faked[i]) dlog(", faked bits: %03X", data_faked[i]); //Visual Studio doesn't support %b
          dlog("\n"); } } }
 
-void dumpdata (uint16_t *data, int len, bool bcd) { // display a data block in hex and EBCDIC or BCD
-   rlog("block length %d\n", len);
-   for (int i=0; i<len; ++i) {
-      rlog("%02X %d ", data[i]>>1, data[i]&1); // data then parity
-      if (i%16 == 15) {
-         rlog(" ");
-         for (int j=i-15; j<=i; ++j) rlog("%c", bcd ? BCD1401[data[j] >> 1] : EBCDIC[data[j]>>1]);
-         rlog("\n"); } }
-   if (len%16 != 0) rlog("\n"); }
-
 void output_tap_marker(uint32_t num) {  //output a 4-byte .TAP file marker, little-endian
    for (int i = 0; i < 4; ++i) {
       byte lsb = num & 0xff;
@@ -533,10 +469,32 @@ void create_file(const char *name) {
    ++numfiles;
    numfilebytes = numfileblks = 0; }
 
+char *modename(void) {
+   return mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : "???"; }
+
+/***********************************************************************************************
+      tape block processing
+***********************************************************************************************/
+
+struct file_position_t {   // routines to save and restore the file position and sample time
+   fpos_t position;
+   double time;
+   int64_t time_ns; };
+void save_file_position(struct file_position_t *fp) {
+   assert(fgetpos(inf, &fp->position) == 0, "fgetpos failed");
+   fp->time_ns = timenow_ns;
+   fp->time = timenow; }
+void restore_file_position(struct file_position_t *fp) {
+   assert(fsetpos(inf, &fp->position) == 0, "fsetpos failed");
+   timenow_ns = fp->time_ns;
+   timenow = fp->time; }
+
+static struct file_position_t blockstart;
+
 void got_tapemark(void) {
    ++numtapemarks;
-   blockstart = ftell(inf); // remember the input file position for the start of the next block
-   if (!quiet) rlog("*** tapemark at file position %s and time %.7lf\n", longlongcommas(blockstart), timenow);
+   save_file_position(&blockstart);
+   if (!quiet) rlog("*** tapemark at file position %s and time %.7lf\n", longlongcommas(blockstart.position), timenow);
    if (tap_format) {
       if (!outf) create_file(NULLP);
       output_tap_marker(0x00000000); }
@@ -547,42 +505,9 @@ void got_datablock(bool malformed) { // decoded a tape block
    int length=block.results[block.parmset].minbits;
    struct results_t *result = &block.results[block.parmset];
 
-   if (!malformed && !tap_format && length==80 && compare4(data,"VOL1")) { // IBM volume header
-      struct IBM_vol_t hdr;
-      copy_EBCDIC((byte *)&hdr, data, 80);
-      if (!quiet) {
-         rlog("*** tape label %.4, serno \"%.6s\", owner \"%.10s\"\n", hdr.id, trim(hdr.serno,6), trim(hdr.owner,10));
-         if (result->errcount) rlog("--> %d errors\n", result->errcount); }
-      //dumpdata(data, length, false);
-   }
-   else if (!malformed &&!tap_format && length==80 && (compare4(data,"HDR1") || compare4(data,"EOF1") || compare4(data,"EOV1"))) {
-      struct IBM_hdr1_t hdr;
-      copy_EBCDIC((byte *)&hdr, data, 80);
-      if (!quiet) {
-         rlog("*** tape label %.4s, dsid \"%.17s\", serno \"%.6s\", created%.6s\n",
-              hdr.id, trim(hdr.dsid,17), trim(hdr.serno,6), trim(hdr.created,6));
-         rlog("    volume %.4s, dataset %.4s\n", trim(hdr.volseqno,4), trim(hdr.dsseqno,4));
-         if (compare4(data, "EOF1")) rlog("    block count %.6s, system %.13s\n", hdr.blkcnt, trim(hdr.syscode,13));
-         if (result->errcount) rlog("--> %d errors\n", result->errcount); }
-      //dumpdata(data, length, false);
-      if (compare4(data,"HDR1")) { // create the output file from the name in the HDR1 label
-         char filename[MAXPATH];
-         sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles+1, hdr.dsid, '\0');
-         for (int i=strlen(filename); filename[i-1]==' '; --i) filename[i-1]=0;
-         if (!tap_format) create_file(filename);
-         hdr1_label = true; }
-      if (compare4(data,"EOF1") && !tap_format) close_file(); }
-   else if (!malformed && !tap_format && length==80 && (compare4(data,"HDR2") || compare4(data,"EOF2") || compare4(data, "EOV2"))) {
-      struct IBM_hdr2_t hdr;
-      copy_EBCDIC((byte *)&hdr, data, 80);
-      if (!quiet) {
-         rlog("*** tape label %.4s, RECFM=%.1s%.1s, BLKSIZE=%.5s, LRECL=%.5s\n",//
-              hdr.id, hdr.recfm, hdr.blkattrib, trim(hdr.blklen,5), trim(hdr.reclen,5));
-         rlog("    job: \"%.17s\"\n", trim(hdr.job,17));
-         if (result->errcount) rlog("--> %d errors\n", result->errcount); }
-      //dumpdata(data, length, false);
-   }
-   else if (length > 0) { // a normal non-label data block (or in tap_format), but maybe malformed
+   bool labeled = !malformed && ibm_label();
+   if (length > 0 && (tap_format || !labeled)) {
+      // a normal non-label data block (or in tap_format), but maybe malformed
       if (length <= 2) {
          dlog("*** ingoring runt block of %d bytes at %.7lf\n", length, timenow); }
       else { // decent-sized block
@@ -593,7 +518,8 @@ void got_datablock(bool malformed) { // decoded a tape block
          if (tap_format) output_tap_marker(length | errflag); // leading record length
          for (int i = 0; i < length; ++i) { // discard the parity bit track and write all the data bits
             byte b = data[i] >> 1;
-            assert(fwrite(&b, 1, 1, outf) == 1, "write failed"); }
+            if (add_parity) b |= data[i] << (ntrks-1);  // optionally include parity bit as the highest bit
+            assert(fwrite(&b, 1, 1, outf) == 1, "data write failed"); }
          if (tap_format) {
             byte zero = 0;  // tap format needs an even number of data bytes
             if (length & 1) assert(fwrite(&zero, 1, 1, outf) == 1, "write of odd byte failed");
@@ -623,11 +549,15 @@ void got_datablock(bool malformed) { // decoded a tape block
          if ((!quiet || terse) && malformed) {
             rlog("   malformed, with lengths %d to %d\n", result->minbits, result->maxbits);
             ++nummalformedblks; } } }
-   blockstart = ftell(inf);  // remember the file position for the start of the next block
-   //log("got valid block %d, file pos %s at %.7lf\n", numblks, longlongcommas(blockstart), timenow);
+   save_file_position(&blockstart); // remember the file position for the start of the next block
+   //log("got valid block %d, file pos %s at %.7lf\n", numblks, longlongcommas(blockstart.position), timenow);
 };
 
-float scanfast_float(char **p) { // *** fast scanning routines for the CSV numbers in the input file
+/*****************************************************************************************
+      tape data processing, in either CSV (ASCII) or TBIN (binary) format
+******************************************************************************************/
+
+float scanfast_float(char **p) { // *** fast scanning routines for CSV numbers
    float n=0;
    bool negative=false;
    while (**p==' ' || **p==',') ++*p; //skip leading blanks, comma
@@ -688,36 +618,94 @@ char *longlongcommas(long long n) { // 64 bits
          n = n / 10; }
    return p + 1; }
 
-char *modename(void) {
-   return mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : "???"; }
+void reverse2(uint16_t *pnum) {
+   byte x = ((byte *)pnum)[0];
+   byte y = ((byte *)pnum)[1];
+   ((byte *)pnum)[0] = y;
+   ((byte *)pnum)[1] = x; }
 
-bool readblock(bool retry) { // read the CSV file until we get to the end of a block on the tape
-   // return false if we are already at the endfile
-   char line[MAXLINE+1];
+void reverse4(uint32_t *pnum) {
+   for (int i = 0; i < 2; ++i) {
+      byte x = ((byte *)pnum)[i];
+      byte y = ((byte *)pnum)[3 - i];
+      ((byte *)pnum)[i] = y;
+      ((byte *)pnum)[3 - i] = x; } }
+
+void reverse8(uint64_t *pnum) {
+   for (int i = 0; i < 4; ++i) {
+      byte x = ((byte *)pnum)[i];
+      byte y = ((byte *)pnum)[7 - i];
+      ((byte *)pnum)[i] = y;
+      ((byte *)pnum)[7 - i] = x; } }
+
+void read_tbin_header(void) {  // read the .TBIN file header
+   assert(fread(&tbin_hdr, sizeof(tbin_hdr), 1, inf) == 1, "can't read .tbin header");
+   assert(strcmp(tbin_hdr.tag, HDR_TAG) == 0, ".tbin file missing TBINFIL tag");
+   if (!little_endian)  // convert all 4-byte integers in the header to big-endian
+      for (int i = 0; i < sizeof(tbin_hdr.u.s) / 4; ++i)
+         reverse4(&tbin_hdr.u.a[i]);
+   assert(tbin_hdr.u.s.format == TBIN_FILE_FORMAT, "bad .tbin file header version");
+   assert(tbin_hdr.u.s.tbinhdrsize == sizeof(tbin_hdr),
+          "bad .tbin hdr size: %d, not %d", tbin_hdr.u.s.tbinhdrsize, sizeof(tbin_hdr));
+   if (!quiet) rlog(".tbin file converted %s", asctime(&tbin_hdr.u.s.time_converted));
+   ntrks = tbin_hdr.u.s.ntrks;
+   if (bpi == 0 && tbin_hdr.u.s.bpi != 0)
+      bpi = tbin_hdr.u.s.bpi;
+   if (ips == 0 && tbin_hdr.u.s.ips != 0)
+      ips = tbin_hdr.u.s.ips;
+   sample_deltat_ns = tbin_hdr.u.s.tdelta;
+   sample_deltat = (float)sample_deltat_ns / 1e9;
+   assert(fread(&tbin_dat, sizeof(tbin_dat), 1, inf) == 1, "can't read .tbin dat");
+   assert(strcmp(tbin_dat.tag, DAT_TAG) == 0, ".tbin file missing DAT tag");
+   assert(tbin_dat.sample_bits == 16, "we support only 16 bits/sample, not %d", tbin_dat.sample_bits);
+   if (!little_endian) reverse8(&tbin_dat.tstart); // convert to big endian if necessary
+   timenow_ns = tbin_dat.tstart;
+   timenow = (float)timenow_ns / 1e9; };
+
+bool readblock(bool retry) { // read the CSV or TBIN file until we get to the end of a tape block
+   // return false if we are at the endfile
    struct sample_t sample;
-   if (!fgets(line, MAXLINE, inf)) // if we get an immediate endfile
-      return false;
-   while(1) {
-      line[MAXLINE-1]=0;
+   bool did_processing = false;
+   while (1) {
       if (!retry) ++lines_in;
-
-      /* sscanf is excruciately slow and was taking 90% of the processing time!
-      The special-purpose scan routines are about 25 times faster, but do
-      no error checking. We replaced the following code:
-      items = sscanf(line, " %lf, %f, %f, %f, %f, %f, %f, %f, %f, %f ", &sample.time,
-      &sample.voltage[0], &sample.voltage[1], &sample.voltage[2],
-      &sample.voltage[3], &sample.voltage[4], &sample.voltage[5],
-      &sample.voltage[6], &sample.voltage[7], &sample.voltage[8]);
-      assert (items == ntrks+1,"bad CSV line format"); */
-
-      char *linep = line;
-      sample.time = scanfast_double(&linep);  // get the time of this sample
-      for (int i=0; i<ntrks; ++i) // read voltages for all tracks, and permute as necessary
-         sample.voltage[input_permutation[i]] = scanfast_float(&linep);
+      if (tbin_file) { // TBIN file
+         int16_t tbin_voltages[MAXTRKS];
+         assert(fread(&tbin_voltages[0], 2, 1, inf) == 1, "can't read .tbin data for track 0 at time %.8lf", timenow);
+         if (!little_endian) reverse2(&tbin_voltages[0]);
+         if (tbin_voltages[0] == (int16_t)0x8000) { // end of file marker
+            if (did_processing)  process_sample(NULLP); // force "end of block" processing
+            return false; }
+         assert(fread(&tbin_voltages[1], 2, ntrks - 1, inf) == ntrks - 1, "can't read .tbin data for tracks 1.. at time %.8lf", timenow);
+         if (!little_endian)
+            for (int trk = 1; trk < ntrks; ++trk)
+               reverse2(&tbin_voltages[trk]);
+         for (int trk = 0; trk < ntrks; ++trk) sample.voltage[input_permutation[trk]] = (float)tbin_voltages[trk] / 32767 * tbin_hdr.u.s.maxvolts;
+         sample.time = (double)timenow_ns/1e9;
+         timenow_ns += sample_deltat_ns; // (for next time)
+      }
+      else {  // CSV file
+         char line[MAXLINE + 1];
+         if (!fgets(line, MAXLINE, inf)) {
+            if (did_processing)  process_sample(NULLP); // force "end of block" processing
+            return false; }
+         line[MAXLINE - 1] = 0;
+         /* sscanf is excruciately slow and was taking 90% of the processing time!
+         The special-purpose scan routines are about 25 times faster, but do
+         no error checking. We replaced the following code:
+         items = sscanf(line, " %lf, %f, %f, %f, %f, %f, %f, %f, %f, %f ", &sample.time,
+         &sample.voltage[0], &sample.voltage[1], &sample.voltage[2],
+         &sample.voltage[3], &sample.voltage[4], &sample.voltage[5],
+         &sample.voltage[6], &sample.voltage[7], &sample.voltage[8]);
+         assert (items == ntrks+1,"bad CSV line format"); */
+         char *linep = line;
+         sample.time = scanfast_double(&linep);  // get the time of this sample
+         for (int i = 0; i < ntrks; ++i) // read voltages for all tracks, and permute as necessary
+            sample.voltage[input_permutation[i]] = scanfast_float(&linep); }
+      timenow = sample.time;
 
       if (!block.window_set && block.last_sample_time != 0) {
-         // we have seen two samples, so set the width of the peak-detect moving window
-         sample_deltat = sample.time - block.last_sample_time;
+         // we can know the sample delta time, so set the width of the peak-detect moving window
+         if (!tbin_file)  sample_deltat = sample.time - block.last_sample_time;
          if (bpi)
             pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
          else pkww_width = 8; // a random reasonable choice if we don't have BPI specified
@@ -731,94 +719,103 @@ bool readblock(bool retry) { // read the CSV file until we get to the end of a b
 
       if (process_sample(&sample) != BS_NONE)  // process one voltage sample point for all tracks
          break;  // until we recognize an end of block
-      if (!fgets(line, MAXLINE, inf)) { // read the next line
-         process_sample(NULLP); // if we get to the end of the file, force "end of block" processing
-         break; } }
+      did_processing = true; }
    return true; }
+
 
 bool process_file(int argc, char *argv[]) { // process a complete input file; return TRUE if all blocks were well-formed and had good parity
    char filename[MAXPATH], logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
 
-   if (mkdir(basefilename) != 0) // create the working directory for output files
+#if defined(_WIN32)
+   if (_mkdir(basefilename) != 0) // create the working directory for output files
+#else
+   if (mkdir(basefilename, 0777) != 0) // create the working directory for output files
+#endif
       assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", basefilename");
 
    if (logging) { // Open the log file
       sprintf(logfilename, "%s\\%s.log", basefilename, basefilename);
       assert(rlogf = fopen(logfilename, "w"), "Unable to open log file \"%s\"", logfilename); }
 
-   strncpy(filename, basefilename, MAXPATH - 5);  // open the input file
    filename[MAXPATH - 5] = '\0';
-   strcat(filename, ".csv");
-   inf = fopen(filename, "r");
-   assert(inf, "Unable to open input file \"%s\"", filename);
+   if (!tbin_file) {
+      strncpy(filename, basefilename, MAXPATH - 5);  // try to open <basefilename>.csv
+      strcat(filename, ".csv");
+      inf = fopen(filename, "r"); }
+   if (!inf) {
+      strncpy(filename, basefilename, MAXPATH - 6);  // try to open <basefilename>.tbin
+      strcat(filename, ".tbin");
+      inf = fopen(filename, "rb");
+      assert(inf, "Unable to open input file \"%s\" .csv or .tbin", basefilename);
+      tbin_file = true;
+      read_tbin_header(); }
+   assert(!add_parity || ntrks < 9, "-parity not allowed with ntrks=%d", ntrks);
+   if (!quiet) rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
 
-   if (!quiet) {
-      for (int i = 0; i < argc; ++i)  // for documentation in the log, print invocation options
-         rlog("%s ", argv[i]);
-      rlog("\n");
-      rlog("readtape version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
-      rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
-   }
    read_parms(); // read the .parm file, if any
 
-   fgets(line, MAXLINE, inf); // first two (why?) lines in the input file are headers from Saleae
-   //log("%s",line);
-   fgets(line, MAXLINE, inf);
-   //log("%s\n",line);
+   if (!tbin_file) {
+      fgets(line, MAXLINE, inf); // first two (why?) lines in the input file are headers from Saleae
+      fgets(line, MAXLINE, inf); }
 
    if (skip_samples > 0) {
       if (!quiet) rlog("skipping %d samples\n", skip_samples);
-      while (skip_samples--)
-         assert(fgets(line, MAXLINE, inf), "endfile with %d lines left to skip\n", skip_samples); }
+      while (skip_samples--) {
+         bool endfile;
+         struct sample_t sample;
+         if (tbin_file) endfile = fread(sample.voltage, 2, ntrks, inf) != ntrks;
+         else endfile = !fgets(line, MAXLINE, inf);
+         assert(!endfile, "endfile with %d lines left to skip\n", skip_samples); } }
    interblock_expiration = 0;
    starting_parmset = 0;
 
    bpi = bpi_specified;
-   if (bpi == 0) {  // do auto-detect of density by looking at how close transitions are at the start of the tape
+   if (bpi == 0) {  // **** auto-detect the density by looking at how close transitions are at the start of the tape
       doing_density_detection = true;
-      estden_init(); 
+      estden_init();
       int numblks = 0;
-      fpos_t filestart = ftell(inf); // remember the file position for the start of the file
+      struct file_position_t filestart;
+      save_file_position(&filestart); // remember the file position for the start of the file
       do {
          init_blockstate(); // do one block
          block.parmset = starting_parmset;
          init_trackstate();
-         if (!readblock(true)) break; // break at endfile
-         ++numblks;
-      } // keep going until we have enough transitions
-      while (!estden_done());
-      interblock_expiration = 0;
+         if (!readblock(true)) break; // stop if endfile
+         ++numblks; }
+      while (!estden_done()); // keep going until we have enough transitions
       //estden_show();
       estden_setdensity(numblks);
-      assert(fseek(inf, filestart, SEEK_SET) == 0, "seek failed at estden");
+      restore_file_position(&filestart);
+      interblock_expiration = 0;
       doing_density_detection = false; }
 
-#if DESKEW     // automatic deskew determination based on the first few blocks
+#if DESKEW     // ***** automatic deskew determination based on the first few blocks
    if (mode == NRZI && deskew) { // currently only for NRZI
       doing_deskew = true;
       int numblks = 0;
-      fpos_t filestart = ftell(inf); // remember the file position for the start of the file
+      struct file_position_t filestart;
+      save_file_position(&filestart); // remember the file position for the start of the file
       do {
          init_blockstate(); // do one block
          block.parmset = starting_parmset;
          init_trackstate();
-         if (!readblock(true)) break; // break at endfile
-      } // keep going until we have enough transitions or have processed too many blocks
-      while (++numblks < MAXSKEWBLKS && skew_min_transitions() < MINSKEWTRANS);
-      interblock_expiration = 0;
+         if (!readblock(true)) break; // stop if endfile
+         ++numblks; } // keep going until we have enough transitions or have processed too many blocks
+      while (numblks < MAXSKEWBLKS && skew_min_transitions() < MINSKEWTRANS);
       if (!quiet) rlog("skew compensation after reading %d blocks:\n", numblks);
       skew_set_deskew();
-      assert(fseek(inf, filestart, SEEK_SET) == 0, "seek failed at deskew");
+      restore_file_position(&filestart);
+      interblock_expiration = 0;
       doing_deskew = false; }
 #endif
 
    while (1) { // keep processing lines of the file
       init_blockstate();  // initialize for a new block
       block.parmset = starting_parmset;
-      blockstart = ftell(inf);// remember the file position for the start of a block
-      dlog("\n*** block start file pos %s at %.7lf\n", longlongcommas(blockstart), timenow);
+      save_file_position(&blockstart); // remember the file position for the start of a block
+      dlog("\n*** block start file pos %s at %.7lf\n", longlongcommas(blockstart.position), timenow);
 
       bool keep_trying;
       int last_parmset;
@@ -830,15 +827,16 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
          //window_set = false;
          //last_sample_time = 0;
          init_trackstate();
-         dlog("\n     trying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
+         dlog("\n     trying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
          if (!readblock(block.tries>0)) goto endfile; // ***** read a block ******
          struct results_t *result = &block.results[block.parmset];
+         result->warncount = result->missed_midbits;
          if (result->blktype == BS_NONE) goto endfile; // stuff at the end wasn't a real block
          ++block.tries;
          dlog("     block %d is type %d parmset %d, minlength %d, maxlength %d, %d errors, %d faked bits at %.7lf\n", //
               numblks + 1, result->blktype, block.parmset, result->minbits, result->maxbits, result->errcount, result->faked_bits, timenow);
          if (result->blktype == BS_TAPEMARK) goto done;  // if we got a tapemake, we're done
-         if (result->blktype == BS_BLOCK && result->errcount == 0 && result->faked_bits == 0) { // if we got a perfect block, we're done
+         if (result->blktype == BS_BLOCK && result->errcount == 0 && result->warncount == 0 && result->faked_bits == 0) { // if we got a perfect block, we're done
             if (block.tries>1) ++numgoodmultipleblks;  // bragging rights; perfect blocks due to multiple parameter sets
             goto done; }
          if (multiple_tries && result->minbits != 0) { // if there are no dead tracks (which probably means we saw noise)
@@ -851,8 +849,8 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
             if (next_parmset != block.parmset) { // we have a parmset, so can try again
                keep_trying = true;
                block.parmset = next_parmset;
-               dlog("   retrying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart), timenow);
-               assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed at retry");
+               dlog("   retrying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
+               restore_file_position(&blockstart);
                interblock_expiration = 0; } } }
       while (keep_trying);
 
@@ -863,10 +861,10 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
       else {
          dlog("looking for good parity blocks\n");
          int min_bad_bits = INT_MAX;
-         for (int i = 0; i<MAXPARMSETS; ++i) { // Try 1: find a decoding with no errors and the minimum number of faked bits
+         for (int i = 0; i<MAXPARMSETS; ++i) { // Try 1: find a decoding with no errors and the minimum number of faked bits or warnings
             struct results_t *result = &block.results[i];
-            if (result->blktype == BS_BLOCK && result->errcount == 0 && result->faked_bits<min_bad_bits) {
-               min_bad_bits = result->faked_bits;
+            if (result->blktype == BS_BLOCK && result->errcount == 0 && (result->faked_bits + result->warncount) < min_bad_bits) {
+               min_bad_bits = result->faked_bits + result->warncount;
                block.parmset = i;
                dlog("  best good parity choice is parmset %d\n", block.parmset); } }
          if (min_bad_bits < INT_MAX) goto done;
@@ -897,7 +895,7 @@ done:
       ++PARM.chosen;  // count times that this parmset was chosen to be used
       if (block.tries>1 // if we processed the block multiple times
             && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
-         assert(fseek(inf, blockstart, SEEK_SET) == 0, "seek failed at reprocess"); // then reprocess the chosen one to recompute that best data
+         restore_file_position(&blockstart);    // then reprocess the chosen one to recompute that best data
          interblock_expiration = 0;
          dlog("     rereading with parmset %d\n", block.parmset);
          init_trackstate();
@@ -927,7 +925,7 @@ done:
          if (++starting_parmset >= MAXPARMSETS) starting_parmset = 0; }
       while (parmsetsptr[starting_parmset].clk_factor == 0);
 #else
-      // otherwise we always start with parmset 0, which is the best for most tapes
+// otherwise we always start with parmset 0, which is the best for most tapes
 #endif
 
    }  // next line of the file
@@ -975,6 +973,10 @@ void main(int argc, char *argv[]) {
    showsize(struct parms_t);
 #endif
 
+   uint32_t testendian = 1;
+   little_endian = *(byte *)&testendian == 1;
+
+
    // process command-line options
 
    if (argc == 1) {
@@ -994,6 +996,12 @@ void main(int argc, char *argv[]) {
    cmdfilename = argv[argno];
    start_time = time(NULL);
    assert(mode != GCR, "GCR is not implemented yet");
+   if (!quiet) {
+      for (int i = 0; i < argc; ++i)  // for documentation in the log, print invocation options
+         rlog("%s ", argv[i]);
+      rlog("\n");
+      rlog("readtape version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+      rlog("         this is a %s-endian computer\n", little_endian ? "little" : "big"); }
 
    if (filelist) {  // process a list of files
       char filename[MAXPATH], logfilename[MAXPATH];
