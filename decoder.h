@@ -5,7 +5,7 @@
 
 ---> See readtape.c for the merged change log.
 
-/******************************************************************************
+*******************************************************************************
 Copyright (C) 2018, Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
@@ -24,9 +24,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
 
-#define DEBUG 0               // generate debugging output?
+#define DEBUG 0                  // generate debugging output?
 
-#define TRACEFILE DEBUG          // if DEBUG, are we also creating trace file?
+#define TRACEFILE 0//DEBUG       // if DEBUG, are we also creating trace file?
 #define TRACETRK 6               // for which track?
 #define TRACEALL true            // are we plotting all analog waveforms? Otherwise just TRACETRK.
 #define TRACESCALE 0.4           // scaling factor for voltages on the chart
@@ -37,6 +37,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define DLOG_LINE_LIMIT 5000     // limit for debugging output
 
 #include <stdio.h>
+#include <direct.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -77,13 +80,12 @@ typedef unsigned char byte;
 #define MAX_POSTAMBLE_BITS 40       // PE: maximum number of postamble bits we will remove
 
 #define PKWW_MAX_WIDTH   20         // the peak-detect moving window maximum width, in number of samples
-#define PKWW_RISE        0.1        // the required rise in volts that represents a peak (will be adjusted by AGC and peak height)
-#define PKWW_PEAKHEIGHT  4.0        // that rise assumes this peak-to-peak voltage
+#define PKWW_RISE        0.1f       // the required rise in volts that represents a peak (will be adjusted by AGC and peak height)
+#define PKWW_PEAKHEIGHT  4.0f       // that rise assumes this peak-to-peak voltage
 
-#define PEAK_THRESHOLD   0.005      // volts of difference that define "same peak", scaled by AGC
+#define PEAK_THRESHOLD   0.005f     // volts of difference that define "same peak", scaled by AGC
 #define EPSILON_T        1.0e-7     // in seconds, time fuzz factor for comparisons
 #define CLKRATE_WINDOW   10         // maximum window width for clock averaging
-#define IDLE_TRK_LIMIT   9          // how many tracks must be idle to consider it an end-of-block
 #define FAKE_BITS        true       // should we fake bits during a dropout?
 #define USE_ALL_PARMSETS false      // should we try to use all the parameter sets, to be able to rate them?
 #define AGC_MAX_WINDOW   10         // maximum number of peaks to look back for the min peak
@@ -153,7 +155,7 @@ struct trkstate_t {  // track-by-track decoding state
    double t_firstbit;      // time of first data bit transition in the data block
    float t_clkwindow;      // PE: how late, in usec, a clock transition can be before we consider it data
    float t_pulse_adj;      // PE: how much, in usec, to adjust the pulse by based on previous pulse's timing
-   struct clkavg_t clkavg; // data for computing average clock
+   struct clkavg_t clkavg; // PE: data for computing average clock
    int datacount;          // how many data bits we've seen
    int peakcount;          // how many peaks (flux reversals) we've seen
    byte lastdatabit;       // the last data bit we recorded
@@ -168,7 +170,9 @@ struct trkstate_t {  // track-by-track decoding state
 
 // For NRZI, which is not self-clocking, we compute one global clock and keep it synchronized
 // in frequency and phase to transitions on any track. That allows us to tolerate pretty wide
-// changes in tape speed.
+// changes in tape speed. We compensate for clock skew by (if the -deskew option is specified)
+// by precomputing how much to delay the data from each head.
+// For PE, each track in independent and has its own clkavg_t structure.
 
 struct nrzi_t { // NRZI decode state information
    double t_lastclock;     // time of the last clock
@@ -231,8 +235,9 @@ struct blkstate_t {  // state of the block, when we're done
 }; // block
 
 void fatal(const char *, ...);
-void assert(bool, const char *, ...);
+void assert(bool, const char *, ...); // Don't try to make into a macro -- too many problems!
 void rlog(const char *, ...);
+void debuglog(const char* msg, ...);
 void breakpoint(void);
 char *intcommas(int);
 char *longlongcommas(long long int);
@@ -247,11 +252,16 @@ char *modename(void);
 void skew_display(void);
 void skew_set_delay(int trknum, float time);
 void skew_set_deskew(void);
+int skew_min_transitions(void);
 void estden_init(void);
 void estden_setdensity(int numblks);
 void estden_show(void);
 bool estden_numtransitions(void);
+bool estden_done(void);
 bool ibm_label(void);
+void create_file(const char *name);
+void close_file(void);
+void read_parms(void);
 
 extern enum mode_t mode;
 extern bool terse, verbose, quiet, multiple_tries, tap_format;

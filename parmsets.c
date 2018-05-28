@@ -25,7 +25,7 @@ Adding a new parameter requires:
 
 ---> See readtape.c for the merged change log <----
 
-/******************************************************************************
+*******************************************************************************
 Copyright (C) 2018, Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
@@ -72,29 +72,29 @@ parms[] = { // list of: type, name, min value, max value
 
 struct parms_t parmsets_PE[MAXPARMSETS] = {  //*** default parmsets for 1600 BPI PE ***
    // clkwin  clkalpha  agcwin agcalpha minpk  clkfact  pulseadj bitfrac
-   { 1,   0,     0.2,      5,    0.0,    0.0,   1.50,    0.4,   0.7, "PRM" },
-   { 1,   3,     0.0,      5,    0.0,    0.0,   1.40,    0.0,   0.7, "PRM" }, // works on block 55, but not with pulseadj=0.2
-   { 1,   3,     0.0,      5,    0.0,    0.0,   1.40,    0.2,   0.7, "PRM" },
-   { 1,   5,     0.0,      5,    0.0,    0.0,   1.40,    0.0,   0.7, "PRM" },
-   { 1,   5,     0.0,      5,    0.0,    0.0,   1.50,    0.2,   0.7, "PRM" },
-   { 1,   5,     0.0,      5,    0.0,    0.0,   1.40,    0.4,   0.7, "PRM" },
-   { 1,   3,     0.0,      5,    0.0,    0.0,   1.40,    0.2,   0.7, "PRM" },
+   { 1,   0,     0.2f,     5,    0.0f,   0.0f,  1.50f,   0.4f,  0.7f, "PRM" },
+   { 1,   3,     0.0f,     5,    0.0f,   0.0f,  1.40f,   0.0f,  0.7f, "PRM" }, // works on block 55, but not with pulseadj=0.2
+   { 1,   3,     0.0f,     5,    0.0f,   0.0f,  1.40f,   0.2f,  0.7f, "PRM" },
+   { 1,   5,     0.0f,     5,    0.0f,   0.0f,  1.40f,   0.0f,  0.7f, "PRM" },
+   { 1,   5,     0.0f,     5,    0.0f,   0.0f,  1.50f,   0.2f,  0.7f, "PRM" },
+   { 1,   5,     0.0f,     5,    0.0f,   0.0f,  1.40f,   0.4f,  0.7f, "PRM" },
+   { 1,   3,     0.0f,     5,    0.0f,   0.0f,  1.40f,   0.2f,  0.7f, "PRM" },
    { 0 } };
 
 struct parms_t parmsets_NRZI[MAXPARMSETS] = { //*** default parmsets for 800 BPI NRZI ***
    // clkwin  clkalpha  agcwin agcalpha  minpk  clkfact  pulseadj  bitfrac
-   { 1,   0,     0.05,     0,     0.3,     1.0,   0,       0.5,     0.4, "PRM" },
-   { 1,   0,     0.3,      0,     0.3,     1.5,   0,       0.5,     0.8, "PRM" },
-   { 1,   0,     0.1,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
-   { 1,   2,     0.0,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
-   { 1,   0,     0.2,      0,     0.3,     0.5,   0,       0.5,     0.5, "PRM" },
-   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.7, "PRM" },
-   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.8, "PRM" },
+   { 1,   0,     0.05f,    0,    0.3f,    1.0f,   0.f,     0.5f,    0.4f, "PRM" },
+   { 1,   0,     0.3f,     0,    0.3f,    1.5f,   0.f,     0.5f,    0.8f, "PRM" },
+   { 1,   0,     0.1f,     0,    0.3f,    1.0f,   0.f,     0.5f,    0.5f, "PRM" },
+   { 1,   2,     0.0f,     0,    0.3f,    1.0f,   0.f,     0.5f,    0.5f, "PRM" },
+   { 1,   0,     0.2f,     0,    0.3f,    0.5f,   0.f,     0.5f,    0.5f, "PRM" },
+   { 1,   0,     0.2f,     0,    0.3f,    0.2f,   0.f,     0.5f,    0.7f, "PRM" },
+   { 1,   0,     0.2f,     0,    0.3f,    0.2f,   0.f,     0.5f,    0.8f, "PRM" },
    { 0 } };
 
 struct parms_t parmsets_GCR[MAXPARMSETS] = { //*** default parmsets for 6250 BPI GCR ***
    // clkwin  clkalpha  agcwin agcalpha  minpk  clkfact  pulseadj bitfrac
-   { 1,   0,     0.4,      5,     0.0,     0.50,   0,     0.2,   0.8, "PRM" },
+   { 1,   0,     0.4f,     5,    0.0f,   0.50f,   0.f,     0.2f,   0.8f, "PRM" },
    { 0 } };
 
 

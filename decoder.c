@@ -119,7 +119,7 @@ int skew_delaycnt[MAXTRKS] = { 0 };    // the skew delay, in number of samples, 
 void skew_set_delay(int trknum, float time) { // set the skew delay for a track
    assert(sample_deltat, "delta T not set yet in skew_set_delay");
    assert(time >= 0, "negative skew amount %f", time);
-   int delay = (time + sample_deltat/2) / sample_deltat;
+   int delay = (int)((time + sample_deltat/2) / sample_deltat);
    //rlog("set skew trk %d to %f usec, %d samples\n", trknum, time*1e6, delay);
    if (delay > MAXSKEWSAMP) rlog("track %d skew of %.1f usec is too big\n", trknum, time*1e6);
    skew_delaycnt[trknum] = min(delay, MAXSKEWSAMP); };
@@ -130,14 +130,14 @@ void skew_set_deskew(void) {  // set all the deskew amounts based on where we se
    float avg[MAXTRKS]; // the average peak position for each track
    for (trk = 0; trk < ntrks; ++trk) {
       for (avgsum = bkt = 0; bkt < PEAK_STATS_NUMBUCKETS; ++bkt) {
-         avgsum += peak_counts[trk][bkt] * (PEAK_STATS_BINWIDTH*1e6 * bkt + peak_stats_leftbin * 1e6); }
+         avgsum += (long long) (peak_counts[trk][bkt] * (PEAK_STATS_BINWIDTH*1e6 * bkt + peak_stats_leftbin * 1e6)); }
       avg[trk] = (float)avgsum / (float)peak_trksums[trk]; }
    float maxavg = 0;
    for (trk = 0; trk < ntrks; ++trk) // see which track has the last transitions, on average
       maxavg = max(maxavg, avg[trk]);
    for (trk = 0; trk < ntrks; ++trk) {
       //rlog("trk %d has %d transitions, avg %f max %f\n", trk, peak_trksums[trk], avg[trk], maxavg);
-      skew_set_delay(trk, peak_trksums[trk] > 0 ? (maxavg - avg[trk]) / 1e6 : 0); // delay the other tracks relative to it
+      skew_set_delay(trk, peak_trksums[trk] > 0 ? (maxavg - avg[trk]) / 1e6f : 0); // delay the other tracks relative to it
    }
    if (!quiet) skew_display(); }
 
@@ -167,7 +167,7 @@ void output_peakstats(void) { // Create an Excel .CSV file with flux transition 
    fprintf(statsf, ",avg uS\n");
    for (trk = 0; trk < ntrks; ++trk) {
       for (avgsum = bkt = 0; bkt < PEAK_STATS_NUMBUCKETS; ++bkt) {
-         avgsum += peak_counts[trk][bkt] * (PEAK_STATS_BINWIDTH*1e6 * bkt + peak_stats_leftbin * 1e6); }
+         avgsum += (long long) (peak_counts[trk][bkt] * (PEAK_STATS_BINWIDTH*1e6 * bkt + peak_stats_leftbin * 1e6)); }
       fprintf(statsf, "trk%d,", trk);
       for (bkt = 0; bkt < PEAK_STATS_NUMBUCKETS; ++bkt)
          fprintf(statsf, "%.2f%%, ", 100 * (float)peak_counts[trk][bkt] / (float)peak_trksums[trk]);
@@ -204,7 +204,7 @@ bool estden_done(void) {
    return estden.totalcount >= ESTDEN_COUNTNEEDED; }
 
 bool estden_transition(float deltasecs) { // count a transition distance
-   int delta = deltasecs / ESTDEN_BINWIDTH;  // round down to multiple of BINWIDTH
+   int delta = (int) (deltasecs / ESTDEN_BINWIDTH);  // round down to multiple of BINWIDTH
    int ndx;
    assert(deltasecs > 0, "negative delta %f usec in estden_transition", deltasecs*1e6);
    if (deltasecs <= ESTDEN_MAXDELTA) {
@@ -222,26 +222,27 @@ void estden_show(void) {
    for (int ndx = 0; ndx < estden.binsused; ++ndx)
       rlog(" %2d: %5.1f usec cnt %d\n", ndx, estden.deltas[ndx] * ESTDEN_BINWIDTH * 1e6, estden.counts[ndx]); }
 
-void estden_setdensity(int numblks) { // figure out the tape density
-   int ndx;
+void estden_setdensity(int nblks) { // figure out the tape density
    int mindist = INT_MAX;
    // Look for the smallest transition distance that occurred at least 5% of the time.
    // That lets us ignore a few noise glitches and bizarre cases, should they occur.
-   for (ndx = 0; ndx < estden.binsused; ++ndx) {
+   for (int ndx = 0; ndx < estden.binsused; ++ndx) {
       if (estden.counts[ndx] > estden.totalcount * ESTDEN_MINPERCENT / 100
             && estden.deltas[ndx] < mindist)
          mindist = estden.deltas[ndx]; }
    // estimate the density from that minimum transition delta time
-   float density = 1.0 / (ips * (float)(mindist+0.5) * ESTDEN_BINWIDTH);
+   float density = 1.0f / (ips * (float)(mindist+0.5f) * (float)ESTDEN_BINWIDTH);
    if (mode == PE) density /= 2;  // twice the transitions for phase encoded data
    // search for a standard density that is close
-   static int standard_densities[] = { 200, 556, 800, 1600, 9214 /* GCR at "6250" */, 0 };
+   static float standard_densities[] = { 200, 556, 800, 1600, 9214 /* GCR at "6250" */, 0 };
    for (int ndx = 0; standard_densities[ndx]; ++ndx) {
       float stddensity = standard_densities[ndx];
-      if (abs(density - stddensity) < stddensity * ESTDEN_CLOSEPERCENT / 100) {
+      float diff = density - stddensity;
+      if (diff < 0) diff = -diff;
+      if (diff < stddensity * ESTDEN_CLOSEPERCENT / 100) {
          bpi = stddensity;
          if (!quiet) rlog("Set density to %.0f BPI after reading %d blocks and seeing %s transitions in %d bins that imply %.0f BPI\n",
-                             bpi, numblks, intcommas(estden.totalcount), estden.binsused, density);
+                             bpi, nblks, intcommas(estden.totalcount), estden.binsused, density);
          return; } }
    fatal("The detected density of %.0f (%.1f usec) after seeing %s transitions is non-standard; please specify",
          density, (float)(mindist + 0.5) * ESTDEN_BINWIDTH * 1e6, intcommas(estden.totalcount)); }
@@ -267,14 +268,14 @@ bool trace_on = false, trace_done = false;
 int trace_lines = 0;
 FILE *tracef;
 
-#define TRACE_DEPTH 60
+#define TRACE_DEPTH 200
 #define TRACE(var,time,tickdirection,t) {if(TRACEFILE) trace_event(trace_##var, time, tickdirection, t);}
 #define TRACING (DEBUG && trace_on && t->trknum == TRACETRK)
 
-#define TB 1.00   // base display level for miscellaneous events
-#define TS 3.00   // track separation, below zero
-#define UPTICK 0.25
-#define DNTICK -0.25
+#define TB 1.00f   // base display level for miscellaneous events
+#define TS 3.00f   // track separation, below zero
+#define UPTICK 0.25f
+#define DNTICK -0.25f
 
 struct trace_val_t {  // the trace history buffer for events
    char *name;          // what it's called
@@ -315,13 +316,14 @@ struct {    // the trace history buffer for things other than events, which are 
 traceblk = {0 };
 
 void trace_dump(void) { // display the entire trace buffer
-   rlog("trace buffer after %d entries\n", traceblk.num_entries);
+   rlog("trace buffer after %d entries, delta %.2f uS, %d slots used, next is %d\n",
+        traceblk.num_entries, traceblk.deltat*1e6, traceblk.num_entries, traceblk.ndx_next);
    int ndx = traceblk.ndx_next;
    for (int i = 0; i < TRACE_DEPTH; ++i) {
       if (traceblk.times[ndx] != 0) {
          rlog("%2d: %.8lf, %5.2lf, ", ndx, traceblk.times[ndx], (traceblk.time_newest - traceblk.times[ndx])*1e6);
-         for (int i = 0; tracevals[i].name != NULLP; ++i)
-            rlog("%s:%5.2f, ", tracevals[i].name, tracevals[i].val[ndx]);
+         for (int j = 0; tracevals[j].name != NULLP; ++j)
+            rlog("%s:%5.2f, ", tracevals[j].name, tracevals[j].val[ndx]);
          rlog("\n"); }
       if (++ndx >= TRACE_DEPTH) ndx = 0; } };
 
@@ -330,7 +332,7 @@ void trace_writeline(int ndx) {  // write out one buffered trace line
       fprintf(tracef, "%.8lf, ,", traceblk.times[ndx]);
       for (int trk = 0; trk < ntrks; ++trk) { // for all the tracks we're doing
          if (TRACEALL || trk == TRACETRK) {
-            int level = -(trk + 1) * TS; // base y-axis level for this track
+            float level = -(trk + 1) * TS; // base y-axis level for this track
             fprintf(tracef, "%.4f,",  // output voltage
                     traceblk.voltages[ndx][trk] * TRACESCALE + level);
             for (int i = 0; tracevals[i].name != NULLP; ++i) // do other associated columns
@@ -348,6 +350,7 @@ void trace_writeline(int ndx) {  // write out one buffered trace line
 void trace_newtime(double time, float deltat, struct sample_t *sample, struct trkstate_t *t) {
    // create a new timestamped entry in the trace history buffer
    if (tracef && trace_on) {
+      //dlog("trace_newtime at %.7lf, delta %.2f, trk %d\n", time, deltat*1e6, t->trknum);
       traceblk.deltat = deltat;
       if (traceblk.num_entries++ >= TRACE_DEPTH)
          trace_writeline(traceblk.ndx_next);  // write out the oldest entry being evicted
@@ -428,11 +431,16 @@ void trace_event(enum trace_names_t tracenum, double time, float tickdirection, 
 ******************************************************************************************************************************/
 
 void init_blockstate(void) {	// initialize block state information for multiple reads of a block
-   static bool wrote_config = false;
-   for (int i=0; i<MAXPARMSETS; ++i) {
-      assert(parmsetsptr[i].active == 0 || strcmp(parmsetsptr[i].id, "PRM") == 0, "bad parm block initialization");
-      memset(&block.results[i], 0, sizeof(struct results_t));
-      block.results[i].blktype = BS_NONE; } }
+   for (int parmndx=0; parmndx < MAXPARMSETS; ++parmndx) {
+      assert(parmsetsptr[parmndx].active == 0 || strcmp(parmsetsptr[parmndx].id, "PRM") == 0, "bad parm block initialization");
+      memset(&block.results[parmndx], 0, sizeof(struct results_t));
+      block.results[parmndx].blktype = BS_NONE; } }
+
+void init_clkavg(struct clkavg_t *c, float init_avg) { // initialize a clock averaging structure
+   c->t_bitspaceavg = init_avg;
+   c->bitndx = 0;
+   for (int i = 0; i < CLKRATE_WINDOW; ++i) // initialize moving average bitspacing array
+      c->t_bitspacing[i] = init_avg; }
 
 void init_trackstate(void) {  // initialize all track and some block state information for a new decoding of a block
    num_trks_idle = ntrks;
@@ -447,20 +455,18 @@ void init_trackstate(void) {  // initialize all track and some block state infor
    block.results[block.parmset].blktype = BS_NONE;
    block.results[block.parmset].alltrk_max_agc_gain = 1.0;
    memset(trkstate, 0, sizeof(trkstate));  // only need to initialize non-zeros below
-   for (int trknum=0; trknum<ntrks; ++trknum) {
+   for (int trknum = 0; trknum < ntrks; ++trknum) {
       struct trkstate_t *trk = &trkstate[trknum];
       trk->trknum = trknum;
       trk->idle = true;
       trk->agc_gain = 1.0;
       trk->max_agc_gain = 1.0;
       trk->v_avg_height = PKWW_PEAKHEIGHT;
-      if (!doing_density_detection) {
-         trk->clkavg.t_bitspaceavg = 1/(bpi*ips);
-         for (int i = 0; i < CLKRATE_WINDOW; ++i) // initialize moving average bitspacing array
-            trk->clkavg.t_bitspacing[i] = 1 / (bpi*ips); }
-      trk->t_clkwindow = trk->clkavg.t_bitspaceavg/2 * PARM.clk_factor; }
-   memset(&nrzi, 0, sizeof(nrzi));  // only need to initialize non-zeros below
-   if (!doing_density_detection) nrzi.clkavg.t_bitspaceavg = 1 / (bpi * ips); }
+      if (!doing_density_detection) init_clkavg(&trk->clkavg, 1 / (bpi*ips));
+      trk->t_clkwindow = trk->clkavg.t_bitspaceavg / 2 * PARM.clk_factor; }
+   if (mode == NRZI) {
+      memset(&nrzi, 0, sizeof(nrzi));
+      if (!doing_density_detection) init_clkavg(&nrzi.clkavg, 1 / (bpi * ips)); } }
 
 void show_track_datacounts (char *msg) {
    dlog("%s\n", msg);
@@ -562,7 +568,7 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
 
    for (int trk=0; trk<ntrks; ++trk) { // process postable bits on all tracks
       struct trkstate_t *t = &trkstate[trk];
-      avg_bit_spacing += (t->t_lastbit - t->t_firstbit) / t->datacount;
+      avg_bit_spacing += (float)(t->t_lastbit - t->t_firstbit) / t->datacount;
       //dlog("trk %d firstbit at %.7lf, lastbit at %.7lf, avg spacing %.2f\n", trk, t->t_firstbit, t->t_lastbit, avg_bit_spacing*1e6);
       int postamble_bits;
       if (t->datacount > 0) {
@@ -608,7 +614,7 @@ void pe_addbit (struct trkstate_t *t, byte bit, bool faked, double t_bit) { // w
       if (TRACING) dlog("trk %d add %d to %3d bytes at %.7lf, V=%.5f, AGC=%.2f\n", t->trknum, bit, t->datacount, t_bit, t->v_now, t->agc_gain);
       t->lastdatabit = bit;
       if (!t->idle && !faked) { // adjust average clock rate based on inter-bit timing
-         float delta = t_bit - t->t_lastbit;
+         float delta = (float)(t_bit - t->t_lastbit);
          adjust_clock(&t->clkavg, delta, t->trknum);
          t->t_clkwindow = t->clkavg.t_bitspaceavg / 2 * PARM.clk_factor; }
       t->t_lastbit = t_bit;
@@ -635,7 +641,7 @@ void pe_top (struct trkstate_t *t) {  // local maximum: end of a positive flux t
          if (TRACING) dlog("clk   top at %.7lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.7lf tick %.1lf, clkwin %.2f uS\n",
                               t->t_top, TICK(t->t_top), t->t_pulse_adj*1e6, t->v_top, t->t_lastpeak, TICK(t->t_lastpeak), t->t_clkwindow*1e6);
          t->clknext = false; }
-      t->t_pulse_adj = ((t->t_top - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * PARM.pulse_adj;
+      t->t_pulse_adj = ((float)(t->t_top - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * PARM.pulse_adj;
       adjust_agc(t); }
    else { // !datablock: inside the preamble
       if (t->peakcount > MIN_PREAMBLE	// if we've seen at least 35 zeroes
@@ -670,7 +676,7 @@ void pe_bot (struct trkstate_t *t) { // local minimum: end of a negative flux tr
          if (TRACING) dlog("clk   bot at %.7lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.7lf tick %.1lf, clkwin %.2f uS\n",
                               t->t_bot, TICK(t->t_bot), t->t_pulse_adj*1e6, t->v_bot, t->t_lastpeak, TICK(t->t_lastpeak), t->t_clkwindow*1e6);
          t->clknext = false; }
-      t->t_pulse_adj = ((t->t_bot - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * PARM.pulse_adj;
+      t->t_pulse_adj = ((float)(t->t_bot - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * PARM.pulse_adj;
       adjust_agc(t); }
    else { // inside the preamble
       t->clknext = true; // force this to be treated as a data transition; clock is next
@@ -688,12 +694,12 @@ void nrzi_end_of_block(void) {
    result->maxbits = 0;
    for (int trk = 0; trk < ntrks; ++trk) { //
       struct trkstate_t *t = &trkstate[trk];
-      avg_bit_spacing += (t->t_lastbit - t->t_firstbit) / t->datacount;
+      avg_bit_spacing += (float)(t->t_lastbit - t->t_firstbit) / t->datacount;
       if (t->datacount > result->maxbits) result->maxbits = t->datacount;
       if (t->datacount < result->minbits) result->minbits = t->datacount;
       if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain; }
    result->avg_bit_spacing = avg_bit_spacing / ntrks;
-   dlog("end_of_block, min %d max %d, avgbitspacing %f, at %.7lf\n", result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow);
+   dlog("NRZI end_of_block, min %d max %d, avgbitspacing %f uS at %.7lf\n", result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow);
    if (result->maxbits <= 1) {  // leave result-blktype == BS_NONE
       dlog("   ignoring noise block of length %d at %.7lf\n", result->maxbits, timenow); }
    else {
@@ -800,7 +806,7 @@ void nrzi_top(struct trkstate_t *t) {  // detected a top
    t->hadbit = true;
    if (t->v_top <= t->v_bot) dlog("!!! top trk %d vtop %.2f less than vbot %.2f at %.7lf tick %.1lf\n", t->trknum, t->v_top, t->v_bot, timenow, TICK(timenow));
    if (NRZI_RESET_SPEED && !nrzi.reset_speed && t->datacount == 2) { // reset speed based on the first low-to-high transition we see
-      nrzi.clkavg.t_bitspaceavg = t->t_top - t->t_bot;
+      nrzi.clkavg.t_bitspaceavg = (float)(t->t_top - t->t_bot);
       for (int i = 0; i < CLKRATE_WINDOW; ++i) nrzi.clkavg.t_bitspacing[i] = nrzi.clkavg.t_bitspaceavg;
       ips = 1 / (nrzi.clkavg.t_bitspaceavg * bpi);
       nrzi.reset_speed = true;
@@ -850,7 +856,7 @@ void nrzi_midbit(void) { // we're in between NRZI bit times: make decisions abou
          if (!nrzi.datablock || nrzi.post_counter > 0)
             adjusted_pos = avg_pos; // don't adjust at the beginning or in CRC/LRC territory
          else adjusted_pos = expected_pos + PARM.pulse_adj * (avg_pos - expected_pos); // adjust some amount away from the expected position
-         float delta = adjusted_pos - nrzi.t_lastclock;
+         float delta = (float)(adjusted_pos - nrzi.t_lastclock);
          if (nrzi.post_counter == 0) {
             float oldavg;
             if (DEBUG) oldavg = nrzi.clkavg.t_bitspaceavg;
@@ -881,7 +887,8 @@ void nrzi_midbit(void) { // we're in between NRZI bit times: make decisions abou
       nrzi.t_lastclock += nrzi.clkavg.t_bitspaceavg; // and advance the hypothetical last clock position
    }
 
-   if (nrzi.post_counter > 8) nrzi_end_of_block();
+   if (nrzi.post_counter > 8) {
+      nrzi_end_of_block(); }
    if (trace_on) dlog("midbit at %.7lf tick %.1lf, %d transitions, lastclock %.7lf tick %.1lf, trk0 %d bytes, post_ctr %d\n", //
                          timenow, TICK(timenow), numbits, nrzi.t_lastclock, TICK(nrzi.t_lastclock),
                          trkstate[0].datacount, nrzi.post_counter); //
@@ -898,14 +905,14 @@ void end_of_block(void) {
 int choose_number_of_faked_bits(struct trkstate_t *t) {
    // We try various algorithms for choosing how many bits to add when there is a dropout in a track.
    // None of these is great. Have any other ideas?
-   int numbits, strategy;
+   int numbits=0, strategy;
    int trknum = t->trknum;
    //for (strategy=1; strategy<=4; ++strategy) { // compute and display all strategies
    strategy=1; // MAKE A CHOICE HERE. Should we add it to the parameter block?
    switch(strategy) { // which of the following ideas to try
    case 1: // The number of bits is based on the time between now and the last bit, and the avg bit spacing.
       // It won't work if the clock is drifting
-      numbits = (timenow - t->t_lastbit /* + t->t_bitspaceavg/2*/) / t->clkavg.t_bitspaceavg;
+      numbits = (int)((float) (timenow - t->t_lastbit /* + t->t_bitspaceavg/2*/) / t->clkavg.t_bitspaceavg);
       break;
    case 2: //  Add enough bits to give this track the same number as the minimum of
       //  any track which is still getting data.
@@ -1019,7 +1026,7 @@ double process_peak (struct trkstate_t *t, float val, bool top, float required_r
                peak_stats_leftbin = t->clkavg.t_bitspaceavg - PEAK_STATS_NUMBUCKETS / 2 * PEAK_STATS_BINWIDTH;
                // round to next lower multiple of BINWIDTH
                peak_stats_leftbin = (double)(int)(peak_stats_leftbin / PEAK_STATS_BINWIDTH) * PEAK_STATS_BINWIDTH; }
-            int bucket = (time - nrzi.t_lastclock - peak_stats_leftbin) / PEAK_STATS_BINWIDTH;
+            int bucket = (int)((time - nrzi.t_lastclock - peak_stats_leftbin) / PEAK_STATS_BINWIDTH);
             bucket = max(0, min(bucket, PEAK_STATS_NUMBUCKETS - 1));
             ++peak_counts[t->trknum][bucket];
             ++peak_trksums[t->trknum]; }
@@ -1037,13 +1044,10 @@ double process_peak (struct trkstate_t *t, float val, bool top, float required_r
 // Return with the status of the block we're working on.
 //-----------------------------------------------------------------------------
 enum bstate_t process_sample(struct sample_t *sample) {
-   float deltaT;
 
    if (sample == NULLP) { // special code for endfile
       end_of_block();
       return BS_NONE; }
-
-   deltaT = sample->time - timenow;  //(incorrect for the first sample)
 
 #if DESKEW
    for (int trknum = 0; trknum < ntrks; ++trknum) { // preprocess all tracks to do deskewing
@@ -1058,7 +1062,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
 
 #if TRACEFILE
    // create one entry for this sample
-   trace_newtime(timenow, deltaT, sample, &trkstate[TRACETRK]);
+   trace_newtime(timenow, sample_deltat, sample, &trkstate[TRACETRK]);
    // or create some number of evenly-spaced trace entries for this sample, for more accuracy
    //trace_newtime(timenow, sample_deltat / 2, sample, &trkstate[TRACETRK]);
    //trace_newtime(timenow + sample_deltat / 2, sample_deltat / 2, sample, &trkstate[TRACETRK]);
@@ -1134,7 +1138,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
             TRACE(peak, t->t_top, UPTICK, t);
             ++t->peakcount;
             if (doing_density_detection) {
-               if (estden_transition(t->t_top - t->t_lastpeak))
+               if (estden_transition((float)(t->t_top - t->t_lastpeak)))
                   block.results[block.parmset].blktype = BS_ABORTED; // got enough transitions for density detect
             }
             else {
@@ -1154,7 +1158,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
             TRACE(peak, t->t_bot, DNTICK, t);
             ++t->peakcount;
             if (doing_density_detection) {
-               if (estden_transition(t->t_bot - t->t_lastpeak))
+               if (estden_transition((float)(t->t_bot - t->t_lastpeak)))
                   block.results[block.parmset].blktype = BS_ABORTED; // got enough transitions for density detect
             }
             else {
@@ -1173,7 +1177,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
          dlog("trk %d became idle at %.7lf, %d idle, AGC %.2f, last peak at %.7lf, bitspaceavg %.2f usec, datacount %d\n", //
               trknum, timenow, num_trks_idle + 1, t->agc_gain, t->t_lastpeak, t->clkavg.t_bitspaceavg*1e6, t->datacount);
          t->idle = true;
-         if (++num_trks_idle >= IDLE_TRK_LIMIT) {
+         if (++num_trks_idle >= ntrks) {
             end_of_block(); } }
 
    } // for tracks
@@ -1193,7 +1197,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
       trace_on = true;
       torigin = timenow - sample_deltat;
       dlog("-----> trace started at %.7lf tick %.1lf\n", timenow, TICK(timenow)); }
-   if (trace_on && ++trace_lines > 10000) { // limit on how much trace data to collect
+   if (trace_on && ++trace_lines > 1000) { // limit on how much trace data to collect
       trace_on = false;
       trace_done = true;
       dlog("-----> trace stopped at %.7lf tick %.1lf\n", timenow, TICK(timenow));

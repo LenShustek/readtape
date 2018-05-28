@@ -10,7 +10,7 @@ The input is either:
     and then the read head voltages at that time for each of the tracks.
   - a TBIN binary compressed data file; see csvtbin.h
 
-See the "A_documentation.txt" file for a narrative about usage, 
+See the "A_documentation.txt" file for a narrative about usage,
 internal operation, and the algorithms we use.
 
 ******************************************************************************
@@ -148,7 +148,8 @@ Copyright (C) 2018, Len Shustek
   if the density we derive from that is one of the standard densities.
 
 *** 14 May 2018, L. Shustek
-- Add reading of compressed .tbin binary format files. Much faster!
+- Add reading of compressed .tbin binary format files, which are about
+  10 times smaller and take 3-4 times less time to process!
 - Add -addparity option to include 7-track parity bit with the data.
 - Switch from ftell/fseek to fgetpos/fsetpos, which are more portable.
 - Treat the NRZI "bits before midbit" warning as a weak error, and
@@ -156,36 +157,40 @@ Copyright (C) 2018, Len Shustek
 - Move IBM standard label processing from got_datablock() into a
   a separate file, just for neatness.
 
-*********************************************************************/
-#define VERSION "16May2018"
+*** 18 May 2018, L. Shustek
+- Clean up declarations and casts to keep more stringent compilers happier.
+- Fix bug that caused some NRZI blocks not to try all parmsets correctly.
+
+*****************************************************************************/
+#define VERSION "27May2018"
 /*
  default bit and track numbering, where 0=msb and P=parity
             on tape     in memory here    written to disk
- 7-track    P012345         012345P        012345
- 9-track    P37521064     01234567P      01234567
+ 7-track     P012345        012345P         [P]012345
+ 9-track   P37521064      01234567P          01234567
 
  Permutation of the "on tape" sequence to the "memory here" sequence
  is done by appropriately connecting the logic analyzer probes,
  but can be overridden by using the -order option.
  */
- /******************************************************************************
- Copyright (C) 2018, Len Shustek
- 
- The MIT License (MIT): Permission is hereby granted, free of charge, to any
- person obtaining a copy of this software and associated documentation files
- (the "Software"), to deal in the Software without restriction, including
- without limitation the rights to use, copy, modify, merge, publish, distribute,
- sublicense, and/or sell copies of the Software, and to permit persons to whom
- the Software is furnished to do so, subject to the following conditions:
-   The above copyright notice and this permission notice shall be
-   included in all copies or substantial portions of the Software.
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- ******************************************************************************/
+/*****************************************************************************
+Copyright (C) 2018, Len Shustek
+
+The MIT License (MIT): Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom
+the Software is furnished to do so, subject to the following conditions:
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+******************************************************************************/
 
 #include "decoder.h"
 
@@ -195,10 +200,7 @@ long long lines_in = 0;
 int numfiles = 0, numblks = 0, numbadparityblks = 0, nummalformedblks = 0, numgoodmultipleblks = 0, numtapemarks = 0;
 int numfilebytes, numfileblks;
 long long numoutbytes = 0;
-bool logging = false;
-bool verbose = true;
-bool terse = false;
-bool quiet = false;
+bool logging = false, verbose = true, terse = false, quiet = false;
 bool filelist = false;
 bool tbin_file = false;
 bool multiple_tries = false;
@@ -251,7 +253,7 @@ void debuglog(const char* msg, ...) { // debugging log
          rlog("-----> debugging log stopped\n");
          endmsg_given = true; } } }
 
-static void vfatal(const char *msg, va_list args) {
+void vfatal(const char *msg, va_list args) {
    vlog("\n***FATAL ERROR: ", 0);
    vlog(msg, args);
    rlog("\n");
@@ -261,8 +263,7 @@ static void vfatal(const char *msg, va_list args) {
 void fatal(const char *msg, ...) {
    va_list args;
    va_start(args, msg);
-   vfatal(msg, args);
-   va_end(args); }
+   vfatal(msg, args); }
 
 void assert(bool t, const char *msg, ...) {
    va_list args;
@@ -284,11 +285,11 @@ void SayUsage (void) {
       "options:",
       "  -ntrks=n   set the number of tracks; default is 9",
       "  -order=    set input data order for bits 0..ntrks-2 and P, where 0=MSB",
-      "             default is 01234567P for 9 trks, 012345P for 7 trks",
+      "             default: 01234567P for 9 trks, 012345P for 7 trks",
       "  -pe        do PE decoding",
       "  -nrzi      do NRZI decoding",
       "  -gcr       do GCR decoding",
-      "  -ips=n     speed in inches/sec",
+      "  -ips=n     speed in inches/sec (default: 50, except 25 for GCR)",
       "  -bpi=n     density in bits/inch (default: autodetect)",
       "  -even      expect even parity (for 7-track NRZI BCD tapes)",
       "  -skip=n    skip the first n samples",
@@ -344,7 +345,7 @@ bool parse_track_order(const char*str) { // examples: P314520, 01234567P
    if (strlen(str) != ntrks) return false;
    for (int i = 0; i < ntrks; ++i) {
       byte ch = str[i];
-      if (toupper(ch) == 'P') ch = ntrks - 1; // we put parity last
+      if (toupper(ch) == 'P') ch = (byte)ntrks - 1; // we put parity last
       else {
          if (!isdigit(ch)) return false; // assumes ntrks <= 11
          if ((ch -= '0') > ntrks - 2) return false; }
@@ -355,7 +356,7 @@ bool parse_track_order(const char*str) { // examples: P314520, 01234567P
 bool parse_option(char *option) { // (also called from .parm file processor)
    if (option[0] != '/' && option[0] != '-') return false;
    char *arg = option + 1;
-   char *str;
+   const char *str;
    if (opt_int(arg, "NTRKS=", &ntrks, 5, 9));
    else if (opt_str(arg, "ORDER=", &str)
             && parse_track_order(str));
@@ -365,7 +366,7 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_flt(arg, "BPI=", &bpi_specified, 100, 10000));
    else if (opt_flt(arg, "IPS=", &ips, 10, 100));
    else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX)) {
-      if (!quiet) rlog("Will skip the first %d samples\n", skip_samples); }
+      if (!quiet) rlog("The first %d samples will be skipped.\n", skip_samples); }
    else if (opt_key(arg, "TAP")) tap_format = true;
    else if (opt_key(arg, "EVEN")) expected_parity = 0;
    else if (opt_key(arg, "DESKEW")) deskew = true;
@@ -383,9 +384,7 @@ bool parse_option(char *option) { // (also called from .parm file processor)
       case 'F': filelist = true;  break;
       default: goto opterror; }
    else {
-opterror:  fatal("bad option: %s\n\n", option);
-      // SayUsage();
-      exit(4); }
+opterror:  fatal("bad option: %s\n\n", option); }
    return true; }
 
 int HandleOptions (int argc, char *argv[]) {
@@ -407,25 +406,25 @@ byte parity (uint16_t val) { // compute the parity of one byte
    while (val >>= 1) p ^= val & 1;
    return p; }
 
-int count_parity_errs (uint16_t *data, int len) { // count parity errors in a block
+int count_parity_errs (uint16_t *pdata, int len) { // count parity errors in a block
    int parity_errs = 0;
    for (int i=0; i<len; ++i) {
-      if (parity(data[i]) != expected_parity) ++parity_errs; }
+      if (parity(pdata[i]) != expected_parity) ++parity_errs; }
    return parity_errs; }
 
-int count_faked_bits (uint16_t *data_faked, int len) { // count how many bits we faked for all tracks
+int count_faked_bits (uint16_t *pdata_faked, int len) { // count how many bits we faked for all tracks
    int faked_bits = 0;
    for (int i=0; i<len; ++i) {
-      uint16_t v=data_faked[i];
+      uint16_t v=pdata_faked[i];
       // This is Brian Kernighan's clever method of counting one bits in an integer
       for (; v; ++faked_bits) v &= v-1; //clr least significant bit set
    }
    return faked_bits; }
 
-int count_faked_tracks(uint16_t *data_faked, int len) { // count how many tracks had faked bits
+int count_faked_tracks(uint16_t *pdata_faked, int len) { // count how many tracks had faked bits
    uint16_t faked_tracks = 0;
    int c;
-   for (int i=0; i<len; ++i) faked_tracks |= data_faked[i];
+   for (int i=0; i<len; ++i) faked_tracks |= pdata_faked[i];
    for (c=0; faked_tracks; ++c) faked_tracks &= faked_tracks-1;
    return c; }
 
@@ -517,7 +516,7 @@ void got_datablock(bool malformed) { // decoded a tape block
          uint32_t errflag = result->errcount ? 0x80000000 : 0;  // SIMH .tap file format error flag
          if (tap_format) output_tap_marker(length | errflag); // leading record length
          for (int i = 0; i < length; ++i) { // discard the parity bit track and write all the data bits
-            byte b = data[i] >> 1;
+            byte b = (byte)(data[i] >> 1);
             if (add_parity) b |= data[i] << (ntrks-1);  // optionally include parity bit as the highest bit
             assert(fwrite(&b, 1, 1, outf) == 1, "data write failed"); }
          if (tap_format) {
@@ -647,14 +646,16 @@ void read_tbin_header(void) {  // read the .TBIN file header
    assert(tbin_hdr.u.s.format == TBIN_FILE_FORMAT, "bad .tbin file header version");
    assert(tbin_hdr.u.s.tbinhdrsize == sizeof(tbin_hdr),
           "bad .tbin hdr size: %d, not %d", tbin_hdr.u.s.tbinhdrsize, sizeof(tbin_hdr));
-   if (!quiet) rlog(".tbin file converted %s", asctime(&tbin_hdr.u.s.time_converted));
+   if (!quiet) rlog(".tbin file was converted on %s", asctime(&tbin_hdr.u.s.time_converted));
    ntrks = tbin_hdr.u.s.ntrks;
-   if (bpi == 0 && tbin_hdr.u.s.bpi != 0)
+   if (bpi == 0 && tbin_hdr.u.s.bpi != 0) {
       bpi = tbin_hdr.u.s.bpi;
-   if (ips == 0 && tbin_hdr.u.s.ips != 0)
+      if (!quiet) rlog("   using .tbin bpi=%f\n", bpi); }
+   if (ips == 0 && tbin_hdr.u.s.ips != 0) {
       ips = tbin_hdr.u.s.ips;
+      if (!quiet) rlog("   using .tbin ips=%f\n", ips); }
    sample_deltat_ns = tbin_hdr.u.s.tdelta;
-   sample_deltat = (float)sample_deltat_ns / 1e9;
+   sample_deltat = (float)sample_deltat_ns / 1e9f;
    assert(fread(&tbin_dat, sizeof(tbin_dat), 1, inf) == 1, "can't read .tbin dat");
    assert(strcmp(tbin_dat.tag, DAT_TAG) == 0, ".tbin file missing DAT tag");
    assert(tbin_dat.sample_bits == 16, "we support only 16 bits/sample, not %d", tbin_dat.sample_bits);
@@ -671,14 +672,14 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
       if (tbin_file) { // TBIN file
          int16_t tbin_voltages[MAXTRKS];
          assert(fread(&tbin_voltages[0], 2, 1, inf) == 1, "can't read .tbin data for track 0 at time %.8lf", timenow);
-         if (!little_endian) reverse2(&tbin_voltages[0]);
-         if (tbin_voltages[0] == (int16_t)0x8000) { // end of file marker
+         if (!little_endian) reverse2((uint16_t *)&tbin_voltages[0]);
+         if (tbin_voltages[0] == -32768 /*0x8000*/) { // end of file marker
             if (did_processing)  process_sample(NULLP); // force "end of block" processing
             return false; }
          assert(fread(&tbin_voltages[1], 2, ntrks - 1, inf) == ntrks - 1, "can't read .tbin data for tracks 1.. at time %.8lf", timenow);
          if (!little_endian)
             for (int trk = 1; trk < ntrks; ++trk)
-               reverse2(&tbin_voltages[trk]);
+               reverse2((uint16_t *)&tbin_voltages[trk]);
          for (int trk = 0; trk < ntrks; ++trk) sample.voltage[input_permutation[trk]] = (float)tbin_voltages[trk] / 32767 * tbin_hdr.u.s.maxvolts;
          sample.time = (double)timenow_ns/1e9;
          timenow_ns += sample_deltat_ns; // (for next time)
@@ -705,11 +706,11 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
 
       if (!block.window_set && block.last_sample_time != 0) {
          // we can know the sample delta time, so set the width of the peak-detect moving window
-         if (!tbin_file)  sample_deltat = sample.time - block.last_sample_time;
+         if (!tbin_file)  sample_deltat = (float)(sample.time - block.last_sample_time);
          if (bpi)
             pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
          else pkww_width = 8; // a random reasonable choice if we don't have BPI specified
-         static said_rates = false;
+         static bool said_rates = false;
          if (!quiet && !said_rates) {
             rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz (%.2f usec), initial peak window width is %d samples\n",
                  modename(), (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), sample_deltat*1e6, pkww_width);
@@ -722,8 +723,12 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
       did_processing = true; }
    return true; }
 
+/***********************************************************************************************
+   file processing
+***********************************************************************************************/
 
-bool process_file(int argc, char *argv[]) { // process a complete input file; return TRUE if all blocks were well-formed and had good parity
+// process a complete input file; return TRUE if all blocks were well-formed and had good parity
+bool process_file(int argc, char *argv[]) {
    char filename[MAXPATH], logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
@@ -749,10 +754,16 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
       strcat(filename, ".tbin");
       inf = fopen(filename, "rb");
       assert(inf, "Unable to open input file \"%s\" .csv or .tbin", basefilename);
-      tbin_file = true;
-      read_tbin_header(); }
+      tbin_file = true; }
    assert(!add_parity || ntrks < 9, "-parity not allowed with ntrks=%d", ntrks);
-   if (!quiet) rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
+   if (!quiet) {
+      for (int i = 0; i < argc; ++i)  // for documentation in the log, print invocation options
+         rlog("%s ", argv[i]);
+      rlog("\n");
+      rlog("readtape version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+      rlog("this is a %s-endian computer\n", little_endian ? "little" : "big");
+      rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
+      if (tbin_file) read_tbin_header(); }
 
    read_parms(); // read the .parm file, if any
 
@@ -775,7 +786,7 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
    if (bpi == 0) {  // **** auto-detect the density by looking at how close transitions are at the start of the tape
       doing_density_detection = true;
       estden_init();
-      int numblks = 0;
+      int nblks = 0;
       struct file_position_t filestart;
       save_file_position(&filestart); // remember the file position for the start of the file
       do {
@@ -783,10 +794,10 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
          block.parmset = starting_parmset;
          init_trackstate();
          if (!readblock(true)) break; // stop if endfile
-         ++numblks; }
+         ++nblks; }
       while (!estden_done()); // keep going until we have enough transitions
       //estden_show();
-      estden_setdensity(numblks);
+      estden_setdensity(nblks);
       restore_file_position(&filestart);
       interblock_expiration = 0;
       doing_density_detection = false; }
@@ -794,7 +805,7 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
 #if DESKEW     // ***** automatic deskew determination based on the first few blocks
    if (mode == NRZI && deskew) { // currently only for NRZI
       doing_deskew = true;
-      int numblks = 0;
+      int nblks = 0;
       struct file_position_t filestart;
       save_file_position(&filestart); // remember the file position for the start of the file
       do {
@@ -802,9 +813,9 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
          block.parmset = starting_parmset;
          init_trackstate();
          if (!readblock(true)) break; // stop if endfile
-         ++numblks; } // keep going until we have enough transitions or have processed too many blocks
-      while (numblks < MAXSKEWBLKS && skew_min_transitions() < MINSKEWTRANS);
-      if (!quiet) rlog("skew compensation after reading %d blocks:\n", numblks);
+         ++nblks; } // keep going until we have enough transitions or have processed too many blocks
+      while (nblks < MAXSKEWBLKS && skew_min_transitions() < MINSKEWTRANS);
+      if (!quiet) rlog("skew compensation after reading %d blocks:\n", nblks);
       skew_set_deskew();
       restore_file_position(&filestart);
       interblock_expiration = 0;
@@ -839,7 +850,8 @@ bool process_file(int argc, char *argv[]) { // process a complete input file; re
          if (result->blktype == BS_BLOCK && result->errcount == 0 && result->warncount == 0 && result->faked_bits == 0) { // if we got a perfect block, we're done
             if (block.tries>1) ++numgoodmultipleblks;  // bragging rights; perfect blocks due to multiple parameter sets
             goto done; }
-         if (multiple_tries && result->minbits != 0) { // if there are no dead tracks (which probably means we saw noise)
+         if (multiple_tries &&  // if we're supposed to try multiple times
+               (mode != PE || result->minbits != 0)) { // and there are no dead PE tracks (which probably means we saw noise)
             int next_parmset = block.parmset; // then find another parameter set we haven't used yet
             do {
                if (++next_parmset >= MAXPARMSETS) next_parmset = 0; }
@@ -897,7 +909,7 @@ done:
             && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
          restore_file_position(&blockstart);    // then reprocess the chosen one to recompute that best data
          interblock_expiration = 0;
-         dlog("     rereading with parmset %d\n", block.parmset);
+         dlog("     rereading block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
          init_trackstate();
          assert(readblock(true), "got endfile rereading a block");
          struct results_t *result = &block.results[block.parmset];
@@ -930,6 +942,7 @@ done:
 
    }  // next line of the file
 endfile:
+   rlog("endfile at time %.7lf\n", timenow);
    if (tap_format && outf) output_tap_marker(0xffffffffl);
    close_file();
    return ok; }
@@ -956,7 +969,7 @@ void breakpoint(void) { // for the debugger
          decode standard labels, if any
          write output file data block
 ---------------------------------------------------------------------*/
-void main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
    int argno;
    char *cmdfilename;
 
@@ -972,10 +985,8 @@ void main(int argc, char *argv[]) {
    showsize(long long);
    showsize(struct parms_t);
 #endif
-
    uint32_t testendian = 1;
    little_endian = *(byte *)&testendian == 1;
-
 
    // process command-line options
 
@@ -996,15 +1007,9 @@ void main(int argc, char *argv[]) {
    cmdfilename = argv[argno];
    start_time = time(NULL);
    assert(mode != GCR, "GCR is not implemented yet");
-   if (!quiet) {
-      for (int i = 0; i < argc; ++i)  // for documentation in the log, print invocation options
-         rlog("%s ", argv[i]);
-      rlog("\n");
-      rlog("readtape version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
-      rlog("         this is a %s-endian computer\n", little_endian ? "little" : "big"); }
 
    if (filelist) {  // process a list of files
-      char filename[MAXPATH], logfilename[MAXPATH];
+      char filename[MAXPATH];
       char line[MAXLINE + 1];
       strncpy(filename, cmdfilename, MAXPATH - 5);
       filename[MAXPATH - 5] = '\0';
@@ -1033,7 +1038,7 @@ void main(int argc, char *argv[]) {
               numfiles, longlongcommas(numoutbytes));
          rlog("detected %d tape marks, and %d data blocks of which %d had errors and %d were malformed.\n",//
               numtapemarks, numblks, numbadparityblks, nummalformedblks); } }
-   if (!quiet) {
+   if (!quiet) { // show result statistics
       rlog("%d perfect blocks needed to try more than one parmset\n", numgoodmultipleblks);
 
       for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
@@ -1059,6 +1064,6 @@ void main(int argc, char *argv[]) {
 #if PEAK_STATS
    if (mode == NRZI && !quiet) output_peakstats();
 #endif
-}
+   return 0; }
 
 //*

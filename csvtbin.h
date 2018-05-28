@@ -6,7 +6,7 @@
 This describes a file format which is more general that what is implemented.
 The current code supports only one data block with 16-bit non-delta samples.
 
-/******************************************************************************
+*******************************************************************************
 Copyright (C) 2018, Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
@@ -46,11 +46,12 @@ struct tbin_hdr_t {     // the file header for .tbin files, which appears once
          uint32_t ntrks;            // number of tracks (heads)
          uint32_t tdelta;           // time between samples, in nanoseconds
          float maxvolts;            // maximum voltage for any sample
+         uint32_t rsvd1, rsvd2;     // (reserved for future use)
          enum mode_t mode;          // encoding mode (PE, NRZI, etc), if known
          float bpi;                 // data density in bits per inch, if known
          float ips;                 // read speed in inches per second, if known
       } s;
-      uint32_t a[0];    // (for accessing the above as an array of 4-byte little-endian integers)
+      uint32_t a[1];    // (for accessing the above as an array of 4-byte little-endian integers)
    } u; };
 
 struct tbin_dat_t {     // the data header that starts each block of data

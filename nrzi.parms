@@ -1,0 +1,11 @@
+// generic parmsets for NRZI
+parms active, clk_window,  clk_alpha, agc_window, agc_alpha, min_peak, clk_factor, pulse_adj, pkww_bitfrac, id
+
+   // clkwin  clkalpha  agcwin agcalpha  minpk  clkfact  pulseadj  bitfrac
+   { 1,   0,     0.05,     0,     0.3,     1.0,   0,       0.5,     0.4, "PRM" },
+   { 1,   0,     0.3,      0,     0.3,     1.5,   0,       0.5,     0.8, "PRM" },
+   { 1,   0,     0.1,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
+   { 1,   2,     0.0,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
+   { 1,   0,     0.2,      0,     0.3,     0.5,   0,       0.5,     0.5, "PRM" },
+   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.7, "PRM" },
+   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.8, "PRM" },

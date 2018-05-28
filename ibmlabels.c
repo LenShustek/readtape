@@ -5,7 +5,7 @@ routines for processing IBM standard tape labels
 
 ---> See readtape.c for the merged change log <----
 
-/******************************************************************************
+*******************************************************************************
 Copyright (C) 2018, Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
@@ -102,13 +102,13 @@ char *trim(char *p, int len) { // remove trailing blanks
    while (len && p[--len] == ' ') p[len] = '\0';
    return p; }
 
-void dumpdata(uint16_t *data, int len, bool bcd) { // display a data block in hex and EBCDIC or BCD
+void dumpdata(uint16_t *pdata, int len, bool bcd) { // display a data block in hex and EBCDIC or BCD
    rlog("block length %d\n", len);
    for (int i = 0; i<len; ++i) {
-      rlog("%02X %d ", data[i] >> 1, data[i] & 1); // data then parity
+      rlog("%02X %d ", pdata[i] >> 1, pdata[i] & 1); // data then parity
       if (i % 16 == 15) {
          rlog(" ");
-         for (int j = i - 15; j <= i; ++j) rlog("%c", bcd ? BCD1401[data[j] >> 1] : EBCDIC[data[j] >> 1]);
+         for (int j = i - 15; j <= i; ++j) rlog("%c", bcd ? BCD1401[pdata[j] >> 1] : EBCDIC[pdata[j] >> 1]);
          rlog("\n"); } }
    if (len % 16 != 0) rlog("\n"); }
 
@@ -140,7 +140,7 @@ bool ibm_label(void) {
          if (compare4(data, "HDR1")) { // create the output file from the name in the HDR1 label
             char filename[MAXPATH];
             sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles + 1, hdr.dsid, '\0');
-            for (int i = strlen(filename); filename[i - 1] == ' '; --i) filename[i - 1] = 0;
+            for (unsigned i = (unsigned)strlen(filename); filename[i - 1] == ' '; --i) filename[i - 1] = 0;
             if (!tap_format) create_file(filename);
             hdr1_label = true; }
          if (compare4(data, "EOF1") && !tap_format) close_file();

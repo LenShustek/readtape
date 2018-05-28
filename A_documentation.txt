@@ -107,14 +107,14 @@ parameters, and the program will try as many as necessary to get a
 perfect decoding of a block, or will try them all and pick the one that 
 generates the minimum number of errors. 
 
-These sets of parameters that are used for the decoding algorithms can 
+The sets of parameters that are used for the decoding algorithms can 
 be read from a file that is specific to the tape data being decoded, 
 <basefilename>.parms, or from a generic file for that encoding type 
-(NRZI.parms, etc.). If no parameter file is provided, the program uses 
-built-in defaults. 
+(NRZI.parms, PE.parms, etc.). If no parameter file is provided, the 
+program uses built-in defaults. 
 
 The algorithms are still a work in progress, so the parameter sets 
-continue to evolve. The current set of parameters are these: 
+will continue to evolve. The current set of parameters are these: 
 
    int active;             // 1 means this is an active parameter set
    int clk_window;         // how many bit times to average for clock rate; 0 means maybe use exponential averaging
@@ -347,7 +347,7 @@ Track skew compensation
 
 If the head isn't perfectly vertical during either writing or reading, 
 there will be consistent timing differences between data from the 
-different tracks. If they are too big, it can causes errors in the 
+different tracks. If they are too big, it can cause errors in the 
 decoding. 
 
 If we need to insert track de-skewing data delays, they could be 

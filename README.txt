@@ -37,14 +37,15 @@ Other formats, such as 6250 BPI GCR, may be added in the future.
 
 *** The files in this repository
 
-(Github ought to allow the file list of a repository to say what
-the files *are*, not the last minor edit that was made to them!
-https://github.community/t5/How-to-use-Git-and-GitHub/Naive-question-about-describing-files/td-p/7532)
+ (Github ought to allow the file list of a repository to say
+  what the files *are*, not what the last minor edit was!
+  https://github.community/t5/How-to-use-Git-and-GitHub/Naive-question-about-describing-files/td-p/7532)
 
 ---DOCUMENTATION
 
  A_documentation.txt    A narrative about usage and internal operation
  A_experiences.txt      Some anecdotes about what we have done with this
+ nrzi.parms             An example parameter set file
  AtoD_attachment.jpg    A photo showing how the analyzer connects to the drive
  example_01.pdf         An example of a really bad block we can decode
  flux_transition_dispersion.jpg  A graph showing the effect of head skew
@@ -52,17 +53,17 @@ https://github.community/t5/How-to-use-Git-and-GitHub/Naive-question-about-descr
  
 ---READTAPE source code
 
- decoder.h              compile-time options and common declarations
+ decoder.h              compile-time options, and common declarations
  csvtbin.h              format of the .tbin compressed binary data file
- readtape.c             main program: option, file, and decoded block processing
- decoder.c              sample processing and decoding routines
- parmsets.c             routines that process parameter sets and their defaults
- ibmlabels.c            routines for interpreting IBM 9-track standard labels
+ readtape.c             main program: options, file handling, and block processing
+ decoder.c              analog sample analysis and decoding
+ parmsets.c             parameter set processing, and their defaults
+ ibmlabels.c            IBM 9-track standard label interpretation
  
 ---UTILITY PROGRAMS
 
- csvtbin.c              a program for converting and and from .CSV and .TBIN files
- dumptap.c              a program for listing SIMH .tap files 
+ csvtbin.c              a program for converting between .CSV and .TBIN files
+ dumptap.c              a program for listing SIMH .tap files, one of the output formats
 
  
 *** Thanks to: 
@@ -73,4 +74,4 @@ https://github.community/t5/How-to-use-Git-and-GitHub/Naive-question-about-descr
 
 Len Shustek
 6 Feb 2018
-17 May 2018
+17 May 2018, 27 May 2018

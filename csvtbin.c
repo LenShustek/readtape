@@ -1,12 +1,12 @@
 //file: csvtbin.c
 /******************************************************************************
 
-Convert a Saleae .csv file with digitized samples of analog tape head 
-voltages to/from a binary .tbin file with roughly the same data,
+Convert between a Saleae .csv file with digitized samples of analog tape
+head voltages and a binary .tbin file with roughly the same data,
 perhaps with some loss of precision.
 
-Why? Because we get about a 10:1 reduction in the file size
-(using 16-bit non-delta samples), and it's faster to process.
+Why? Because we get about a 10:1 reduction in the file size (using
+16-bit non-delta samples), and it's 3-4 times faster to process.
 
 The file format (defined in csvtbin.h) allows for an arbitrary number
 of blocks of data with arbitrary number of bits per sample, which could
@@ -24,11 +24,13 @@ the readtape program won't need to be told about the non-standard order.
 
 *** 10 May 2018, L. Shustek, started with inspiration from Al Kossow
 
+*** 18 may 2018, L. Shustek, cleanup for more stringent compilers
+
 ******************************************************************************/
-#define VERSION "17May2018"
+#define VERSION "18May2018"
 /******************************************************************************
 Copyright (C) 2018, Len Shustek
- 
+
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including
@@ -53,6 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdarg.h>
 #include <stdbool.h>
 #include <time.h>
+#include <limits.h>
 typedef unsigned char byte;
 
 #include "csvtbin.h"
@@ -65,12 +68,12 @@ typedef unsigned char byte;
 FILE *inf, *outf;
 long long int num_samples = 0;
 uint64_t total_time = 0;
-int skip_samples = 0;
-int ntrks = 9;
+unsigned skip_samples = 0;
+unsigned ntrks = 9;
 bool wrote_hdr = false;
 bool do_read = false;
 bool little_endian;
-int track_permutation[MAXTRKS] = { -1 };
+unsigned track_permutation[MAXTRKS] = { UINT_MAX };
 float samples[MAXTRKS];
 struct tbin_hdr_t hdr = { HDR_TAG };
 struct tbin_dat_t dat = { DAT_TAG };
@@ -90,8 +93,7 @@ void assert(bool t, const char *msg, ...) {
 void fatal(const char *msg, ...) {
    va_list args;
    va_start(args, msg);
-   vfatal(msg, args);
-   va_end(args); }
+   vfatal(msg, args); }
 
 /********************************************************************
 Routines for processing options
@@ -123,13 +125,13 @@ bool opt_key(const char* arg, const char* keyword) {
    while (*keyword);
    return *arg == '\0'; }
 
-bool opt_int(const char* arg, const char* keyword, int *pval, int min, int max) {
+bool opt_int(const char* arg, const char* keyword, unsigned *pval, unsigned min, unsigned max) {
    do { // check for a "keyword=integer" option
       if (toupper(*arg++) != *keyword++)
          return false; }
    while (*keyword);
-   int num, nch;
-   if (sscanf(arg, "%d%n", &num, &nch) != 1
+   unsigned num, nch;
+   if (sscanf(arg, "%u%n", &num, &nch) != 1
          || num < min || num > max || arg[nch] != '\0') return false;
    *pval = num;
    return true; }
@@ -173,9 +175,9 @@ bool opt_dat(const char* arg, const char*keyword, struct tm *time) {
 bool parse_track_order(const char*str) { // examples: P314520, 01234567P
    int bits_done = 0;
    if (strlen(str) != ntrks) return false;
-   for (int i = 0; i < ntrks; ++i) {
+   for (unsigned i = 0; i < ntrks; ++i) {
       byte ch = str[i];
-      if (toupper(ch) == 'P') ch = ntrks - 1; // we put parity last
+      if (toupper(ch) == 'P') ch = (byte) ntrks - 1; // we put parity last
       else {
          if (!isdigit(ch)) return false; // assumes ntrks <= 11
          if ((ch -= '0') > ntrks - 2) return false; }
@@ -186,7 +188,7 @@ bool parse_track_order(const char*str) { // examples: P314520, 01234567P
 bool parse_option(char *option) {
    if (option[0] != '/' && option[0] != '-') return false;
    char *arg = option + 1;
-   char *str;
+   const char *str;
    if (opt_key(arg, "READ")) do_read = true;
    else if (opt_int(arg, "NTRKS=", &ntrks, 5, 9))
       assert(track_permutation[0] == -1, "can't give -ntrks after -order");
@@ -210,9 +212,7 @@ bool parse_option(char *option) {
       case '?': SayUsage(); exit(1);
       default: goto opterror; }
    else {
-opterror:  fatal("bad option: %s\n\n", option);
-      // SayUsage();
-      exit(4); }
+opterror:  fatal("bad option: %s\n\n", option); }
    return true; }
 
 int HandleOptions(int argc, char *argv[]) {
@@ -361,7 +361,7 @@ void read_tbin(void) {
    printf("%d bits/sample, data start time is %.6lf seconds\n", dat.sample_bits, (double)dat.tstart / 1e9);
    assert(dat.sample_bits == 16, "Sorry, we only support 16-bit voltage samples");
    fprintf(outf, "'%s\nTime, ", hdr.descr); // first line is description, second is column headings
-   for (int i = 0; i < ntrks; ++i) fprintf(outf, "Track %d, ", i);
+   for (unsigned i = 0; i < ntrks; ++i) fprintf(outf, "Track %d, ", i);
    fprintf(outf, "\n");
    uint64_t timenow = dat.tstart;
    int16_t data[MAXTRKS];
@@ -372,16 +372,16 @@ void read_tbin(void) {
          timenow += hdr.u.s.tdelta; } }
    while (1) {  // write one .CSV file line for each sample we read
       assert(fread(&data[0], 2, 1, inf) == 1, "can't read data for track 0 at time %.8lf", (double)timenow/1e9);
-      if (!little_endian) reverse2(&data[0]);
-      if (data[0] == (int16_t)0x8000) return;
+      if (!little_endian) reverse2((uint16_t *)&data[0]);
+      if (data[0] == -32768 /*0x8000*/) return;
       assert(fread(&data[1], 2, ntrks-1, inf) == ntrks-1, "can't read data for tracks 1.. at time %.8lf", (double)timenow/1e9);
       if (!little_endian)
-         for (int trk = 1; trk < ntrks; ++trk)
-            reverse2(&data[trk]);
+         for (unsigned trk = 1; trk < ntrks; ++trk)
+            reverse2((uint16_t *)&data[trk]);
       fprintf(outf, "%12.8lf, ", (double)timenow/1e9);
       timenow += hdr.u.s.tdelta;
       total_time += hdr.u.s.tdelta;
-      for (int trk = 0; trk < ntrks; ++trk)
+      for (unsigned trk = 0; trk < ntrks; ++trk)
          fprintf(outf, "%9.5f, ", (float)data[track_permutation[trk]] / 32767 * hdr.u.s.maxvolts);
       fprintf(outf,"\n");
       ++num_samples;
@@ -431,11 +431,11 @@ void write_tbin(void) {
          write_hdr(sample_time, (uint32_t) (sample_time - starting_time));
          wrote_hdr = true; }
       //printf("%4lld: ", num_samples);
-      for (int trk = 0; trk < ntrks; ++trk)  // read and permute the samples
+      for (unsigned trk = 0; trk < ntrks; ++trk)  // read and permute the samples
          samples[track_permutation[trk]] = scanfast_float(&linep);
       byte outbuf[MAXTRKS * 2]; // accumulate data for all track, for faster writing
       int bufndx = 0;
-      for (int trk = 0; trk < ntrks; ++trk) { // generate the little-endian integer samples
+      for (unsigned trk = 0; trk < ntrks; ++trk) { // generate the little-endian integer samples
          fsample = samples[trk];
          if (fsample < 0) round = -0.5;  else round = 0.5;  // (int) truncates towards zero
          sample = (int) ((fsample / MAXVOLTS * 32767) + round);
@@ -451,9 +451,9 @@ void write_tbin(void) {
       if (num_samples % 100000 == 0) printf("."); // progress indicator
    }
    output2(0x8000); // end marker
-   };
+};
 
-void main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
    int argnext;
    char *filename;
 #if 0
@@ -466,12 +466,12 @@ void main(int argc, char *argv[]) {
    printf("%d arguments:\n", argc);
    for (int i = 0; i < argc; ++i) printf(" arg %d: %s\n", i, argv[i]);
 #endif
-  
+
    printf("csvtbin: convert between .CSV and .TBIN files\n");
-   printf("         version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+   printf("version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
    uint32_t testendian = 1;
    little_endian = *(byte *)&testendian == 1;
-   printf("         this is a %s-endian computer\n", little_endian ? "little" : "big");
+   printf("this is a %s-endian computer\n", little_endian ? "little" : "big");
    if (argc == 1) {
       SayUsage(); exit(4); }
    argnext = HandleOptions(argc, argv);
@@ -482,18 +482,20 @@ void main(int argc, char *argv[]) {
    inf = fopen(filename, do_read ? "rb" : "r");
    assert(inf, "unable to open input file\"%s\"", filename);
 
-   assert(++argnext < argc, "missing output filename");
+   ++argnext;
+   assert(argnext < argc, "missing output filename");
    filename = argv[argnext];
    printf("creating \"%s\"\n", filename);
    outf = fopen(filename, do_read ? "w" : "wb");
    assert(outf, "file create failed for \"%s\"", filename);
 
-   assert(++argnext == argc, "extra stuff \"%s\"", argv[argnext]);
+   ++argnext;
+   assert(argnext == argc, "extra stuff \"%s\"", argv[argnext]);
 
-   if (track_permutation[0] == -1) // no input value permutation was given
-      for (int i = 0; i < ntrks; ++i) track_permutation[i] = i; // create default
+   if (track_permutation[0] == UINT_MAX) // no input value permutation was given
+      for (unsigned i = 0; i < ntrks; ++i) track_permutation[i] = i; // create default
    printf("%s track order: ", do_read ? "output" : "input");
-   for (int i = 0; i < ntrks; ++i)
+   for (unsigned i = 0; i < ntrks; ++i)
       if (track_permutation[i] == ntrks - 1) printf("p");
       else printf("%d", track_permutation[i]);
    printf("\n");
@@ -503,9 +505,10 @@ void main(int argc, char *argv[]) {
    else write_tbin();
 
    printf("\n%s samples representing %.3lf tape seconds were processed in %.1f seconds\n",
-      longlongcommas(num_samples), (float)total_time / 1e9, difftime(time(NULL), start_time));
+          longlongcommas(num_samples), (float)total_time / 1e9, difftime(time(NULL), start_time));
 
    fclose(inf);
-   fclose(outf); };
+   fclose(outf);
+   return 0; };
 
 //*
