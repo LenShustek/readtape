@@ -1,9 +1,9 @@
 //file: csvtbin.h
 /******************************************************************************
 
-    format of the .tbin compressed analog magnetic tape data file
-      
-This describes a file format which is more general that what is implemented.
+    The format of the .tbin compressed analog magnetic tape data file
+
+This describes a file format that is more general that what is implemented.
 The current code supports only one data block with 16-bit non-delta samples.
 
 *******************************************************************************
@@ -27,8 +27,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define TBIN_FILE_FORMAT 1
 
+//**** beware that changing these definitions may invalidate existing files!
+
 enum mode_t {
-   UNKNOWN, PE, NRZI, GCR, ALL };
+   UNKNOWN = 0, PE = 0x01, NRZI = 0x02, GCR = 0x04,
+   ALLMODES = PE + NRZI + GCR };
 
 struct tbin_hdr_t {     // the file header for .tbin files, which appears once
    char tag[8];                     // a zero-terminated ASCII string identifier tag
@@ -42,7 +45,7 @@ struct tbin_hdr_t {     // the file header for .tbin files, which appears once
          struct tm time_read;       // when the analog tape data was digitized (9 integers)
          struct tm time_converted;  // when the digitized data was converted to .tbin (9 integers)
          uint32_t options;          // file format options, TBINOPT_xxx
- #define TBINOPT_xxx 0x01           // options TBD
+#define TBINOPT_xxx 0x01            // options TBD
          uint32_t ntrks;            // number of tracks (heads)
          uint32_t tdelta;           // time between samples, in nanoseconds
          float maxvolts;            // maximum voltage for any sample
@@ -64,18 +67,19 @@ struct tbin_dat_t {     // the data header that starts each block of data
    uint64_t tstart;                 // time of the next sample in nanoseconds, relative to the start of the tape
 };
 // What follows are multiple sets of "ntrks" packed little-endian signed integers,
-// in the track (head) order msb..lsb and then parity, for each set.
+// in the track (head) order msb..lsb,parity.
 // Each integer is "sample_bits" long, and encodes the read head voltage for a sample in the range
 // -maxvolts..+maxvolts by -(2^sample_bits-1)-1..+2^(sample_bits-1)-1, rounded to the closest integer.
-// (For sample_bits=16, that's -32767..+32767.)
-// At the end is a single value -2^(sample_bits-1), which is outside that range.
-// (For sample_bits=16, that's -32768, or 0x8000.)
-// After that can (in theory) be more tbin_dat structures, or the end of the file.
+//    (For sample_bits=16, that's -32767..+32767.)
+// To mark the end is the single value -2^(sample_bits-1), which is outside that range.
+//    (For sample_bits=16, that's -32768, or 0x8000.)
+// After that there can (in theory) be more tbin_dat structures, or the end of the file.
 
 // portability assumptions not otherwise explicit in the types:
-//   enum is 4 bytes, and are sequentially numbered from 0
-//   float is 4 bytes
-//   datetime struct tm is nine 4-byte integers (36 bytes)
-//   all numeric fields are little-endian
+//  - numeric fields are externally stored as little-endian, and are converted when necessary
+//  - an enum is 4 bytes, and values are sequentially numbered from 0 unless specified otherwise
+//  - a float is 4 bytes in single-precision IEEE 754 format
+//  - the datetime struct tm is the Unix standard nine 4-byte integers (36 bytes):
+//    sec, min, hour, day, month, year since 1900, weekday, days since Jan 1, DST flag
 
 //*

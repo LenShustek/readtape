@@ -36,6 +36,7 @@ If the options are "-o -u -l20", the output looks like this:
 14 May 2018, L. Shustek, add Burroughs Internal Code
 18 May 2018, L. Shustek, cleanup for more stringent compilers
 
+TODO: on "filename" line, display summary of parms used
 /******************************************************************************
 Copyright (C) 2018, Len Shustek
 

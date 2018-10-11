@@ -5,8 +5,14 @@ Convert between a Saleae .csv file with digitized samples of analog tape
 head voltages and a binary .tbin file with roughly the same data,
 perhaps with some loss of precision.
 
+usage:  csvtbin  <options>  <infilename>  <outfilename>
+
 Why? Because we get about a 10:1 reduction in the file size (using
 16-bit non-delta samples), and it's 3-4 times faster to process.
+
+Also, this allows us to preserve information about the tape inside the file,
+and to change the track order from however the logic analyzer was wired
+to a standard canonical order.
 
 The file format (defined in csvtbin.h) allows for an arbitrary number
 of blocks of data with arbitrary number of bits per sample, which could
@@ -21,13 +27,22 @@ the readtape program won't need to be told about the non-standard order.
 *******************************************************************************
 
 ---CHANGE LOG ---
+10 May 2018, L. Shustek, started with inspiration from Al Kossow
 
-*** 10 May 2018, L. Shustek, started with inspiration from Al Kossow
+18 may 2018, L. Shustek, cleanup for more stringent compilers
 
-*** 18 may 2018, L. Shustek, cleanup for more stringent compilers
+17 Sep 2018, L. Shustek, add display tbin header mode
+
+07 Oct 2018, L. Shustek, set sample_deltat by reading the first 10,000 samples,
+             because Saleae timestamps are only given to 0.1 usec, so you can't
+             compute the delta from the first two! We then ignore their
+             timestamps and accumulate deltas from the first entry,
+             using 64-bit integer arithmetic so there is no cumulative error.
+             While we're at it, we set maxvolts based on the maximum voltage
+             we saw, and add a -maxvolts= option to override it.
 
 ******************************************************************************/
-#define VERSION "18May2018"
+#define VERSION "1.3"
 /******************************************************************************
 Copyright (C) 2018, Len Shustek
 
@@ -60,18 +75,18 @@ typedef unsigned char byte;
 
 #include "csvtbin.h"
 
-#define MAXVOLTS 8.0   // maximum voltage; could be determined dynamically
-#define MAXLINE 500
 #define MAXPATH 300
+#define MAXLINE 400
 #define MAXTRKS 9
 
 FILE *inf, *outf;
+char *infilename;
 long long int num_samples = 0;
 uint64_t total_time = 0;
 unsigned skip_samples = 0;
 unsigned ntrks = 9;
-bool wrote_hdr = false;
 bool do_read = false;
+bool display_header = false;
 bool little_endian;
 unsigned track_permutation[MAXTRKS] = { UINT_MAX };
 float samples[MAXTRKS];
@@ -102,20 +117,22 @@ void SayUsage(void) {
    static char *usage[] = {
       "use: csvtbin <options> <infilename> <outfilename>",
       "options:",
-      "  -ntrks=n  the number of tracks; default is 9",
-      "  -order=   input data order for bits 0..ntrks-2 and P, where 0=MSB",
-      "            default is 01234567P for 9 trks, 012345P for 7 trks",
-      "  -skip=n   skip the first n samples",
-      "  -read     read tbin and create csv (otherwise, the opposite)",
+      "  -ntrks=n     the number of tracks; the default is 9",
+      "  -order=      input data order for bits 0..ntrks-2 and P, where 0=MSB",
+      "               the default is 01234567P for 9 trks, 012345P for 7 trks",
+      "  -skip=n      skip the first n samples",
+      "  -maxvolts=x  expect x as the maximum plus or minus signal excursion",
+      "  -read        read tbin and create csv -- otherwise, the opposite",
+      "               (or just display the tbin header if no output file is specified)",
       "optional documentation that can be recorded in the TBIN file:",
-      "  -descr=txt            what is on the tape",
-      "  -pe                   PE enecoding",
-      "  -nrzi                 NRZI encding",
-      "  -gcr                  GCR enoding",
-      "  -ips=n                speed in inches/sec",
-      "  -bpi=n                density in bits/inch",
-      "  -datewritten=ddmmyyyy when the tape was originally written",
-      "  -dateread=ddmmyyyy    when the tape was read and digitized",
+      "  -descr=txt             a description of what is on the tape",
+      "  -pe                    PE encoded",
+      "  -nrzi                  NRZI encoded",
+      "  -gcr                   GCR ecoded",
+      "  -ips=n                 the speed in inches/sec",
+      "  -bpi=n                 the density in bits/inch",
+      "  -datewritten=ddmmyyyy  when the tape was originally written",
+      "  -dateread=ddmmyyyy     when the tape was read and digitized",
       NULL };
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]); }
 
@@ -132,7 +149,7 @@ bool opt_int(const char* arg, const char* keyword, unsigned *pval, unsigned min,
    while (*keyword);
    unsigned num, nch;
    if (sscanf(arg, "%u%n", &num, &nch) != 1
-         || num < min || num > max || arg[nch] != '\0') return false;
+         || num < min || num > max || arg[nch] != '\0') fatal("bad integer: %s", arg);
    *pval = num;
    return true; }
 
@@ -142,7 +159,7 @@ bool opt_flt(const char* arg, const char* keyword, float *pval, float min, float
    while (*keyword);
    float num;  int nch;
    if (sscanf(arg, "%f%n", &num, &nch) != 1
-         || num < min || num > max || arg[nch] != '\0') return false;
+         || num < min || num > max || arg[nch] != '\0') fatal("bad floating-point number: %s", arg);
    *pval = num;
    return true; }
 
@@ -154,6 +171,7 @@ bool opt_str(const char* arg, const char* keyword, const char** str) {
    return true; }
 
 bool parse_nn(const char *str, int *num, int low, int high) {
+   // parse a 2-digit decimal number within specified limits
    if (!isdigit(*str) || !isdigit(*(str + 1))) return false;
    *num = (*str - '0') * 10 + (*(str + 1) - '0');
    return *num >= low && *num <= high; }
@@ -162,14 +180,14 @@ bool opt_dat(const char* arg, const char*keyword, struct tm *time) {
    do { // check for a "keyword=ddmmyyyy" option
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
-   if (strlen(arg) != 8) return false;
-   if (!parse_nn(arg, &time->tm_mday, 1, 31)) return false;
-   if (!parse_nn(arg + 2, &time->tm_mon, 1, 12)) return false;
-   --time->tm_mon;
+   if (strlen(arg) != 8) fatal("bad date format at %s", arg);
+   if (!parse_nn(arg, &time->tm_mday, 1, 31)) fatal("bad day: %s", arg);
+   if (!parse_nn(arg + 2, &time->tm_mon, 1, 12)) fatal("bad month: %s", arg);
+   --time->tm_mon; // month is 0-origin!
    int yyh, yyl;
-   if (!parse_nn(arg + 4, &yyh, 19, 21)) return false;
-   if (!parse_nn(arg + 6, &yyl, 0, 99)) return false;
-   time->tm_year = (yyh - 19) * 100 + yyl;
+   if (!parse_nn(arg + 4, &yyh, 19, 21)) fatal("bad year: %s", arg);
+   if (!parse_nn(arg + 6, &yyl, 0, 99)) fatal("bad year: %s", arg);
+   time->tm_year = (yyh - 19) * 100 + yyl; // years since 1900
    return true; }
 
 bool parse_track_order(const char*str) { // examples: P314520, 01234567P
@@ -192,13 +210,14 @@ bool parse_option(char *option) {
    if (opt_key(arg, "READ")) do_read = true;
    else if (opt_int(arg, "NTRKS=", &ntrks, 5, 9))
       assert(track_permutation[0] == -1, "can't give -ntrks after -order");
-   else if (opt_str(arg, "ORDER=", &str)
-            && parse_track_order(str));
+   else if (opt_str(arg, "ORDER=", &str)) {
+      if (!parse_track_order(str)) fatal("bad track order at %s", str); }
    else if (opt_key(arg, "NRZI")) hdr.u.s.mode = NRZI;
    else if (opt_key(arg, "PE")) hdr.u.s.mode = PE;
    else if (opt_key(arg, "GCR")) hdr.u.s.mode = GCR;
    else if (opt_flt(arg, "BPI=", &hdr.u.s.bpi, 50, 10000));
    else if (opt_flt(arg, "IPS=", &hdr.u.s.ips, 10, 100));
+   else if (opt_flt(arg, "MAXVOLTS=", &hdr.u.s.maxvolts, 0.1f, 15.0f));
    else if (opt_str(arg, "DESCR=", &str)) {
       strncpy(hdr.descr, str, sizeof(hdr.descr));
       hdr.descr[sizeof(hdr.descr) - 1] = '\0'; }
@@ -348,7 +367,8 @@ void read_tbin(void) {
          reverse4(&hdr.u.a[i]);
    assert(hdr.u.s.format == TBIN_FILE_FORMAT, "bad file format version: %d", hdr.u.s.format);
    assert(hdr.u.s.tbinhdrsize == sizeof(hdr), "bad hdr size: %d, not %d", hdr.u.s.tbinhdrsize, sizeof(hdr));
-   printf("file format %d, ntrks %d, encoding %s, max %.2fV, bpi %.2f, ips %.2f, sample delta %.2f uS\n",
+   ntrks = hdr.u.s.ntrks;
+   printf("file format %d, ntrks %d, encoding %s, max %.2fV, bpi %.2f, ips %.2f, sample delta %.2f usec\n",
           hdr.u.s.format, hdr.u.s.ntrks, modename(hdr.u.s.mode), hdr.u.s.maxvolts,
           hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta/1e3);
    printf("description: %s\n", hdr.descr);
@@ -360,9 +380,10 @@ void read_tbin(void) {
    if (!little_endian) reverse8(&dat.tstart); // convert to big endian if necessary
    printf("%d bits/sample, data start time is %.6lf seconds\n", dat.sample_bits, (double)dat.tstart / 1e9);
    assert(dat.sample_bits == 16, "Sorry, we only support 16-bit voltage samples");
-   fprintf(outf, "'%s\nTime, ", hdr.descr); // first line is description, second is column headings
-   for (unsigned i = 0; i < ntrks; ++i) fprintf(outf, "Track %d, ", i);
-   fprintf(outf, "\n");
+   if (!display_header) {
+      fprintf(outf, "'%s\nTime, ", hdr.descr); // first line is description, second is column headings
+      for (unsigned i = 0; i < ntrks; ++i) fprintf(outf, "Track %d, ", i);
+      fprintf(outf, "\n"); }
    uint64_t timenow = dat.tstart;
    int16_t data[MAXTRKS];
    if (skip_samples > 0) {
@@ -373,22 +394,27 @@ void read_tbin(void) {
    while (1) {  // write one .CSV file line for each sample we read
       assert(fread(&data[0], 2, 1, inf) == 1, "can't read data for track 0 at time %.8lf", (double)timenow/1e9);
       if (!little_endian) reverse2((uint16_t *)&data[0]);
-      if (data[0] == -32768 /*0x8000*/) return;
-      assert(fread(&data[1], 2, ntrks-1, inf) == ntrks-1, "can't read data for tracks 1.. at time %.8lf", (double)timenow/1e9);
+      if (data[0] == -32768 /*0x8000*/) break; // endfile
+      assert(fread(&data[1], 2, ntrks-1, inf) == ntrks-1, "can't read data for tracks 1.. at time %.8lf, data[0]=%08X",
+             (double)timenow/1e9, data[0]);
       if (!little_endian)
          for (unsigned trk = 1; trk < ntrks; ++trk)
             reverse2((uint16_t *)&data[trk]);
-      fprintf(outf, "%12.8lf, ", (double)timenow/1e9);
+      // The %f floating-point display formatting is quite slow. If the -read option is ever used for production, we
+      // should write fast special-purpose routines, as we did for parsing floating-point input. Could be 10x faster!
+      if (!display_header) fprintf(outf, "%12.8lf, ", (double)timenow/1e9);
       timenow += hdr.u.s.tdelta;
       total_time += hdr.u.s.tdelta;
-      for (unsigned trk = 0; trk < ntrks; ++trk)
-         fprintf(outf, "%9.5f, ", (float)data[track_permutation[trk]] / 32767 * hdr.u.s.maxvolts);
-      fprintf(outf,"\n");
+      if (!display_header) {
+         for (unsigned trk = 0; trk < ntrks; ++trk)
+            fprintf(outf, "%9.5f, ", (float)data[track_permutation[trk]] / 32767 * hdr.u.s.maxvolts);
+         fprintf(outf, "\n"); }
       ++num_samples;
       if (num_samples % 100000 == 0) printf("."); // progress indicator
-   } };
+   }
+   printf("\n"); };
 
-void write_hdr(uint64_t start, uint32_t delta) {
+void write_tbin_hdr(void) {
    // create and write the ID block
    hdr.u.s.tbinhdrsize = sizeof(hdr);
    hdr.u.s.format = TBIN_FILE_FORMAT;
@@ -397,40 +423,70 @@ void write_hdr(uint64_t start, uint32_t delta) {
    struct tm *ptm = localtime(&start_time);
    hdr.u.s.time_converted = *ptm;  // structure copy!
    hdr.u.s.ntrks = ntrks;
-   hdr.u.s.tdelta = delta;
-   hdr.u.s.maxvolts = MAXVOLTS;
    assert(fwrite(hdr.tag, sizeof(hdr.tag)+sizeof(hdr.descr), 1, outf) == 1, "can't write hdr tag/descr");
    for (int i = 0; i < sizeof(hdr.u.s) / 4; ++i)
       output4(hdr.u.a[i]);  // write all the 4-byte quantities as little-endian
-   // Create and write the data header. Eventually there could be more than one of these.
-   dat.tstart = start;
+   // complete and write the data header, of which there could eventually be more than one.
    dat.sample_bits = 16;  // the only thing we support right now
    assert(fwrite(dat.tag, sizeof(dat)-sizeof(dat.tstart), 1, outf) == 1, "can't write dat tag");
-   output8(dat.tstart); }
+   output8(dat.tstart); // write separately because of possible endian reversal
+}
+
+void csv_preread(void) {
+   // preread the beginning of the CSV file for two reasons:
+   // 1. to compute the sample delta accurately
+   // 2. to observe the max voltages
+   char line[MAXLINE + 1];
+   int linecounter = 0;
+   double first_timestamp = -1;
+   fgets(line, MAXLINE, inf); // first two lines in the input file are headers from Saleae
+   fgets(line, MAXLINE, inf);
+   float maxvolts = 0;
+   while (fgets(line, MAXLINE, inf) && ++linecounter < 100000) {
+      line[MAXLINE - 1] = 0;
+      char *linep = line;
+      double timestamp = scanfast_double(&linep);
+      if (first_timestamp < 0) {
+         first_timestamp = timestamp;
+         dat.tstart = (uint64_t)((first_timestamp + 0.5e-9)*1e9); }
+      else hdr.u.s.tdelta = (uint32_t)(((timestamp - first_timestamp) / (linecounter - 1) + 0.5e-9) * 1e9);
+      for (unsigned trk = 0; trk < ntrks; ++trk) {
+         float voltage = scanfast_float(&linep);
+         if (voltage < 0) voltage = -voltage;
+         if (maxvolts < voltage) maxvolts = voltage; } }
+   maxvolts = ((float)(int)((maxvolts+0.55f)*10.0f))/10.0f; // add 0.5V and round to nearest 0.1V
+   printf("After %s samples, the sample delta is %.2lf usec (%u nsec), samples start at %.6lf, and the rounded-up high voltage is %.1fV\n",
+          intcommas(linecounter), (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart/1e9, maxvolts);
+   if (hdr.u.s.maxvolts == 0) // MAXVOLTS= wasn't given
+      hdr.u.s.maxvolts = maxvolts;
+   else if (hdr.u.s.maxvolts < maxvolts) {
+      printf("MAXVOLTS was increased from %.1fV to %.1fV\n", hdr.u.s.maxvolts, maxvolts);
+      hdr.u.s.maxvolts = maxvolts; }
+   else printf("We used MAXVOLTS=%.1fV\n", hdr.u.s.maxvolts);
+   fclose(inf); // close and reopen to reposition at the start
+   assert(fopen(infilename, "r"), "can't reopen input file \"%s\"", infilename); }
+
 
 void write_tbin(void) {
    char line[MAXLINE + 1];
    char *linep;
-   fgets(line, MAXLINE, inf); // first two (why?) lines in the input file are headers from Saleae
+   csv_preread();    // do preread scan of csv file
+   write_tbin_hdr(); // and write the tbin headers
+   fgets(line, MAXLINE, inf); // first two (why two?) lines in the input file are headers from Saleae
    fgets(line, MAXLINE, inf);
    if (skip_samples > 0) {
       printf("skipping %d samples\n", skip_samples);
       while (skip_samples--)
          assert(fgets(line, MAXLINE, inf), "endfile with %d lines left to skip\n", skip_samples); }
    line[MAXLINE - 1] = 0;
-   assert(fgets(line, MAXLINE, inf), "endfile reading first data line\n");
-   linep = line;  // read and discard the first line, to get the starting time so we can compute delta
-   uint64_t starting_time = (uint64_t) (scanfast_double(&linep)*1e9);
+   uint64_t sample_time = dat.tstart;
+   long long count_toosmall = 0, count_toobig = 0;
+   float maxvolts = 0, minvolts = 0;
    while (fgets(line, MAXLINE, inf)) {
       linep = line;
-      uint64_t sample_time;
       float fsample, round;
       int32_t sample;
-      sample_time = (uint64_t) (scanfast_double(&linep)*1e9);
-      if (!wrote_hdr) { // write the header, once, at the second data line
-         write_hdr(sample_time, (uint32_t) (sample_time - starting_time));
-         wrote_hdr = true; }
-      //printf("%4lld: ", num_samples);
+      scanfast_double(&linep); // scan and discard the timestamp
       for (unsigned trk = 0; trk < ntrks; ++trk)  // read and permute the samples
          samples[track_permutation[trk]] = scanfast_float(&linep);
       byte outbuf[MAXTRKS * 2]; // accumulate data for all track, for faster writing
@@ -438,20 +494,35 @@ void write_tbin(void) {
       for (unsigned trk = 0; trk < ntrks; ++trk) { // generate the little-endian integer samples
          fsample = samples[trk];
          if (fsample < 0) round = -0.5;  else round = 0.5;  // (int) truncates towards zero
-         sample = (int) ((fsample / MAXVOLTS * 32767) + round);
+         sample = (int) ((fsample / hdr.u.s.maxvolts * 32767) + round);
          //printf("%6d %9.5f, ", sample, fsample);
-         assert(sample <= 32767, "sample %lld on track %d is too big: %d", num_samples, trk, sample);
-         assert(sample >= -32767, "sample %lld on track %d is too small: %d", num_samples, trk, sample);
+         if (sample <= -32767) {
+            if (fsample < minvolts) minvolts = fsample;
+            sample = -32767;
+            ++count_toosmall; }
+         if (sample >= 32767) {
+            if (fsample > maxvolts) maxvolts = fsample;
+            sample = 32767;
+            ++count_toobig; }
          outbuf[bufndx++] = ((int16_t)sample) & 0xff;
          outbuf[bufndx++] = ((int16_t)sample) >> 8; }
       //printf("\n");
       assert(fwrite(outbuf, 2, ntrks, outf) == ntrks, "can't write data sample %lld", num_samples);
+      sample_time += hdr.u.s.tdelta;
       total_time += hdr.u.s.tdelta;
       ++num_samples;
       if (num_samples % 100000 == 0) printf("."); // progress indicator
    }
    output2(0x8000); // end marker
-};
+   printf("\n");
+   if (count_toobig)
+      printf("*** WARNING ***  %s samples were too big; maximum was %.1fV\n",
+             longlongcommas(count_toobig), maxvolts);
+   if (count_toosmall)
+      printf("*** WARNING ***  %s samples were too small; minimum was %.1fV\n",
+             longlongcommas(count_toosmall), minvolts);
+   if (count_toobig || count_toosmall)
+      printf("You should specify -MAXVOLTS=%.1f\n", max(maxvolts, -minvolts)); };
 
 int main(int argc, char *argv[]) {
    int argnext;
@@ -477,38 +548,41 @@ int main(int argc, char *argv[]) {
    argnext = HandleOptions(argc, argv);
 
    assert(argnext > 0, "missing input filename");
-   filename = argv[argnext];
-   printf("opening  \"%s\"\n", filename);
-   inf = fopen(filename, do_read ? "rb" : "r");
-   assert(inf, "unable to open input file\"%s\"", filename);
+   infilename = argv[argnext];
+   printf("opening  \"%s\"\n", infilename);
+   inf = fopen(infilename, do_read ? "rb" : "r");
+   assert(inf, "unable to open input file\"%s\"", infilename);
 
    ++argnext;
-   assert(argnext < argc, "missing output filename");
-   filename = argv[argnext];
-   printf("creating \"%s\"\n", filename);
-   outf = fopen(filename, do_read ? "w" : "wb");
-   assert(outf, "file create failed for \"%s\"", filename);
-
-   ++argnext;
-   assert(argnext == argc, "extra stuff \"%s\"", argv[argnext]);
+   if (argnext >= argc && do_read)  // no output file given
+      display_header = true;
+   else {
+      assert(argnext < argc, "missing output filename");
+      filename = argv[argnext];
+      printf("creating \"%s\"\n", filename);
+      outf = fopen(filename, do_read ? "w" : "wb");
+      assert(outf, "file create failed for \"%s\"", filename);
+      ++argnext;
+      assert(argnext == argc, "extra stuff \"%s\"", argv[argnext]); }
 
    if (track_permutation[0] == UINT_MAX) // no input value permutation was given
       for (unsigned i = 0; i < ntrks; ++i) track_permutation[i] = i; // create default
-   printf("%s track order: ", do_read ? "output" : "input");
-   for (unsigned i = 0; i < ntrks; ++i)
-      if (track_permutation[i] == ntrks - 1) printf("p");
-      else printf("%d", track_permutation[i]);
-   printf("\n");
+   if (!display_header) {
+      printf("%s track order: ", do_read ? "output" : "input");
+      for (unsigned i = 0; i < ntrks; ++i)
+         if (track_permutation[i] == ntrks - 1) printf("p");
+         else printf("%d", track_permutation[i]);
+      printf("\n"); }
 
    time_t start_time = time(NULL);
    if (do_read) read_tbin();
    else write_tbin();
 
-   printf("\n%s samples representing %.3lf tape seconds were processed in %.1f seconds\n",
+   printf("%s samples representing %.3lf tape seconds were processed in %.1f seconds\n",
           longlongcommas(num_samples), (float)total_time / 1e9, difftime(time(NULL), start_time));
 
    fclose(inf);
-   fclose(outf);
+   if (outf) fclose(outf);
    return 0; };
 
 //*

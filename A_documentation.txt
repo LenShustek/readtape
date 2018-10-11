@@ -36,29 +36,30 @@ order is used, the program can be told about that.
 
 I've used different sample rates depending on the density and drive speed, 
 but I try to get about 20 samples per cycle. For 800 BPI NRZI at 50 IPS, 
-the Saleae 781 Khz rate works well. The analyzer supports rates as high 
-as 50 Mhz. 
+the Saleae 781 Khz rate works well. For 1600 BPI PE tapes, their 1.56 Mhz
+rate is a good choice. The analyzer supports rates as high as 50 Mhz. 
 
 The logic analyzer streams the data to a computer over a type 3.0 USB 
 port. The data is stored in the computer's virtual memory, so the time 
-and space limits are set by the memory+disk speed and size. Recording 
+and space limits are set by the memory/disk speed and size. Recording 
 for many minutes to create files that take dozens of gigabytes hasn't 
-been a problem. Files are saved in Saleae's proprietary format, and then
-some of all of the file can exported to a text file.
+been a problem. The data is in Saleae's proprietary format, but then
+some or all of the file can exported to a text file.
 
 The only form in which data can be exported from the Saleae analyzer 
 software is a CSV (comma-separated-value) text file with a series of 
 floating point numbers. The first number on each line is a timestamp in 
 seconds, and the next N values on the lines are the voltages from the N 
-tracks. The program can read that file. 
+tracks. The readtape program can read that file. 
 
 But the CSV files can be huge -- many tens of gigabytes for a few 
 minutes of recording -- so for archival purposes we've defined a binary 
-compressed "TBIN" format, and I wrote a utility program that can convert 
-between CSV and TBIN. The compression factor is about 10:1, and the 
-processing is about 2x faster when the program reads that file format.
-There is some loss of precision in the compressed format, but it doesn't
-affect the decoding.
+compressed "TBIN" format that uses 16-bit integers instead of floating 
+point, and I wrote a utility program that can convert between CSV and 
+TBIN. The compression factor is about 10:1, and the processing is about 
+2x faster when the program reads that file format. There is some loss of 
+precision in the compressed format, but it doesn't affect the decoding. 
+
 
 USING THE PROGRAM 
 
@@ -67,19 +68,20 @@ been testing it on a Windows PC, but it should work in other
 environments too. 
 
 use: readtape <options> <basefilename>
-   the input file is <basefilename>.csv or .tbin
-   the optional parameter set file is <basefilename>.parms
-     (or NRZI.parms or PE.parms)
-   the output files will be in the created directory <basefilename>\
-   
+  the input file is <basefilename>.csv or .tbin
+  the optional parameter set file is <basefilename>.parms
+     (or NRZI.parm, PE.parms, or GCR.parms)
+  output files will be <basefilename>.xxx in the same directory
+  or as specified with -outfiles=
+
 options:
   -ntrks=n   set the number of tracks; default is 9
   -order=    set input data order for bits 0..ntrks-2 and P, where 0=MSB
-             default is 01234567P for 9 trks, 012345P for 7 trks
+             default: 01234567P for 9 trks, 012345P for 7 trks
   -pe        do PE decoding
   -nrzi      do NRZI decoding
   -gcr       do GCR decoding
-  -ips=n     speed in inches/sec
+  -ips=n     speed in inches/sec (default: 50, except 25 for GCR)
   -bpi=n     density in bits/inch (default: autodetect)
   -even      expect even parity (for 7-track NRZI BCD tapes)
   -skip=n    skip the first n samples
@@ -87,8 +89,13 @@ options:
   -deskew    do NRZI track deskew based on initial samples
   -addparity include the parity bit in the data, if ntrks<9
   -tbin      only look for a .tbin input file, not .csv
+  -nolog     don't create a log file
+  -textfile  create an interpreted .interp.txt file from the data
+             numeric options: -hex or -octal
+             character options: -ascii, -ebcdic, -bcd, or -b5500
+             bytes per line option: -linesize==nn
+  -outfiles=xxx  use xxx as <basefilename> for output files
   -m         try multiple ways to decode a block
-  -l         create a log file in the output directory
   -v         verbose mode (show all info)
   -t         terse mode (show only bad block info)
   -q         quiet mode (only say "ok" or "bad")
@@ -114,27 +121,31 @@ be read from a file that is specific to the tape data being decoded,
 program uses built-in defaults. 
 
 The algorithms are still a work in progress, so the parameter sets 
-will continue to evolve. The current set of parameters are these: 
+will continue to evolve. The current set of parameters are these,
+some of which apply to only some of the encoding schemes.
 
    int active;             // 1 means this is an active parameter set
    int clk_window;         // how many bit times to average for clock rate; 0 means maybe use exponential averaging
    float clk_alpha;        // weighting for current data in the clock rate exponential weighted average; 0 means use constant
    int agc_window;         // how many peaks to look back for the min peak to set AGC; 0 means maybe use exponential averaging
    float agc_alpha;        // weighting for current data in the AGC exponential weight average; 0 means no AGC
-   float min_peak;         // the minimum height of a peak in volts
+   float min_peak;         // the minimum height of a peak in volts, above or below 0 volts (not relative!)
    float clk_factor;       // PE: how much of a half-bit period to wait for a clock transition
-   float pulse_adj;        // PE: how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
-                           // NRZI: how much of the actual transition avg position to use to adjust the next expected
+   float pulse_adj;        // PE, GCR: how much of the previous pulse's deviation to adjust this pulse by, 0 to 1
+   //                         NRZI: how much of the actual transition avg position to use to adjust the next expected
    float pkww_bitfrac;     // what fraction of the bit spacing the window width is
+   float pkww_rise;        // the required rise in volts in the window that represents a peak (will be adjusted by AGC and peak height)
+   float z1pt;             // GCR: fraction of a bit time that means one zero bit
+   float z2pt;             // GCR: fraction of a bit time that means two zero bits
    char id[4];             // "PRM", to make sure the structure initialization isn't screwed up
 
 The format of a parameter file is as follows:
 
 //  comments
 readtape <additional command line options>
-parms active, clk_window,  clk_alpha, agc_window, agc_alpha, min_peak, clk_factor, pulse_adj, pkww_bitfrac, id
- {1,   0,     0.2,      5,    0.0,    0.0,   1.50,    0.4,   0.7, "PRM" }
- {1,   3,     0.0,      5,    0.0,    0.0,   1.40,    0.0,   0.7, "PRM" }
+parms active, clk_window,  clk_alpha, agc_window, agc_alpha, min_peak, clk_factor, pulse_adj, pkww_bitfrac, pkww_rise, id
+ {1,   0,     0.2,      5,    0.0,    0.0,   1.50,    0.4,   0.7,  0.10, "PRM" }
+ {1,   3,     0.0,      5,    0.0,    0.0,   1.40,    0.0,   0.7,  0.10, "PRM" }
 ...
 
 The leading 1 indicates an active parameter set, and the trailing "PRM" 
@@ -145,72 +156,85 @@ If there is a now-obsolete parameter name in the file that the program
 no longer knows about, it is ignored with a warning. If a parameter name 
 that the program expects is missing, the value from the first built-in 
 parameter set is used. This scheme allows us to add and remove parameters 
-types in the program without completely invalidating existing .parm 
-files. 
+in the program without invalidating existing .parm files. 
 
 Parameter sets are used in sequence for each block on the tape to find 
 the best decoding. In verbose mode, the program reports on how many 
 times each parameter set was successfully used to decode any block. 
+
+Before diving into the code to fiddle with the algorithms, try creating
+new parameter sets and see if that helps get a clean decode. Most of 
+the time it can.  Often, though, you will need to use some of the debugging
+features to get a hint about what parameters need to be tweaked. This
+is not a turn-key operation, especially for marginal tapes!
 
 There are other constant parameters for the algorithms that are defined 
 in the decoder.h header file. As we discover any of them that need to 
 have multiple values to decode all blocks we've encountered, they get 
 moved into the parameter sets. 
 
-UTILITY PROGRAMS
 
-CSVTBIN: This standalone program converts between CSV format text files 
-and TBIN format compressed binary files. 
+SUMMARY OF TAPE FORMATS
 
-use: csvtbin <options> <infilename> <outfilename>
-options:
-  -ntrks=n  the number of tracks; default is 9
-  -order=   input data order for bits 0..ntrks-2 and P, where 0=MSB
-            default is 01234567P for 9 trks, 012345P for 7 trks
-  -skip=n   skip the first n samples
-  -read     read tbin and create csv (otherwise, the opposite)
-optional documentation that can be recorded in the TBIN file:
-  -descr=txt            what is on the tape
-  -pe                   PE enecoding
-  -nrzi                 NRZI encding
-  -gcr                  GCR enoding
-  -ips=n                speed in inches/sec
-  -bpi=n                density in bits/inch
-  -datewritten=ddmmyyyy when the tape was originally written
-  -dateread=ddmmyyyy    when the tape was read and digitized
+I keep forgetting this stuff, so for the record, here's a terse 
+description of the various tape formats we process. 
 
-Although not required, it is strongly suggested that the track order
-be specified if it is not the standard MSB...LSB, PARITY.
-By doing so the .tbin files will be in the canonical order, and
-the readtape program won't need to be told about the non-standard order.
+*** 9-track 1600 BPI PE (phase encoded)
+- track order is P37521064, where 0=msb and P=parity
+- negative flux transition is a 0-bit, positive is a 1-bit 
+- optional flux transition as needed at the midpoint between bits
+- block preamble is about 40 0-bits on all tracks, then a 1-bit on all tracks
+- block postamble is a 1-bit on all tracks, then about 40 0-bits, then silence
+- odd parity on each byte
+- no end-of-block check bytes
+- tape mark: about 40 0-bits on tracks 0,2,5,6,7,P; silence on 1,3,4
+- at load point of tape: 1600 flux reversals on track P only
 
-DUMPTAP: This standalone program displays the content of SIMH .tap 
-format files with numbers in hex or octal, and/or characters in ASCII, 
-EBCDIC, BCD, or Burroughs BIC code, in the style of an old-fashioned 
-memory dump. 
+*** 9-track 800 BPI NRZI (non-return-to-zero inverted)
+- track order is P37521064, where 0=msb and P=parity
+- either flux transition is a 1-bit, no transition is a 0-bit
+- no block preamble or postamble
+- odd parity on each byte
+- CRC character is 4 character times after the end of the block
+- LRC character is 4 character times after that, and includes the CRC
+- tape mark: 1-bits on tracks 3,6,7, then 8 bit times, then the same
 
-use: dumptap <options> <filename>
-  the input file is expected to be a SIMH .tap tape image
-  the output is to stdout, but can be piped elsewhere
-options:
-  -b     show BCD characters
-  -e     show EBCDIC characters
-  -a     show ASCII characters
-  -u     show Burroughs B5500 Internal Code characters
-  -o     show octal numeric data
-  -h     show hex numeric data
-  -lnn   each line displays nn bytes
+*** 7-track 200/556/800 BPI NRZI
+- track order is P012345, where 0=msb and P=parity
+- either flux transition is a 1-bit, no transition is a 0-bit
+- no block preamble or postamble
+- odd parity on each byte for binary data, even parity for BCD text
+  (For IBM 729, spaces in memory (0) are converted to 0x10 on tape, 
+  to avoid having BCD text create no transitions on any tracks.)
+- LRC character is 4 character times after the end of the block; no CRC
+- tape mark: 1-bits on tracks 8,4,2,1, then 4 bit times, then the same
 
-The default is 80 ASCII characters per line and no numeric data.
-If the options are "-o -u -l20", the output looks like this:
-
-  file:102784151.tap
-     80: 6043212225436060004364422562606000232162   LABEL  0LUKES  0CAS
-         6360606000000106110005010001061100050300  T   0016905101690530
-         0000000000000000000000000000000000000000  00000000000000000000
-         0000050600000005060000000000000000000000  00560005600000000000
-  .tap tape mark
-  .tap end of medium
+*** 9-track 6250 BPI GCR
+- track order is 573P21064, where 0=msb and P=parity
+- bit encoding is NRZI: transition for 1-bit, none for 0-bit
+- block preamble is 80 bytes: 10101, 01111, 14x11111 in all tracks
+- then 00111 ("Mark 1") in all tracks, then data starts
+- each 7 data bytes gets an 8th ECC character appended
+- those 8 bytes ("data group") are encoded into 10 bytes ("storage group")
+  using a 4-bit to 5-bit translate table twice for each track. The coding
+  guarantees no more than two consecutive zero bits in any track.
+- after every 158 storage groups a 20-byte resync burst is inserted, which is
+  11100 ("Mark 2") 11111 11111 ("End Marks") 00111 ("Mark 1") on all tracks
+- after the last full multiple of 7 data bytes: 11111 ("End Mark")
+- then one more 8-byte "residual" data group, containing the remaining 0 to 6
+  data bits (zero-padded) an auxiliary CRC, and the usual ECC
+- then an 8-byte CRC group (which also encodes how many pad bits there were)
+- then 11100 ("Mark 2")
+- block postamble is 80 bytes: 14x11111, 11110, 1010L in all tracks,
+  where L "restores the magnetic remanence to the erase state", which means
+  a 0 or 1 such that the last peak was positive.
+- the actual bit density would be 6250*10/7 = 8929 BPI just for group recoding,
+  but to account for the sync bursts it is 8929 *(1+20/1580) = 9042 BPI
+  (That's 2.21 usec/bit at 50 IPS, or 4.42 usec/bit at 25 IPS)
+- tape mark: 250 to 400 flux changes at 9042 on tracks 2,5,8,1,4,7; silence on 3,6,9
+- at the BOT marker there is an ID burst (1.7" of only track 6 transitions),
+  then a Auto Read Amp burst (2" of 1s on all tracks, then 2" of 1s on 2,3,5,6,8,9)
+- Whew!
 
 
 THE ALGORITHMS
@@ -254,18 +278,18 @@ much higher (lower) than the oldest and newest values, and record a peak
 if so. We then become blind to peaks until that peak exits the window. 
 
 The number of samples in the window is set dynamically based on the 
-sampling rate, the expected bit rate, and a settable parameter. The 
-amount by which a peak has to exceed the oldest and newest values is 
-also parametrized and varies with the current AGC. The time of the peak 
-is interpolated based on the previous and next sample values, so that if 
-two or three values close to the peak are averaged. 
+sampling rate, the expected bit rate, and the pkww_bitfrac parameter. 
+The amount by which a peak has to exceed the oldest and newest values is 
+also parametrized as pkww_rise, and is modified by the current AGC. The 
+time of the peak is interpolated based on the previous and next sample 
+values, so that two or three values close to the peak are averaged. 
 
 Compensation for "pulse shifting", which depends on the sequence and 
 proximity of flux transitions, is done by computing the difference 
 between the possible expected position of the pulse (which depends on 
-the kind of encoding used) and the observed position. A parameter 
-controls what fraction of that distance should be used to adjust the 
-time of the peak before using it in the decoding algorithm. 
+the kind of encoding used) and the observed position. The pulse_adj 
+parameter controls what fraction of that distance should be used to 
+adjust the time of the peak before using it in the decoding algorithm. 
 
 AGC: Automatic Gain Control
 
@@ -298,7 +322,6 @@ other times when the signal is strong.
 Clock Recovery
 
 ...TBD..  window and exponential averaging here too..
-
 
 PE Decoding Techniques
 
@@ -333,11 +356,75 @@ for modest amounts of track skew too.)
 
 - The decision about whether a track lacked a transition at a bit time 
 isn't made until about halfway (0.6 seems to work well) between bit 
-times. 
+times. The position of this "midbit" computation is controlled by 
+the NRZI_MIDPOINT constant, which probably should be made a parameter.
+
+Note that this requires all track data to be processed together, not
+independently like for PE. It is important, therefore, for head skew
+(see later section) to be measured and adequately adjusted for.
+
+GCR Decoding Techniques
+
+Since GCR is fundamentally NRZI encoding with additional constraints 
+and redundancy, my first attempt was to use the working NRZI decoder,
+and then post-process the redundancy at the end of the block.
+
+The problem is that at the 9042 BPI bit density, head skew calibration 
+needs to be extremely aggressive and accurate. The skew can, according 
+to the ANSI X3.54 spec, be as much 664 microinches, or 6 bit times. (Why 
+in the March 1985 HP Journal article on the HP 7978A do they talk about 
+"the maximum allowable skew of 25 bits"?) In any event, I have certainly 
+seen 3 bit times of skew. 
+
+What's worse, the skew seems to be totally different from block to block!
+I don't know why that is, but it would require recalibrating the skew
+at the start of each block.
+
+Also, the pulse shifts because of 0-1 and 1-0 bit sequences are a pretty 
+big fraction of the bit time, making it very difficult to find a single 
+right mid-bit position for all tracks to record "missing" 0-bits. I got 
+this scheme to work for many blocks by carefully tuning the decoding 
+parameters for particular blocks, but it wasn't robust. 
+
+Since GCR limits the number of consecutive 0-bits to two, it is instead
+possible, unlike for standard NRZI, for the clock to be separately recovered
+for each track. So we switched a scheme more like PE, where each track's
+data is separately reconstructed. Head skew is then irrelevant. After all
+the tracks have gone silent at the end of a block, the data bits are aligned
+and the post-processing to remove the redundancy happens.
+
+Since consecutive 0-bits are limited to two, we don't use the 
+hard-to-set "midbit" time to determine if a zero occurred, as we do for 
+for NRZI. Instead, we wait for the next 1-bit pulse, and determine if it 
+came one bit time (no zeros), two bit times (one zero), or three bit 
+times (two zeros) after the last peak. 
+
+As the data is processed, we accumulate the raw bits. At the end of the 
+block, we post-process the data to recognize the special groups, do the 
+5-bit to 4-bit decompression, and check the parity and ECC. 
+
+In summary, here is the process followed for GCR decoding:
+- record analog data from the 9 tape heads sampled at 3.1 Mhz and 25 IPS
+- do 12-bit A-to-D conversion of each sample to a digital voltage level
+- detect peaks and recover the clock on each track independently
+- do the NRZI decoding to recover the bit stream for each track
+- reorder the tracks to be (msb)...(lsb),parity
+- align the tracks (which compensates for skew) into a sequence of 9-bit-wide "bytes"
+- divide the sequences into 5-bit-long "storage groups"
+- recognize the 17-group preamble to the data on all tracks (TERM, SECOND, 14xSYNC, MARK1)
+- do the 5-to-4 conversion on each track from "storage group" to "data group" codes
+  for the user data, residual, and CRC fields per Table 2 in the standard
+- verify that all those 5-bit codes are valid for data (only 16 of 32 are) on all tracks 
+- verify that all the 9-bit converted data bytes have odd parity
+- treat each 7 consecutive bytes as user data, and the 8th as the ECC
+- verify each ECC (and eventually, use it for error correction)
+- extract the residual (length mod 7) data bytes from the ending "residual" group
+- verify the "auxiliary" CRC byte
+- verify the check bytes in the CRC group
 
 Automatic density detection
 
-The recorded density of the tape is not always known. If the density is 
+The recorded density of a tape is not always known. If the density is 
 not specified by the -bpi option, the program will try to determine it 
 by calculating the average minimum time between the first several thousand 
 flux transitions. If it corresponds to one of the standard densities 
@@ -348,7 +435,7 @@ Track skew compensation
 If the head isn't perfectly vertical during either writing or reading, 
 there will be consistent timing differences between data from the 
 different tracks. If they are too big, it can cause errors in the 
-decoding. 
+decoding, especially for NRZI.
 
 If we need to insert track de-skewing data delays, they could be 
 set by first reading a "master skew tape", if one is available. 
@@ -363,14 +450,124 @@ the first several thousand flux transitions and the expected times. It
 then uses that to set up delays for the data from the heads whose 
 transitions come early. 
 
-One aspect of head alignment can't be fixed in software and is critical: 
+Some aspects of head alignment can't be fixed in software and are critical: 
 we need a high enough signal-to-noise ratio so that the AGC algorithm 
 can see the transitions, and minimal leakage between adjacent tracks. 
 
 
-....more to come....
+ALGORITHM DEBUGGING TOOLS
+
+There is a fair amount of debugging that can be turned on, which 
+helps with tuning the algorithms. 
+
+1. Making DEBUG true in decoder.h produces all sorts of diagnostic 
+information in the log file. Some of it comes and goes depending on 
+whether the various dlog(...) lines in the code are uncommented. Some 
+output depends on whether the trace file (see next) is currently being 
+generated. The maximum number of lines of debugging output is set by 
+DLOG_LINE_LIMIT in decoder.h. 
+
+2. Making TRACEFILE true in decoder.h causes a trace.csv file to be 
+produced that can be plotted in Excel to produce a graphical timeline of 
+events. Load the file, select columns from C to before the next blank 
+column, then "Insert" "2D line chart". 
+
+The start and end of the graph is controlled by code at the bottom on 
+decoder.c. 
+
+TRACETRK in decoder.h specifies a particular track to pay attention to. 
+TRACEALL says whether to nonetheless plot the analog values (and 
+detected peaks, etc.) for all tracks. 
+
+The trace data is buffered before being written to the file, so that we 
+can "rewrite history" for events that are discovered late. That happens, 
+for example, because the new moving-window algorithm for peak detection 
+finds the peaks several clock ticks after they actually happen. 
+
+3. Making PEAK_STATS true in decoder.h causes a stats.csv file to be 
+produced which can be plotted in Excel to view the dispersion of peak 
+times. Load the file, select all columns (except the average for NRZI),
+then "Insert" "2D line chart".
+
+For NRZI there is only one peak, because with odd parity at least one 
+track always has a transition at the bit time and we show the peaks 
+relative to that. The dispersion is a result of track skew, and with the 
+-deskew parameter we use those statistics to calibrate the skew. 
+
+For PE, there are two peaks, corresponding to a one-bit (1/2 bit time 
+interval) or zero-bit (1 bit time interval) 
+
+For GCR, where the tracks are skewed relative to each other and decoded 
+independently, each track has three peaks corresponding to an interval 
+of 0, 1, or 2 zero bits between flux transitions. Since the tracks are
+treated independently, the skew does not shift the data on the graph. 
+And the skew for GCR is big, typically several complete bit times.
+
+
+AUXILIARY UTILITY PROGRAMS
+
+CSVTBIN: This standalone program converts between CSV format text files 
+and TBIN format compressed binary files. 
+
+use: csvtbin <options> <infilename> <outfilename>
+options:
+  -ntrks=n     the number of tracks; the default is 9
+  -order=      input data order for bits 0..ntrks-2 and P, where 0=MSB
+               the default is 01234567P for 9 trks, 012345P for 7 trks
+  -skip=n      skip the first n samples
+  -maxvolts=x  expect x as the maximum plus or minus signal excursion
+  -read        read tbin and create csv -- otherwise, the opposite
+               (or just display the tbin header if no output file is specified)
+optional documentation that can be recorded in the TBIN file:
+  -descr=txt             a description of what is on the tape
+  -pe                    PE encoded
+  -nrzi                  NRZI encoded
+  -gcr                   GCR ecoded
+  -ips=n                 the speed in inches/sec
+  -bpi=n                 the density in bits/inch
+  -datewritten=ddmmyyyy  when the tape was originally written
+  -dateread=ddmmyyyy     when the tape was read and digitized
+
+Although not required, it is strongly suggested that the track order
+be specified if it is not the standard MSB...LSB, PARITY.
+By doing so the .tbin files will be in the canonical order, and
+the readtape program won't need to be told about the non-standard order.
+
+DUMPTAP: This standalone program displays the content of SIMH .tap 
+format files with numbers in hex or octal, and/or characters in ASCII, 
+EBCDIC, BCD, or Burroughs BIC code, in the style of an old-fashioned 
+memory dump. 
+
+use: dumptap <options> <filename>
+  the input file is expected to be a SIMH .tap tape image
+  the output is to stdout, but can be piped elsewhere
+options:
+  -b     show BCD characters
+  -e     show EBCDIC characters
+  -a     show ASCII characters
+  -u     show Burroughs B5500 Internal Code characters
+  -o     show octal numeric data
+  -h     show hex numeric data
+  -lnn   each line displays nn bytes
+
+The default is 80 ASCII characters per line and no numeric data.
+If the options are "-o -u -l20", the output looks like this:
+
+  file:102784151.tap
+     80: 6043212225436060004364422562606000232162   LABEL  0LUKES  0CAS
+         6360606000000106110005010001061100050300  T   0016905101690530
+         0000000000000000000000000000000000000000  00000000000000000000
+         0000050600000005060000000000000000000000  00560005600000000000
+  .tap tape mark
+  .tap end of medium
+
+We have now incorporated similar functionality into the readtape program
+with the -textfile option. 
+
+
+....more to come, maybe....
 
 L. Shustek, 10 April 2018
-L. Shustek, 17 May 2018
+L. Shustek, 17 May 2018, 8 October 2018
 
 

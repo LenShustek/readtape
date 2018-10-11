@@ -33,7 +33,7 @@ format. The compression is about 10:1, and it speeds up decoding by
 about 2x. 
 
 We so far support 7-track or 9-track tapes with NRZI or PE encodings. 
-Other formats, such as 6250 BPI GCR, may be added in the future. 
+The 9-track 6250 BPI GCR format is partially implemented. 
 
 *** The files in this repository
 
@@ -53,17 +53,22 @@ Other formats, such as 6250 BPI GCR, may be added in the future.
  
 ---READTAPE source code
 
- decoder.h              compile-time options, and common declarations
- csvtbin.h              format of the .tbin compressed binary data file
  readtape.c             main program: options, file handling, and block processing
- decoder.c              analog sample analysis and decoding
+ decoder.h              compile-time options, and common declarations
+ csvtbin.h              the format of the .tbin compressed binary data file
+ decoder.c              common routines for analog sample analysis and decoding
+ decode_pe.c            PE (phase encoded) decoding routines
+ decode_nrzi.c          NRZI (non-return-to-zero-inverted) decoding routines 
+ decode_gcr.can         GCR (group coded recording) decoding routines
  parmsets.c             parameter set processing, and their defaults
- ibmlabels.c            IBM 9-track standard label interpretation
+ textfile.c             interpreted text dump of the data
+ ibmlabels.c            IBM 9-track standard label (SL) interpretation
  
 ---UTILITY PROGRAMS
 
- csvtbin.c              a program for converting between .CSV and .TBIN files
- dumptap.c              a program for listing SIMH .tap files, one of the output formats
+ csvtbin.c              a program for converting between CSV and TBIN files
+ dumptap.c              a program for dumping SIMH .tap files, one of the output formats
+                        (but this functionality is now an option in readtape)
 
  
 *** Thanks to: 
@@ -74,4 +79,4 @@ Other formats, such as 6250 BPI GCR, may be added in the future.
 
 Len Shustek
 6 Feb 2018
-17 May 2018, 27 May 2018
+17 May 2018, 27 May 2018, 8 Oct 2018

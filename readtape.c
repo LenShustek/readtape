@@ -5,6 +5,8 @@ Read the analog signals recorded from the heads of a magnetic tape,
 decode the data in any of several formats and speeds,
 and create one or more files with the original information.
 
+readtape <options> <baseinfilename>
+
 The input is either:
   - a CSV file with multiple columns:a timestamp in seconds,
     and then the read head voltages at that time for each of the tracks.
@@ -161,18 +163,76 @@ Copyright (C) 2018, Len Shustek
 - Clean up declarations and casts to keep more stringent compilers happier.
 - Fix bug that caused some NRZI blocks not to try all parmsets correctly.
 
-*****************************************************************************/
-#define VERSION "27May2018"
+*** 20 Aug 2018, L. Shustek
+ - Fix bug in displaying IBM VOL1 label fields
+
+*** 21 Aug 2018, L. Shustek
+ - Fix bad test for faked bits in PE postamble that could generate
+   a "bad fake data count" fatal error.
+ - Change log display of parms to be exactly what could be in a .parms file.
+ - Add a PE parmset with 0.1V minimum peak, for tapes with high noise floor.
+
+*** 27 Aug 2018, L. Shustek
+ - Switch back from fgetpos/fsetpos to _ftelli64/_fseeki64 in Microsoft Visual
+   Visual Studio and ftello/fseeko in Linux, in yet another attempt to be
+   independent of the OS. So much for the C library being portable!
+
+*** 10 Sep 2018, L. Shustek
+ - Partially implement 6250 BPI GCR decoding, which is really 9042 BPI NRZI
+   with some additional redundant encoding and all sorts of bizarre stuff.
+ - Refactor decoding routines into separate modules.
+ - Make PKWW_RISE be a runtime parameter, and fix bug in its AGC scaling.
+ - For a better longterm workflow, put all generated outflie files in the
+   specified input directory; don't create a new one. Add -outfiles=xxxx
+   option to change the directory<basename> for output files.
+ - Fixes to va_list for better portability, thanks to Al Whaley.
+ - Allow -bpi= (either 0 or value) to override what is in .tbin file header
+ - Parse compile-time parmsets from strings instead of having initialized
+   structures. That avoids having to keep all the structures up-to-date,
+   with all parms in the right order, as parms are added.
+ - For CSV files, set sample_deltat by pre-reading the first 10,000
+   samples because Saleae timestamps are only given to 0.1 usec!
+ - Make -l be the default, and add a -nolog option.
+ - Add -textfile to create a numeric/character interpreted file, like dumptap.
+ - allow the -f file list to include leading <options> for each file
+
+ TODO:
+ - figure out and implement the GCR ECC algorithms
+ - make the NRZI midpoint fraction be a parameter?
+ - add -skew=n,n,n  parameter to specify skew delay in clocks?
+ - show summary of # of blocks that had NRZI midbit problems
+   "xxx total bad blocks: xxx with parity errs, xxx malformed, xx with midbit problems"
+ - add an option to base decoding on zero-crossings insteads of peaks?
+*******************************************************************************/
+
+#define VERSION "3.1"
+
 /*
  default bit and track numbering, where 0=msb and P=parity
             on tape     in memory here    written to disk
  7-track     P012345        012345P         [P]012345
- 9-track   P37521064      01234567P          01234567
+ 9-track   573P21064      01234567P          01234567
 
- Permutation of the "on tape" sequence to the "memory here" sequence
- is done by appropriately connecting the logic analyzer probes,
- but can be overridden by using the -order option.
+ Permutation from the "on tape" sequence to the "memory here" sequence
+ is done by appropriately connecting the logic analyzer probes:
+    0 to 0,  1 to 1,  ...,  6 or 8 to P
+ but can be overridden by using the -order command line option.
+ (Note that the 7-track tapes from Al K. use -order=543210p)
+
+ The "trkum" (or "track number") in the code corresponds to the
+ "in memory here" numbering, and is the order of data in the input file.
+
+ Note that the Qualstar 1052 9-track tape deck orders the tracks
+ weirdly on the PC board as P37521064, but their labels are correct.
  */
+
+/* code portability assumptions:
+   - int is at least 32 bits
+   - long long int is at least 64 bits
+   - char is 8 bits
+   - enumerations start at 0
+   - either little-endian or big-endian is ok
+*/
 /*****************************************************************************
 Copyright (C) 2018, Len Shustek
 
@@ -195,20 +255,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "decoder.h"
 
 FILE *inf,*outf, *rlogf;
-char basefilename[MAXPATH];
-long long lines_in = 0;
+char baseinfilename[MAXPATH];  // (could have a prepended path)
+char baseoutfilename[MAXPATH] = { 0 };
+long long lines_in = 0, numoutbytes = 0;
 int numfiles = 0, numblks = 0, numbadparityblks = 0, nummalformedblks = 0, numgoodmultipleblks = 0, numtapemarks = 0;
 int numfilebytes, numfileblks;
-long long numoutbytes = 0;
-bool logging = false, verbose = true, terse = false, quiet = false;
-bool filelist = false;
-bool tbin_file = false;
-bool multiple_tries = false;
-bool deskew = false;
-bool add_parity = false;
-bool doing_deskew = false;
-bool doing_density_detection = false;
-bool tap_format = false;
+bool logging = true, verbose = false, terse = false, quiet = false;
+bool baseoutfilename_given = false;
+bool filelist = false, tap_format = false;
+bool tbin_file = false, txtfile = false;
+bool multiple_tries = false, deskew = false, add_parity = false;
+bool doing_deskew = false, doing_density_detection = false;
 bool hdr1_label = false;
 bool little_endian;
 byte expected_parity = 1;
@@ -217,10 +274,15 @@ struct tbin_hdr_t tbin_hdr = { 0 };
 struct tbin_dat_t tbin_dat = { 0 };
 
 enum mode_t mode = PE;      // default
-float bpi_specified = 0; // 0 means do auto-detect
+float bpi_specified = -1;   // -1 means not specified; 0 means do auto-detect
 float bpi = 0;
-float ips = 50;
+float ips = 0;
 int ntrks = 9;
+
+enum txtfile_numtype_t txtfile_numtype = NONUM;
+enum txtfile_chartype_t txtfile_chartype = NOCHAR;
+int txtfile_linesize = 0;
+bool txtfile_doboth;
 
 int starting_parmset = 0;
 time_t start_time;
@@ -228,12 +290,15 @@ int skip_samples = 0;
 int dlog_lines = 0;
 
 /********************************************************************
-Routines for logging and errors
+   Routines for logging and errors
 *********************************************************************/
 static void vlog(const char *msg, va_list args) {
+   va_list args2;
+   va_copy(args2, args);
    vfprintf(stdout, msg, args);  // to the console
    if (logging && rlogf)  // and maybe also the log file
-      vfprintf(rlogf, msg, args); }
+      vfprintf(rlogf, msg, args2);
+   va_end(args2); }
 
 void rlog(const char* msg, ...) { // regular log
    va_list args;
@@ -254,7 +319,7 @@ void debuglog(const char* msg, ...) { // debugging log
          endmsg_given = true; } } }
 
 void vfatal(const char *msg, va_list args) {
-   vlog("\n***FATAL ERROR: ", 0);
+   rlog("\n***FATAL ERROR: ");
    vlog(msg, args);
    rlog("\n");
    //rlog("I/O errno = %d\n", errno);
@@ -263,7 +328,8 @@ void vfatal(const char *msg, va_list args) {
 void fatal(const char *msg, ...) {
    va_list args;
    va_start(args, msg);
-   vfatal(msg, args); }
+   vfatal(msg, args);
+   va_end(args); }
 
 void assert(bool t, const char *msg, ...) {
    va_list args;
@@ -272,15 +338,16 @@ void assert(bool t, const char *msg, ...) {
    va_end(args); }
 
 /********************************************************************
-Routines for processing options
+   Routines for processing options
 *********************************************************************/
 void SayUsage (void) {
    static char *usage[] = {
       "use: readtape <options> <basefilename>",
-      "  the input file is <basefilename>.csv or .tbin",
+      "  the input file is <basefilename>.csv or <basefilename>.tbin",
+      "  the output files will be <basefilename>.yyy.xxx",
+      "    (or if -outfiles=bbb, then bbb.yyy.xxx)",
       "  the optional parameter set file is <basefilename>.parms",
-      "     (or NRZI.parms or PE.parms)",
-      "  the output files will be in the created directory <basefilename>\\",
+      "  (or NRZI.parms, PE.parms, GCR.parms in the base or current directory)",
       "",
       "options:",
       "  -ntrks=n   set the number of tracks; default is 9",
@@ -297,8 +364,14 @@ void SayUsage (void) {
       "  -deskew    do NRZI track deskew based on initial samples",
       "  -addparity include the parity bit in the data, if ntrks<9",
       "  -tbin      only look for a .tbin input file, not .csv",
+      "  -nolog     don't create a log file",
+      "  -textfile  create an interpreted .interp.txt file from the data",
+      "               numeric options: -hex or -octal",
+      "               character options: -ascii, -ebcdic, -bcd, or -b5500",
+      "               bytes per line option: -linesize==nn",
+      "  -outfiles=bbb  use bbb as the <basefilename> for output files",
       "  -m         try multiple ways to decode a block",
-      "  -l         create a log file in the output directory",
+//    "  -l         create a log file in the output directory",
       "  -v         verbose mode (show all info)",
       "  -t         terse mode (show only bad block info)",
       "  -q         quiet mode (only say \"ok\" or \"bad\")",
@@ -307,13 +380,13 @@ void SayUsage (void) {
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]); }
 
 bool opt_key(const char* arg, const char* keyword) {
-   do { // check for a keyword option
+   do { // check for a keyword option and nothing after it
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
    return *arg == '\0'; }
 
 bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max) {
-   do { // check for a "keyword=integer" option
+   do { // check for a "keyword=integer" option and nothing after it
       if (toupper(*arg++) != *keyword++)
          return false; }
    while (*keyword);
@@ -324,7 +397,7 @@ bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max)
    return true; }
 
 bool opt_flt(const char* arg, const char* keyword, float *pval, float min, float max) {
-   do { // check for a "keyword=float" option
+   do { // check for a "keyword=float" option and nothing after it
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
    float num;  int nch;
@@ -354,7 +427,7 @@ bool parse_track_order(const char*str) { // examples: P314520, 01234567P
    return bits_done + 1 == (1 << ntrks); } // must be a permutation of 0..ntrks-1
 
 bool parse_option(char *option) { // (also called from .parm file processor)
-   if (option[0] != '/' && option[0] != '-') return false;
+   if (option[0] != '-') return false;
    char *arg = option + 1;
    const char *str;
    if (opt_int(arg, "NTRKS=", &ntrks, 5, 9));
@@ -362,16 +435,33 @@ bool parse_option(char *option) { // (also called from .parm file processor)
             && parse_track_order(str));
    else if (opt_key(arg, "NRZI")) mode = NRZI;
    else if (opt_key(arg, "PE")) mode = PE;
-   else if (opt_key(arg, "GCR")) mode = GCR;
+   else if (opt_key(arg, "GCR")) {
+      mode = GCR;
+      ips=25; }
    else if (opt_flt(arg, "BPI=", &bpi_specified, 100, 10000));
    else if (opt_flt(arg, "IPS=", &ips, 10, 100));
    else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX)) {
       if (!quiet) rlog("The first %d samples will be skipped.\n", skip_samples); }
    else if (opt_key(arg, "TAP")) tap_format = true;
    else if (opt_key(arg, "EVEN")) expected_parity = 0;
+#if DESKEW
    else if (opt_key(arg, "DESKEW")) deskew = true;
+#endif
    else if (opt_key(arg, "ADDPARITY")) add_parity = true;
    else if (opt_key(arg, "TBIN")) tbin_file = true;
+   else if (opt_str(arg, "OUTFILES=", &str)) {
+      strncpy(baseoutfilename, str, MAXPATH);
+      baseoutfilename[MAXPATH - 1] = '\0';
+      baseoutfilename_given = true; }
+   else if (opt_key(arg, "TEXTFILE")) txtfile = true;
+   else if (opt_key(arg, "HEX")) txtfile_numtype = HEX;
+   else if (opt_key(arg, "OCTAL")) txtfile_numtype = OCT;
+   else if (opt_key(arg, "ASCII")) txtfile_chartype = ASC;
+   else if (opt_key(arg, "EBCDIC")) txtfile_chartype = EBC;
+   else if (opt_key(arg, "BCD")) txtfile_chartype = BCD;
+   else if (opt_key(arg, "B5500")) txtfile_chartype = BUR;
+   else if (opt_int(arg, "LINESIZE=", &txtfile_linesize, 4, MAXLINE));
+   else if (opt_key(arg, "NOLOG")) logging = false;
    else if (option[2] == '\0') // single-character switches
       switch (toupper(option[1])) {
       case 'H':
@@ -389,7 +479,7 @@ opterror:  fatal("bad option: %s\n\n", option); }
 
 int HandleOptions (int argc, char *argv[]) {
    /* returns the index of the first argument that is not an option;
-   i.e. does not start with a dash or a slash */
+   i.e. does not start with a dash */
    int i, firstnonoption = 0;
    //for (i = 0; i < argc; ++i) printf("arg %d: \"%s\"\n", i, argv[i]);
    for (i = 1; i < argc; i++) {
@@ -399,12 +489,12 @@ int HandleOptions (int argc, char *argv[]) {
    return firstnonoption; }
 
 /********************************************************************
-utility routines
+   utility routines
 *********************************************************************/
 byte parity (uint16_t val) { // compute the parity of one byte
-   byte p = val & 1;
+   uint16_t p = val & 1;
    while (val >>= 1) p ^= val & 1;
-   return p; }
+   return (byte)p; }
 
 int count_parity_errs (uint16_t *pdata, int len) { // count parity errors in a block
    int parity_errs = 0;
@@ -450,21 +540,21 @@ void close_file(void) {
       if (!quiet) rlog("file closed at %.7lf with %s bytes written from %d blocks\n", timenow, intcommas(numfilebytes), numfileblks);
       outf = NULLP; } }
 
-void create_file(const char *name) {
+void create_datafile(const char *name) {
    char fullname[MAXPATH];
    if (outf) close_file();
    if (name) { // we generated a name based on tape labels
-      assert(strlen(name) < MAXPATH - 5, "create_file name too big 1");
+      assert(strlen(name) < MAXPATH - 5, "create_datafile name too big 1");
       strcpy(fullname, name);
       strcat(fullname, ".bin"); }
    else { // otherwise create a generic name
-      assert(strlen(basefilename) < MAXPATH - 5, "create_file name too big 1");
+      assert(strlen(baseoutfilename) < MAXPATH - 5, "create_datafile name too big 1");
       if (tap_format)
-         sprintf(fullname, "%s\\%s.tap", basefilename, basefilename);
-      else sprintf(fullname, "%s\\%03d.bin", basefilename, numfiles+1); }
+         sprintf(fullname, "%s.tap", baseoutfilename);
+      else sprintf(fullname, "%s.%03d.bin", baseoutfilename, numfiles+1); }
    if (!quiet) rlog("creating file \"%s\"\n", fullname);
    outf = fopen(fullname, "wb");
-   assert(outf, "file create failed for \"%s\"", fullname);
+   assert(outf != NULLP, "file create failed for \"%s\"", fullname);
    ++numfiles;
    numfilebytes = numfileblks = 0; }
 
@@ -476,15 +566,22 @@ char *modename(void) {
 ***********************************************************************************************/
 
 struct file_position_t {   // routines to save and restore the file position and sample time
-   fpos_t position;
+   int64_t position;
    double time;
    int64_t time_ns; };
+
+#if defined(_WIN32)
+#define ftello _ftelli64
+#define fseeko _fseeki64
+#endif
+
 void save_file_position(struct file_position_t *fp) {
-   assert(fgetpos(inf, &fp->position) == 0, "fgetpos failed");
+   assert((fp->position=ftello(inf)) >= 0, "ftell failed");
    fp->time_ns = timenow_ns;
    fp->time = timenow; }
+
 void restore_file_position(struct file_position_t *fp) {
-   assert(fsetpos(inf, &fp->position) == 0, "fsetpos failed");
+   assert(fseeko(inf, fp->position, SEEK_SET) == 0, "fseek failed");
    timenow_ns = fp->time_ns;
    timenow = fp->time; }
 
@@ -494,8 +591,9 @@ void got_tapemark(void) {
    ++numtapemarks;
    save_file_position(&blockstart);
    if (!quiet) rlog("*** tapemark at file position %s and time %.7lf\n", longlongcommas(blockstart.position), timenow);
+   if (txtfile) txtfile_tapemark();
    if (tap_format) {
-      if (!outf) create_file(NULLP);
+      if (!outf) create_datafile(NULLP);
       output_tap_marker(0x00000000); }
    else if (!hdr1_label) close_file(); // not tap format: close the file if we didn't see tape labels
    hdr1_label = false; }
@@ -508,11 +606,11 @@ void got_datablock(bool malformed) { // decoded a tape block
    if (length > 0 && (tap_format || !labeled)) {
       // a normal non-label data block (or in tap_format), but maybe malformed
       if (length <= 2) {
-         dlog("*** ingoring runt block of %d bytes at %.7lf\n", length, timenow); }
-      else { // decent-sized block
+         dlog("*** ignoring runt block of %d bytes at %.7lf\n", length, timenow); }
+      else if (mode != GCR || !malformed) {  // don't write malformed blocks for GCR
          //dumpdata(data, length, ntrks == 7);
          if (!outf) { // create a generic data file if we didn't see a file header label
-            create_file(NULLP); }
+            create_datafile(NULLP); }
          uint32_t errflag = result->errcount ? 0x80000000 : 0;  // SIMH .tap file format error flag
          if (tap_format) output_tap_marker(length | errflag); // leading record length
          for (int i = 0; i < length; ++i) { // discard the parity bit track and write all the data bits
@@ -525,12 +623,14 @@ void got_datablock(bool malformed) { // decoded a tape block
             numoutbytes += 1;
             output_tap_marker(length | errflag); // trailing record length
          }
+         if (txtfile) txtfile_outputrecord();
          numoutbytes += length;
          numfilebytes += length;
          ++numfileblks;
          ++numblks;
-         if (DEBUG && (result->errcount != 0 || result->faked_bits != 0))
-            show_block_errs(result->maxbits);
+         if (mode == GCR) gcr_write_ecc_data(); // TEMP for GCR
+         //if (DEBUG && (result->errcount != 0 || result->faked_bits != 0))
+         //   show_block_errs(result->maxbits);
          if (DEBUG && mode == NRZI) {
             if (result->crc_bad) dlog("bad CRC: %03x\n", result->crc);
             if (result->lrc_bad) dlog("bad LRC: %03x\n", result->lrc); }
@@ -544,7 +644,7 @@ void got_datablock(bool malformed) { // decoded a tape block
                if (ntrks == 9)
                   rlog("CRC %s ", result->crc_bad ? "bad," : "ok, "); // only 9-track tapes have CRC
                rlog("LRC %s ", result->lrc_bad ? "bad," : "ok, "); }
-            rlog(" avg speed %.2f IPS, at time %.7lf\n", 1 / (result->avg_bit_spacing * bpi), timenow); }
+            rlog("avg speed %.2f IPS, at time %.7lf\n", 1 / (result->avg_bit_spacing * bpi), timenow); }
          if ((!quiet || terse) && malformed) {
             rlog("   malformed, with lengths %d to %d\n", result->minbits, result->maxbits);
             ++nummalformedblks; } } }
@@ -555,6 +655,7 @@ void got_datablock(bool malformed) { // decoded a tape block
 /*****************************************************************************************
       tape data processing, in either CSV (ASCII) or TBIN (binary) format
 ******************************************************************************************/
+// These routines are *way* faster than using sscanf!
 
 float scanfast_float(char **p) { // *** fast scanning routines for CSV numbers
    float n=0;
@@ -604,6 +705,7 @@ char *intcommas(int n) { // 32 bits
          *p-- = n % 10 + '0';
          n = n / 10; }
    return p + 1; }
+
 char *longlongcommas(long long n) { // 64 bits
    assert(n >= 0, "bad call to longlongcommas: %ld", n);
    static char buf[26]; //max: 9,223,372,036,854,775,807
@@ -646,14 +748,24 @@ void read_tbin_header(void) {  // read the .TBIN file header
    assert(tbin_hdr.u.s.format == TBIN_FILE_FORMAT, "bad .tbin file header version");
    assert(tbin_hdr.u.s.tbinhdrsize == sizeof(tbin_hdr),
           "bad .tbin hdr size: %d, not %d", tbin_hdr.u.s.tbinhdrsize, sizeof(tbin_hdr));
-   if (!quiet) rlog(".tbin file was converted on %s", asctime(&tbin_hdr.u.s.time_converted));
-   ntrks = tbin_hdr.u.s.ntrks;
-   if (bpi == 0 && tbin_hdr.u.s.bpi != 0) {
+   if (!quiet) {
+      rlog("reading .tbin file...\n");
+      if (tbin_hdr.descr[0] != 0) rlog("   description: %s\n", tbin_hdr.descr);
+      if (tbin_hdr.u.s.time_written.tm_year > 0)   rlog("   created on:   %s", asctime(&tbin_hdr.u.s.time_written));
+      if (tbin_hdr.u.s.time_read.tm_year > 0)      rlog("   read on:      %s", asctime(&tbin_hdr.u.s.time_read));
+      if (tbin_hdr.u.s.time_converted.tm_year > 0) rlog("   converted on: %s", asctime(&tbin_hdr.u.s.time_converted)); }
+   if (tbin_hdr.u.s.ntrks != 0) {
+      ntrks = tbin_hdr.u.s.ntrks;
+      if (!quiet) rlog("   using .tbin ntrks = %d\n",ntrks); }
+   if (tbin_hdr.u.s.mode != UNKNOWN) {
+      mode = tbin_hdr.u.s.mode;
+      if (!quiet) rlog("   using .tbin mode = %s\n", modename()); }
+   if (bpi_specified < 0 && tbin_hdr.u.s.bpi != 0) {
       bpi = tbin_hdr.u.s.bpi;
-      if (!quiet) rlog("   using .tbin bpi=%f\n", bpi); }
+      if (!quiet) rlog("   using .tbin bpi = %.0f\n", bpi); }
    if (ips == 0 && tbin_hdr.u.s.ips != 0) {
       ips = tbin_hdr.u.s.ips;
-      if (!quiet) rlog("   using .tbin ips=%f\n", ips); }
+      if (!quiet) rlog("   using .tbin ips = %.0f\n", ips); }
    sample_deltat_ns = tbin_hdr.u.s.tdelta;
    sample_deltat = (float)sample_deltat_ns / 1e9f;
    assert(fread(&tbin_dat, sizeof(tbin_dat), 1, inf) == 1, "can't read .tbin dat");
@@ -667,7 +779,7 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
    // return false if we are at the endfile
    struct sample_t sample;
    bool did_processing = false;
-   while (1) {
+   while (1) { // loop reading sample
       if (!retry) ++lines_in;
       if (tbin_file) { // TBIN file
          int16_t tbin_voltages[MAXTRKS];
@@ -703,20 +815,19 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
          for (int i = 0; i < ntrks; ++i) // read voltages for all tracks, and permute as necessary
             sample.voltage[input_permutation[i]] = scanfast_float(&linep); }
       timenow = sample.time;
+      if (torigin == 0) torigin = timenow; // for debugging output
 
-      if (!block.window_set && block.last_sample_time != 0) {
-         // we can know the sample delta time, so set the width of the peak-detect moving window
-         if (!tbin_file)  sample_deltat = (float)(sample.time - block.last_sample_time);
+      if (!block.window_set) { //
+         // we know the sample delta time, so set the width of the peak-detect moving window
          if (bpi)
             pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
          else pkww_width = 8; // a random reasonable choice if we don't have BPI specified
          static bool said_rates = false;
          if (!quiet && !said_rates) {
-            rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz (%.2f usec), initial peak window width is %d samples\n",
-                 modename(), (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), sample_deltat*1e6, pkww_width);
+            rlog("%s, %d BPI, %d IPS, sampling rate is %s Hz (%.2f usec), peak window width is %d samples (%.2f usec)\n",
+                 modename(), (int)bpi, (int)ips, intcommas((int)(1.0 / sample_deltat)), sample_deltat*1e6, pkww_width, pkww_width * sample_deltat*1e6);
             said_rates = true; }
          block.window_set = true; }
-      block.last_sample_time = sample.time;
 
       if (process_sample(&sample) != BS_NONE)  // process one voltage sample point for all tracks
          break;  // until we recognize an end of block
@@ -727,49 +838,73 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
    file processing
 ***********************************************************************************************/
 
-// process a complete input file; return TRUE if all blocks were well-formed and had good parity
+// process a complete input file whose path and base file name are in baseinfilename[]
+// return TRUE if all blocks were well-formed and error-free
+
 bool process_file(int argc, char *argv[]) {
    char filename[MAXPATH], logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
 
+#if 0 // we no longer create a directory
 #if defined(_WIN32)
-   if (_mkdir(basefilename) != 0) // create the working directory for output files
+   if (_mkdir(baseoutfilename) != 0) // create the working directory for output files
 #else
-   if (mkdir(basefilename, 0777) != 0) // create the working directory for output files
+   if (mkdir(baseoutfilename, 0777) != 0) // create the working directory for output files
 #endif
-      assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", basefilename");
+      assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", baseoutfilename");
+#endif
 
    if (logging) { // Open the log file
-      sprintf(logfilename, "%s\\%s.log", basefilename, basefilename);
-      assert(rlogf = fopen(logfilename, "w"), "Unable to open log file \"%s\"", logfilename); }
+      sprintf(logfilename, "%s.log", baseoutfilename);
+      assert((rlogf = fopen(logfilename, "w")) != NULLP, "Unable to open log file \"%s\"", logfilename); }
 
    filename[MAXPATH - 5] = '\0';
    if (!tbin_file) {
-      strncpy(filename, basefilename, MAXPATH - 5);  // try to open <basefilename>.csv
+      strncpy(filename, baseinfilename, MAXPATH - 5);  // try to open <baseinfilename>.csv
       strcat(filename, ".csv");
       inf = fopen(filename, "r"); }
    if (!inf) {
-      strncpy(filename, basefilename, MAXPATH - 6);  // try to open <basefilename>.tbin
+      strncpy(filename, baseinfilename, MAXPATH - 6);  // try to open <baseinfilename>.tbin
       strcat(filename, ".tbin");
       inf = fopen(filename, "rb");
-      assert(inf, "Unable to open input file \"%s\" .csv or .tbin", basefilename);
+      assert(inf != NULLP, "Unable to open input file \"%s\" .csv or .tbin", baseinfilename);
       tbin_file = true; }
    assert(!add_parity || ntrks < 9, "-parity not allowed with ntrks=%d", ntrks);
    if (!quiet) {
-      for (int i = 0; i < argc; ++i)  // for documentation in the log, print invocation options
+      rlog("this is readtape version \"%s\", compiled on %s %s, running on %s",
+           VERSION, __DATE__, __TIME__, ctime(&start_time)); // ctime ends with newline!
+      rlog("command line: ");
+      for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
          rlog("%s ", argv[i]);
       rlog("\n");
-      rlog("readtape version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
       rlog("this is a %s-endian computer\n", little_endian ? "little" : "big");
-      rlog("reading file \"%s\" on %s", filename, ctime(&start_time)); // ctime ends with newline!
-      if (tbin_file) read_tbin_header(); }
+      rlog("the current directory is %s\n", _getcwd(line, MAXLINE));
+      rlog("the output files will be %s.xxx\n", baseoutfilename);
+      rlog("reading file %s\n", filename); }
+   if (tbin_file) read_tbin_header();  // sets NRZI, etc., so do before read_parms()
 
    read_parms(); // read the .parm file, if any
 
    if (!tbin_file) {
-      fgets(line, MAXLINE, inf); // first two (why?) lines in the input file are headers from Saleae
-      fgets(line, MAXLINE, inf); }
+      // first two (why?) lines in the input file are headers from Saleae
+      assert(fgets(line, MAXLINE, inf) != NULLP, "Can't read first CSV title line");
+      assert(fgets(line, MAXLINE, inf) != NULLP, "Can't read second CSV title line");
+      // For CSV files, set sample_deltat by reading the first 10,000 samples, because Saleae timestamps
+      // are only given to 0.1 usec. If the sample rate is, say, 3.125 Mhz, or 0.32 usec between samples,
+      // then all the timestamps are off by either +0.08 usec or -0.02 usec!
+      struct file_position_t filestart;
+      save_file_position(&filestart); // remember where we are starting
+      int linecounter = 0;
+      double first_timestamp = -1;
+      while (fgets(line, MAXLINE, inf) && ++linecounter < 10000) {
+         char *linep = line;
+         double timestamp = scanfast_double(&linep);
+         if (first_timestamp < 0) first_timestamp = timestamp;
+         else sample_deltat = (float)((timestamp - first_timestamp)/(linecounter-1)); }
+      restore_file_position(&filestart); // go back to reading the first sample
+      //rlog("sample_delta set to %.2f usec after %s samples\n", sample_deltat*1e6, intcommas(linecounter));
+   }
 
    if (skip_samples > 0) {
       if (!quiet) rlog("skipping %d samples\n", skip_samples);
@@ -782,7 +917,12 @@ bool process_file(int argc, char *argv[]) {
    interblock_expiration = 0;
    starting_parmset = 0;
 
-   bpi = bpi_specified;
+   if (ips == 0) ips = 50;  // default
+   if (bpi_specified >= 0) bpi = bpi_specified;  // command line overrides tbin header
+   if (mode == GCR) {
+      if (bpi != 9042) rlog ("BPI was reset to 9042 for GCR 6250\n");
+      bpi = 9042; } // the real BPI isn't 6250!
+
    if (bpi == 0) {  // **** auto-detect the density by looking at how close transitions are at the start of the tape
       doing_density_detection = true;
       estden_init();
@@ -803,13 +943,14 @@ bool process_file(int argc, char *argv[]) {
       doing_density_detection = false; }
 
 #if DESKEW     // ***** automatic deskew determination based on the first few blocks
-   if (mode == NRZI && deskew) { // currently only for NRZI
+   if (mode != PE && deskew) { // currently only for NRZI or GCR
       doing_deskew = true;
+      if (verbose) rlog("preprocessing to determine head skew\n");
       int nblks = 0;
       struct file_position_t filestart;
       save_file_position(&filestart); // remember the file position for the start of the file
-      do {
-         init_blockstate(); // do one block
+      do { // do one block at a time
+         init_blockstate();
          block.parmset = starting_parmset;
          init_trackstate();
          if (!readblock(true)) break; // stop if endfile
@@ -831,12 +972,40 @@ bool process_file(int argc, char *argv[]) {
       bool keep_trying;
       int last_parmset;
       block.tries = 0;
+
+#if 0 // TEMP Scan for optimal sets of GCR parms for the first block
+      if (numblks == 0) {
+         int clk_window = 0; //for (int clk_window = 10; clk_window <= 30; clk_window += 5)
+         for (float clk_alpha = 0.010f; clk_alpha <= 0.030f; clk_alpha += 0.002f)
+            for (float pulse_adj = 0.2f; pulse_adj <= 0.401f; pulse_adj += 0.1f)
+               for (float z1pt = 1.4f; z1pt <= 1.501f; z1pt += .01f)
+                  for (float z2pt = 2.20f; z2pt <= 2.401f; z2pt += .02f) {
+                     PARM.clk_window = clk_window;
+                     PARM.clk_alpha = clk_alpha;
+                     PARM.pulse_adj = pulse_adj;
+                     PARM.z1pt = z1pt;
+                     PARM.z2pt = z2pt;
+                     init_trackstate();
+                     extern int first_parity_err;
+                     first_parity_err = -1;
+                     readblock(true);
+                     //rlog("with clk_window %d pulseadj %.3f z1pt %.3f z2pt %.3f firsterr %d\n",
+                     //   clk_window, pulse_adj, z1pt, z2pt, first_parity_err);
+                     rlog("clk_alpha %.3f pulseadj %.3f z1pt %.3f z2pt %.3f firsterr %d ",
+                          clk_alpha, pulse_adj, z1pt, z2pt, first_parity_err);
+                     int countgood = 0;
+                     for (int trk = 0; trk < 9; ++trk)
+                        if (trkstate[trk].datacount == 5743 || trkstate[trk].datacount == 5745) ++countgood;
+                     rlog("goodtrks %d parityerrs %d\n", countgood, block.results[block.parmset].errcount);
+                     restore_file_position(&blockstart); // go back to try again
+                     interblock_expiration = 0; } }
+      // copy and paste the log lines into Excel using the Text Import Wizard, then sort as desired
+#endif
       do { // keep reinterpreting a block with different parameters until we get a perfect block or we run out of parameter choices
          keep_trying = false;
          ++PARM.tried;  // note that we used this parameter set in another attempt
          last_parmset = block.parmset;
          //window_set = false;
-         //last_sample_time = 0;
          init_trackstate();
          dlog("\n     trying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
          if (!readblock(block.tries>0)) goto endfile; // ***** read a block ******
@@ -915,7 +1084,7 @@ done:
          struct results_t *result = &block.results[block.parmset];
          dlog("     reread of block %d with parmset %d is type %d, minlength %d, maxlength %d, %d errors, %d faked bits at %.7lf\n", //
               numblks + 1, block.parmset, result->blktype, result->minbits, result->maxbits, result->errcount, result->faked_bits, timenow); }
-      if (mode == NRZI && !doing_deskew && block.results[block.parmset].missed_midbits > 0)
+      if (mode ==NRZI && !doing_deskew && block.results[block.parmset].missed_midbits > 0)
          rlog("*** WARNING: %d bits were before the midbit using parmset %d for block %d at %.7lf\n",
               block.results[block.parmset].missed_midbits, block.parmset, numblks + 1, timenow);
 
@@ -937,13 +1106,14 @@ done:
          if (++starting_parmset >= MAXPARMSETS) starting_parmset = 0; }
       while (parmsetsptr[starting_parmset].clk_factor == 0);
 #else
-// otherwise we always start with parmset 0, which is the best for most tapes
+// otherwise we always start with parmset 0, which is configured to be the best for most tapes
 #endif
 
    }  // next line of the file
 endfile:
    rlog("endfile at time %.7lf\n", timenow);
    if (tap_format && outf) output_tap_marker(0xffffffffl);
+   if (txtfile) txtfile_close();
    close_file();
    return ok; }
 
@@ -974,9 +1144,6 @@ int main(int argc, char *argv[]) {
    char *cmdfilename;
 
 #if 0 // compiler checks
-   assert(sizeof(struct IBM_vol_t) == 80, "bad vol type");
-   assert(sizeof(struct IBM_hdr1_t) == 80, "bad hdr1 type");
-   assert(sizeof(struct IBM_hdr2_t) == 80, "bad hdr2 type");
 #define showsize(x) printf(#x "=%d bytes\n", (int)sizeof(x));
    showsize(byte);
    showsize(bool);
@@ -984,6 +1151,9 @@ int main(int argc, char *argv[]) {
    showsize(long);
    showsize(long long);
    showsize(struct parms_t);
+#endif
+#if 0 // show arguments
+   for (int i = 0; i < argc; ++i) printf("arg %d:%s\n", i, argv[i]);
 #endif
    uint32_t testendian = 1;
    little_endian = *(byte *)&testendian == 1;
@@ -1002,67 +1172,83 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "\n*** unknown parameter: %s\n\n", argv[argno]);
       SayUsage();
       exit(4); }
+
+   // set option defaults if not specified
+
    if (input_permutation[0] == -1) // no input value permutation was given
       for (int i = 0; i < ntrks; ++i) input_permutation[i] = i; // create default
    cmdfilename = argv[argno];
-   start_time = time(NULL);
-   assert(mode != GCR, "GCR is not implemented yet");
 
+   //TODO: Move what follows into process_file so we do it for each file of a list?
+   // Nah. A more elegant solution would be to gather all the options into a
+   // structure, then save/restore it around the processing for each file, so it
+   // inherits what was given on the command line but can add/overrride.
+   if (!baseoutfilename_given) strcpy(baseoutfilename, cmdfilename);
+   if (txtfile) {
+      if (txtfile_chartype == NOCHAR && txtfile_numtype == NONUM) {
+         txtfile_chartype = ASC; txtfile_numtype = HEX; }
+      txtfile_doboth = txtfile_chartype != NOCHAR && txtfile_numtype != NONUM;
+      if (txtfile_linesize == 0) txtfile_linesize = txtfile_doboth ? 40 : 80; }
+
+   start_time = time(NULL);
    if (filelist) {  // process a list of files
       char filename[MAXPATH];
-      char line[MAXLINE + 1];
       strncpy(filename, cmdfilename, MAXPATH - 5);
       filename[MAXPATH - 5] = '\0';
       strcat(filename, ".txt");
       FILE *listf = fopen(filename, "r");
-      assert(listf, "Unable to open file list file \"%s\"", filename);
+      assert(listf != NULLP, "Unable to open file list file \"%s\"", filename);
+      char line[MAXLINE + 1];
       while (fgets(line, MAXLINE, listf)) {
          line[strcspn(line, "\n")] = 0;
-         if (line[0] != 0) {
-            strncpy(basefilename, line, MAXPATH - 5);
-            basefilename[MAXPATH - 5] = '\0';
+         char *ptr = line;
+         if (*ptr != 0) {
+            skip_blanks(&ptr);
+            while (*ptr == '-') { // parse leading options for this file
+               char option[MAXLINE];
+               assert(getchars_to_blank(&ptr, option), "bad option string in file list: %s", ptr);
+               assert(parse_option(option), "bad option in file list: %s", option);
+               skip_blanks(&ptr); }
+            strncpy(baseinfilename, ptr, MAXPATH - 5); // copy the filename, which could include a path
+            baseinfilename[MAXPATH - 5] = '\0';
             bool result = process_file(argc, argv);
-            printf("%s: %s\n", basefilename, result ? "ok" : "bad"); } } }
+            printf("%s: %s\n", baseinfilename, result ? "ok" : "bad"); } } }
 
    else {  // process one file
-      strncpy(basefilename, cmdfilename, MAXPATH - 5);
-      basefilename[MAXPATH - 5] = '\0';
+      strncpy(baseinfilename, cmdfilename, MAXPATH - 5);
+      baseinfilename[MAXPATH - 5] = '\0';
       bool result = process_file(argc, argv);
       if (quiet) {
-         printf("%s: %s\n", basefilename, result ? "ok" : "bad"); }
+         printf("%s: %s\n", baseinfilename, result ? "ok" : "bad"); }
       else {
          double elapsed_time = difftime(time(NULL), start_time); // integer seconds!?!
          rlog("\n%s samples processed in %.0lf seconds, or %.2lf seconds/block\n",
               longlongcommas(lines_in), elapsed_time, numblks == 0 ? 0 : elapsed_time / numblks);
-         rlog("created %d files with %s bytes\n",
-              numfiles, longlongcommas(numoutbytes));
-         rlog("detected %d tape marks, and %d data blocks of which %d had errors and %d were malformed.\n",//
-              numtapemarks, numblks, numbadparityblks, nummalformedblks); } }
+         rlog("detected %d tape marks\n", numtapemarks);
+         rlog("created %d files with %s bytes and %d data blocks of which %d had errors and %d were malformed.\n",
+              numfiles, longlongcommas(numoutbytes), numblks, numbadparityblks, nummalformedblks); } }
+
    if (!quiet) { // show result statistics
       rlog("%d perfect blocks needed to try more than one parmset\n", numgoodmultipleblks);
-
       for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
          if (parmsetsptr[i].tried > 0) {
-            rlog("parmset %d was tried %4d times and used %4d times, or %5.1f%%: ",
+            rlog("parmset %d was tried %4d times and used %4d times, or %5.1f%%\n",
                  i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried);
-
+#if 0 // forget trying to summarize the parms here; it's too hard to keep up with the changes!
             if (parmsetsptr[i].clk_window) rlog("clk wind %d bits, ", parmsetsptr[i].clk_window);
             else if (parmsetsptr[i].clk_alpha) rlog("clk alpha %.2f, ", parmsetsptr[i].clk_alpha);
             else rlog("clk spacing %.2f usec, ", (mode == PE ? 1/(ips*bpi) : nrzi.clkavg.t_bitspaceavg)*1e6);
-
             if (parmsetsptr[i].agc_window) rlog("AGC wind %d bits, ", parmsetsptr[i].agc_window);
             else if (parmsetsptr[i].agc_alpha) rlog("AGC alpha %.2f, ", parmsetsptr[i].agc_alpha);
             else rlog("AGC off");
-
             if (mode == PE)
                rlog("clk factor %.2f, ", parmsetsptr[i].clk_factor);
-
-            rlog("min peak %.2fV, pulse adj %.2f, ww frac %.1f\n",
-                 parmsetsptr[i].min_peak, parmsetsptr[i].pulse_adj, parmsetsptr[i].pkww_bitfrac);
-            //
+            rlog("min peak %.2fV, pulse adj %.2f, ww frac %.2f, ww rise %.2fV",
+                 parmsetsptr[i].min_peak, parmsetsptr[i].pulse_adj, parmsetsptr[i].pkww_bitfrac, parmsetsptr[i].pkww_rise);
+#endif
          } }
 #if PEAK_STATS
-   if (mode == NRZI && !quiet) output_peakstats();
+   if (!quiet) output_peakstats();
 #endif
    return 0; }
 

@@ -3,6 +3,9 @@
 
 routines for processing IBM standard tape labels
 
+In addition to decoding the labels for display, we use the dataset
+name in the header file to name the reconstructed data file.
+
 ---> See readtape.c for the merged change log <----
 
 *******************************************************************************
@@ -112,9 +115,13 @@ void dumpdata(uint16_t *pdata, int len, bool bcd) { // display a data block in h
          rlog("\n"); } }
    if (len % 16 != 0) rlog("\n"); }
 
-bool ibm_label(void) {
+bool ibm_label(void) {  // returns true if we found and processed a valid IBM label
    int length = block.results[block.parmset].minbits;
    struct results_t *result = &block.results[block.parmset];
+
+   assert(sizeof(struct IBM_vol_t) == 80, "bad IBM vol type");
+   assert(sizeof(struct IBM_hdr1_t) == 80, "bad IBM hdr1 type");
+   assert(sizeof(struct IBM_hdr2_t) == 80, "bad IBM hdr2 type");
 
    if (length == 80) {
 
@@ -122,7 +129,7 @@ bool ibm_label(void) {
          struct IBM_vol_t hdr;
          copy_EBCDIC((byte *)&hdr, data, 80);
          if (!quiet) {
-            rlog("*** tape label %.4, serno \"%.6s\", owner \"%.10s\"\n", hdr.id, trim(hdr.serno, 6), trim(hdr.owner, 10));
+            rlog("*** tape label %.4s, serno \"%.6s\", owner \"%.10s\"\n", hdr.id, trim(hdr.serno, 6), trim(hdr.owner, 10));
             if (result->errcount) rlog("--> %d errors\n", result->errcount); }
          //dumpdata(data, length, false);
          return true; }
@@ -139,9 +146,9 @@ bool ibm_label(void) {
          //dumpdata(data, length, false);
          if (compare4(data, "HDR1")) { // create the output file from the name in the HDR1 label
             char filename[MAXPATH];
-            sprintf(filename, "%s\\%03d-%.17s%c", basefilename, numfiles + 1, hdr.dsid, '\0');
+            sprintf(filename, "%s\\%03d-%.17s%c", baseoutfilename, numfiles + 1, hdr.dsid, '\0');
             for (unsigned i = (unsigned)strlen(filename); filename[i - 1] == ' '; --i) filename[i - 1] = 0;
-            if (!tap_format) create_file(filename);
+            if (!tap_format) create_datafile(filename);
             hdr1_label = true; }
          if (compare4(data, "EOF1") && !tap_format) close_file();
          return true; }
