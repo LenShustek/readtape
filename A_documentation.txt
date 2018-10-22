@@ -91,8 +91,8 @@ options:
   -tbin      only look for a .tbin input file, not .csv
   -nolog     don't create a log file
   -textfile  create an interpreted .interp.txt file from the data
-             numeric options: -hex or -octal
-             character options: -ascii, -ebcdic, -bcd, or -b5500
+             numeric options: -hex -octal
+             character options: -ascii -ebcdic -bcd -sixbit -b5500
              bytes per line option: -linesize==nn
   -outfiles=xxx  use xxx as <basefilename> for output files
   -m         try multiple ways to decode a block
@@ -356,13 +356,21 @@ added to compensate for data-dependent peak-shifting, but it helps
 for modest amounts of track skew too.) 
 
 - The decision about whether a track lacked a transition at a bit time 
-isn't made until about halfway (0.6 seems to work well) between bit 
-times. The position of this "midbit" computation is controlled by 
-the NRZI_MIDPOINT constant, which probably should be made a parameter.
+used to be made about halfway (0.65 seemed to work well) between bit 
+times. The time for this computation was controlled by the "midbit" 
+parameter as a fraction of a bit after the bit transition time.
+
+The problem was that shallow pulses weren't detected in time, resulting 
+in some one bits that should have been counted being discovered after 
+the decision point. So we moved the decision point to the next bit 
+transition time, and we look back at a bit-size window surrounding the 
+previous bit transition time. To do that, we keep track of the time of 
+the last peak and the peak before that for each track, and see if either 
+falls inside the window. If so, we count it as a one bit.
 
 Note that this requires all track data to be processed together, not
-independently like for PE. It is important, therefore, for head skew
-(see later section) to be measured and adequately adjusted for.
+independently like for PE and GCR. It is important, therefore, for head
+skew (see later section) to be measured and adequately adjusted for.
 
 GCR Decoding Techniques
 
@@ -370,7 +378,7 @@ Since GCR is fundamentally NRZI encoding with additional constraints
 and redundancy, my first attempt was to use the working NRZI decoder,
 and then post-process the redundancy at the end of the block.
 
-The problem is that at the 9042 BPI bit density, head skew calibration 
+The problem was that at the 9042 BPI bit density, head skew calibration 
 needs to be extremely aggressive and accurate. The skew can, according 
 to the ANSI X3.54 spec, be as much 664 microinches, or 6 bit times. (Why 
 in the March 1985 HP Journal article on the HP 7978A do they talk about 
@@ -381,7 +389,7 @@ What's worse, the skew seems to be totally different from block to block!
 I don't know why that is, but it would require recalibrating the skew
 at the start of each block.
 
-Also, the pulse shifts because of 0-1 and 1-0 bit sequences are a pretty 
+Also, the pulse shifts because of 0-1 and 1-0 bit sequencing are a pretty 
 big fraction of the bit time, making it very difficult to find a single 
 right mid-bit position for all tracks to record "missing" 0-bits. I got 
 this scheme to work for many blocks by carefully tuning the decoding 
@@ -546,6 +554,7 @@ options:
   -b     show BCD characters
   -e     show EBCDIC characters
   -a     show ASCII characters
+  -s     show DEC SixBit characters
   -u     show Burroughs B5500 Internal Code characters
   -o     show octal numeric data
   -h     show hex numeric data
@@ -569,6 +578,6 @@ with the -textfile option.
 ....more to come, maybe....
 
 L. Shustek, 10 April 2018
-L. Shustek, 17 May 2018, 8 October 2018
+L. Shustek, 17 May 2018, 8 October 2018, 22 October 2018
 
 
