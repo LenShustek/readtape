@@ -41,8 +41,11 @@ the readtape program won't need to be told about the non-standard order.
              While we're at it, we set maxvolts based on the maximum voltage
              we saw, and add a -maxvolts= option to override it.
 
+13 Oct 2018, L. Shustek, allow dates and numbers to be null (and ignored)
+             to simplify batch files.
+
 ******************************************************************************/
-#define VERSION "1.3"
+#define VERSION "1.4"
 /******************************************************************************
 Copyright (C) 2018, Len Shustek
 
@@ -147,6 +150,7 @@ bool opt_int(const char* arg, const char* keyword, unsigned *pval, unsigned min,
       if (toupper(*arg++) != *keyword++)
          return false; }
    while (*keyword);
+   if (strlen(arg) == 0) return true;  // allow and ignore if null
    unsigned num, nch;
    if (sscanf(arg, "%u%n", &num, &nch) != 1
          || num < min || num > max || arg[nch] != '\0') fatal("bad integer: %s", arg);
@@ -157,6 +161,7 @@ bool opt_flt(const char* arg, const char* keyword, float *pval, float min, float
    do { // check for a "keyword=float" option
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
+   if (strlen(arg) == 0) return true;  // allow and ignore if null
    float num;  int nch;
    if (sscanf(arg, "%f%n", &num, &nch) != 1
          || num < min || num > max || arg[nch] != '\0') fatal("bad floating-point number: %s", arg);
@@ -180,6 +185,7 @@ bool opt_dat(const char* arg, const char*keyword, struct tm *time) {
    do { // check for a "keyword=ddmmyyyy" option
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
+   if (strlen(arg) == 0) return true;  // allow and ignore if null
    if (strlen(arg) != 8) fatal("bad date format at %s", arg);
    if (!parse_nn(arg, &time->tm_mday, 1, 31)) fatal("bad day: %s", arg);
    if (!parse_nn(arg + 2, &time->tm_mon, 1, 12)) fatal("bad month: %s", arg);
@@ -359,6 +365,15 @@ void show_tm(struct tm *t, const char*msg) {
 char *modename(enum mode_t mode) {
    return mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : "???"; }
 
+void update_progress_count(void) {
+   static char progress_buffer[25] = { 0 };
+   static int progress_count = 0;
+   if (progress_count++ >= 999999) {
+      for (unsigned i = 0; i < strlen(progress_buffer); ++i) printf("\b"); // erase previous count
+      sprintf(progress_buffer, "%s samples", longlongcommas(num_samples));
+      printf("%s", progress_buffer);
+      progress_count = 0; } }
+
 void read_tbin(void) {
    assert(fread(&hdr, sizeof(hdr), 1, inf) == 1, "can't read hdr");
    assert(strcmp(hdr.tag, HDR_TAG) == 0, "bad hdr tag");
@@ -370,7 +385,7 @@ void read_tbin(void) {
    ntrks = hdr.u.s.ntrks;
    printf("file format %d, ntrks %d, encoding %s, max %.2fV, bpi %.2f, ips %.2f, sample delta %.2f usec\n",
           hdr.u.s.format, hdr.u.s.ntrks, modename(hdr.u.s.mode), hdr.u.s.maxvolts,
-          hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta/1e3);
+          hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta / 1e3);
    printf("description: %s\n", hdr.descr);
    if (hdr.u.s.time_written.tm_year > 0)   printf("created on:   %s", asctime(&hdr.u.s.time_written));
    if (hdr.u.s.time_read.tm_year > 0)      printf("read on:      %s", asctime(&hdr.u.s.time_read));
@@ -391,18 +406,19 @@ void read_tbin(void) {
       while (skip_samples--) {
          assert(fread(data, 2, ntrks, inf) == ntrks, "endfile with %d samples left to skip", skip_samples);
          timenow += hdr.u.s.tdelta; } }
+
    while (1) {  // write one .CSV file line for each sample we read
-      assert(fread(&data[0], 2, 1, inf) == 1, "can't read data for track 0 at time %.8lf", (double)timenow/1e9);
+      assert(fread(&data[0], 2, 1, inf) == 1, "can't read data for track 0 at time %.8lf", (double)timenow / 1e9);
       if (!little_endian) reverse2((uint16_t *)&data[0]);
       if (data[0] == -32768 /*0x8000*/) break; // endfile
-      assert(fread(&data[1], 2, ntrks-1, inf) == ntrks-1, "can't read data for tracks 1.. at time %.8lf, data[0]=%08X",
-             (double)timenow/1e9, data[0]);
+      assert(fread(&data[1], 2, ntrks - 1, inf) == ntrks - 1, "can't read data for tracks 1.. at time %.8lf, data[0]=%08X",
+             (double)timenow / 1e9, data[0]);
       if (!little_endian)
          for (unsigned trk = 1; trk < ntrks; ++trk)
             reverse2((uint16_t *)&data[trk]);
       // The %f floating-point display formatting is quite slow. If the -read option is ever used for production, we
       // should write fast special-purpose routines, as we did for parsing floating-point input. Could be 10x faster!
-      if (!display_header) fprintf(outf, "%12.8lf, ", (double)timenow/1e9);
+      if (!display_header) fprintf(outf, "%12.8lf, ", (double)timenow / 1e9);
       timenow += hdr.u.s.tdelta;
       total_time += hdr.u.s.tdelta;
       if (!display_header) {
@@ -410,8 +426,7 @@ void read_tbin(void) {
             fprintf(outf, "%9.5f, ", (float)data[track_permutation[trk]] / 32767 * hdr.u.s.maxvolts);
          fprintf(outf, "\n"); }
       ++num_samples;
-      if (num_samples % 100000 == 0) printf("."); // progress indicator
-   }
+      update_progress_count(); }
    printf("\n"); };
 
 void write_tbin_hdr(void) {
@@ -442,7 +457,7 @@ void csv_preread(void) {
    fgets(line, MAXLINE, inf); // first two lines in the input file are headers from Saleae
    fgets(line, MAXLINE, inf);
    float maxvolts = 0;
-   while (fgets(line, MAXLINE, inf) && ++linecounter < 100000) {
+   while (fgets(line, MAXLINE, inf) && ++linecounter < 1000000) {
       line[MAXLINE - 1] = 0;
       char *linep = line;
       double timestamp = scanfast_double(&linep);
@@ -455,7 +470,7 @@ void csv_preread(void) {
          if (voltage < 0) voltage = -voltage;
          if (maxvolts < voltage) maxvolts = voltage; } }
    maxvolts = ((float)(int)((maxvolts+0.55f)*10.0f))/10.0f; // add 0.5V and round to nearest 0.1V
-   printf("After %s samples, the sample delta is %.2lf usec (%u nsec), samples start at %.6lf, and the rounded-up high voltage is %.1fV\n",
+   printf("After %s samples, the sample delta is %.2lf usec (%u nsec), samples start at %.6lf, and the rounded-up maximum voltage is %.1fV\n",
           intcommas(linecounter), (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart/1e9, maxvolts);
    if (hdr.u.s.maxvolts == 0) // MAXVOLTS= wasn't given
       hdr.u.s.maxvolts = maxvolts;
@@ -496,12 +511,12 @@ void write_tbin(void) {
          if (fsample < 0) round = -0.5;  else round = 0.5;  // (int) truncates towards zero
          sample = (int) ((fsample / hdr.u.s.maxvolts * 32767) + round);
          //printf("%6d %9.5f, ", sample, fsample);
+         if (fsample < minvolts) minvolts = fsample;
+         if (fsample > maxvolts) maxvolts = fsample;
          if (sample <= -32767) {
-            if (fsample < minvolts) minvolts = fsample;
             sample = -32767;
             ++count_toosmall; }
          if (sample >= 32767) {
-            if (fsample > maxvolts) maxvolts = fsample;
             sample = 32767;
             ++count_toobig; }
          outbuf[bufndx++] = ((int16_t)sample) & 0xff;
@@ -511,18 +526,17 @@ void write_tbin(void) {
       sample_time += hdr.u.s.tdelta;
       total_time += hdr.u.s.tdelta;
       ++num_samples;
-      if (num_samples % 100000 == 0) printf("."); // progress indicator
-   }
+      update_progress_count(); }
    output2(0x8000); // end marker
-   printf("\n");
+   printf("\nminimum voltage was %.1fV, maximum voltage was %.1fV\n", minvolts, maxvolts);
    if (count_toobig)
-      printf("*** WARNING ***  %s samples were too big; maximum was %.1fV\n",
-             longlongcommas(count_toobig), maxvolts);
+      printf("*** WARNING ***  %s samples were too big\n",
+             longlongcommas(count_toobig));
    if (count_toosmall)
-      printf("*** WARNING ***  %s samples were too small; minimum was %.1fV\n",
-             longlongcommas(count_toosmall), minvolts);
+      printf("*** WARNING ***  %s samples were too small\n",
+             longlongcommas(count_toosmall));
    if (count_toobig || count_toosmall)
-      printf("You should specify -MAXVOLTS=%.1f\n", max(maxvolts, -minvolts)); };
+      printf("You should specify -MAXVOLTS=%.1f\n", max(maxvolts, -minvolts)+0.1); };
 
 int main(int argc, char *argv[]) {
    int argnext;

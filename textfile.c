@@ -2,7 +2,7 @@
 /******************************************************************************
 
 Create an interpreted text file from the data with numbers in hex or octal,
-and/or characters in ASCII, EBCDIC, BCD, or Burroughs BIC code,
+and/or characters in ASCII, EBCDIC, BCD, Burroughs BIC, or DEC SixBit code,
 in the style of an old-fashioned memory dump.
 
 This is derived from the standalong program "dumptap" from May 2018,
@@ -17,6 +17,7 @@ The command-line options which apply to this module are:
       -ebcdic       IBM EBCDIC 8-bit characters
       -bcd          IBM 1401 BCD 6-bit characters
       -b5500        Burroughs B5500 Internal Code 6-bit characters
+      -sixbit       DEC SixBit code (ASCII-32)
       -linesize=nn  each line shows nn bytes
 
 The default is 80 ASCII characters per line and no numeric data.
@@ -85,41 +86,45 @@ static byte Burroughs_Internal_Code[64] = {
    /*2x*/ '|', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', '$', '*', '-', ')', ';', '{',   // | = multiply, { = less or equal
    /*3x*/ ' ', '/', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ',', '%', '!', ']', '=', '"' }; // ! = not equal
 
-static int nbytes = 0;
 static byte buffer[MAXLINE];
-static int linecnt;
+static int linecnt, numrecords, numerrors, numtapemarks;
+static long long int numbytes;
 static bool txtfile_isopen = false;
 static FILE *txtf;
 
 // must match enums in decoder.h
-static char *chartype_options[] = { "", "-BCD", "-EBCDIC", "-ASCII", "-B5500" };
+static char *chartype_options[] = { "", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-SIXBIT" };
 static char *numtype_options[] = { "", "-HEX", "-OCTAL" };
 
-void output_char(byte ch) {
+static void output_char(byte ch) {
    fprintf(txtf, "%c",
            txtfile_chartype == ASC ? (isprint(ch) ? ch & 0x7f : ' ')
+           : txtfile_chartype == SIXBIT ? ((ch & 0x3f)+32)
            : txtfile_chartype == EBC ? EBCDIC[ch]
            : txtfile_chartype == BCD ? BCD1401[ch & 0x3f]
            : txtfile_chartype == BUR ? Burroughs_Internal_Code[ch & 0x3f]
            : '?'); };
 
-void output_chars(void) {
+static void output_chars(void) {
    for (int i = 0; i < (txtfile_linesize - linecnt); ++i) fprintf(txtf, "  "); // space out to character area
    fprintf(txtf, "  "); // decorate?
    for (int i = 0; i < linecnt; ++i) output_char(buffer[i]); };
 
-void txtfile_open(void) {
+static void txtfile_open(void) {
    char filename[MAXPATH];
    sprintf(filename, "%s.interp.txt", baseoutfilename);
    assert((txtf = fopen(filename, "w")) != NULLP, "can't open interpreted text file \"%s\"", filename);
    rlog("creating file \"%s\"\n", filename);
    fprintf(txtf, "file: %s\n", filename);
    fprintf(txtf, "options: %s %s -LINESIZE=%d\n",
-      numtype_options[txtfile_numtype], chartype_options[txtfile_chartype], txtfile_linesize);
+           numtype_options[txtfile_numtype], chartype_options[txtfile_chartype], txtfile_linesize);
+   numrecords = numerrors = numtapemarks = 0;
+   numbytes = 0;
    txtfile_isopen = true; }
 
 void txtfile_tapemark(void) {
    if (!txtfile_isopen) txtfile_open();
+   ++numtapemarks;
    fprintf(txtf, "tape mark\n"); }
 
 void txtfile_outputrecord(void) {
@@ -127,6 +132,9 @@ void txtfile_outputrecord(void) {
    struct results_t *result = &block.results[block.parmset];
 
    if (!txtfile_isopen) txtfile_open();
+   ++numrecords;
+   numbytes += length;
+   if (result->errcount > 0) ++numerrors;
    fprintf(txtf, "%c%4d: ", result->errcount > 0 ? '!' : ' ', length); // show ! if the block had errors
    linecnt = 0;
    for (int i = 0; i < length; ++i) { // discard the parity bit track and write all the data bits
@@ -144,6 +152,9 @@ void txtfile_outputrecord(void) {
 
 void txtfile_close(void) {
    fprintf(txtf, "endfile\n");
+   fprintf(txtf, "there were %d data blocks with %s bytes, and %d tapemarks\n", numrecords, longlongcommas(numbytes), numtapemarks);
+   if (numerrors > 0) fprintf(txtf, "%d block(s) with errors were marked with a ! before the length\n", numerrors);
+   else fprintf(txtf, "no blocks had errors\n");
    fclose(txtf);
    txtfile_isopen = false; }
 

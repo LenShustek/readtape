@@ -1,11 +1,16 @@
-// generic parmsets for NRZI
-parms active, clk_window,  clk_alpha, agc_window, agc_alpha, min_peak, clk_factor, pulse_adj, pkww_bitfrac, id
+// generic parmsets for 7-track NRZI
+parms active, clk_window,  clk_alpha, agc_window, agc_alpha, min_peak, pulse_adj, pkww_bitfrac, pkww_rise, midbit, id
 
-   // clkwin  clkalpha  agcwin agcalpha  minpk  clkfact  pulseadj  bitfrac
-   { 1,   0,     0.05,     0,     0.3,     1.0,   0,       0.5,     0.4, "PRM" },
-   { 1,   0,     0.3,      0,     0.3,     1.5,   0,       0.5,     0.8, "PRM" },
-   { 1,   0,     0.1,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
-   { 1,   2,     0.0,      0,     0.3,     1.0,   0,       0.5,     0.5, "PRM" },
-   { 1,   0,     0.2,      0,     0.3,     0.5,   0,       0.5,     0.5, "PRM" },
-   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.7, "PRM" },
-   { 1,   0,     0.2,      0,     0.3,     0.2,   0,       0.5,     0.8, "PRM" },
+   // clkwin  clkalpha  agcwin agcalpha  minpk  pulseadj bitfrac  pkww_rise, midbit
+
+  {  1,  0,  0.200,     0,      0.300,  1.000,   0.300,   0.700,    0.200,  0.500,   PRM}
+  {  1,  0,  0.200,     0,      0.300,  1.000,   0.300,   0.700,    0.200,  0.700,   PRM} // for late peaks at start of block
+  {  1,  0,  0.300,     0,      0.300,  1.000,   0.400,   0.600,    0.200,  0.500,   PRM}
+  {  1,  2,  0.000,     0,      0.300,  1.000,   0.400,   0.700,    0.200,  0.500,   PRM}
+  {  1,  0,  0.600,     0,      0.300,  1.000,   0.400,   0.600,    0.200,  0.500,   PRM}
+
+  {  1,  2,  0.000,     1,      0.000,  0.500,   0.500,   0.900,    0.050,  0.500,   PRM} // for shallow peaks
+
+  {  1,  0,  0.200,     1,      0.000,  1.000,   0.500,   0.700,    0.050,  0.500,   PRM}
+  {  1,  2,  0.000,     1,      0.000,  0.500,   0.500,   0.700,    0.050,  0.500,   PRM}
+  {  1,  0,  0.600,     1,      0.000,  0.500,   0.500,   0.600,    0.050,  0.500,   PRM}

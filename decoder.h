@@ -23,23 +23,34 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
+typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" as a value
+#define true 1
+#define false 0
+#define unknown 0xff
 
 #define DEBUG false                // generate debugging output?
 
 #define TRACEFILE (true & DEBUG)   // if DEBUG, are we also creating trace file?
-#define TRACETRK 4                 // which track gets special attention?
+#define TRACETRK 0                 // which track gets special attention?
 #define TRACEALL true              // are we plotting all analog waveforms? Otherwise just one: TRACETRK
-#define TRACESCALE 3.0             // scaling factor for voltages on the chart
+#define TRACESCALE 1.0             // scaling factor for voltages on the chart
 
 #define PEAK_STATS true             // accumulate NRZI/GCR peak timing statistics?
 #define DESKEW (true & PEAK_STATS)  // also add code for optional track deskewing?
 
-#define DLOG_LINE_LIMIT 2000     // limit for debugging output
+#define DLOG_LINE_LIMIT 5000     // limit for debugging output
+
+#if DEBUG
+#define dlog(...) {/*if (/*trace_on*/ /*timenow > 483.7672)/* TEMP*/ debuglog(__VA_ARGS__);}
+#else
+#define dlog(...) {}
+#endif
 
 #define TRACING (DEBUG && trace_on && t->trknum == TRACETRK)
 #define TRACE(var,time,tickdirection,t) {if(TRACEFILE) trace_event(trace_##var, time, tickdirection, t);}
 enum trace_names_t { //** MUST MATCH tracevals in decoder.c !!!
-   trace_peak, trace_data, trace_avgpos, trace_zerpos, trace_adjpos, trace_midbit, trace_clkedg, trace_datedg, trace_clkwin, trace_clkdet };
+   trace_peak, trace_data, trace_avgpos, trace_zerpos, trace_adjpos, trace_zerchk,
+   trace_parerr, trace_clkedg, trace_datedg, trace_clkwin, trace_clkdet };
 #define UPTICK 0.75f
 #define DNTICK -0.75f
 
@@ -63,11 +74,6 @@ enum trace_names_t { //** MUST MATCH tracevals in decoder.c !!!
 typedef unsigned char byte;
 #include "csvtbin.h"
 
-typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" as a value
-#define true 1
-#define false 0
-#define unknown 0xff
-
 #define MAXTRKS 10
 #define MAXBLOCK 32768
 #define MAXPARMSETS 15
@@ -76,26 +82,26 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 #define MAXLINE 400
 
 #define MAXSKEWSAMP 30     // maximum skew amount in number of samples
-#define MAXSKEWBLKS 10     // maximum blocks to preprocess to calibrate skew
-#define MINSKEWTRANS 100   // the minumum number of transitions we would like to base skew calibration on
+#define MAXSKEWBLKS 25     // maximum blocks to preprocess to calibrate skew
+#define MINSKEWTRANS 500   // the minumum number of transitions we would like to base skew calibration on
 
 // Here are lots of of parameters that control the decoding algorithm.
 // Some of these are defaults or maxima, for which the currently used values are in the parms_t structure.
 // More values can be moved into the parms_t structure if they need to change from tape to tape.
 
-#define NRZI_MIDPOINT    0.65 //.65       // how far beyond a bit clock is our NRZI "midpoint" for looking for transitions
 #define NRZI_IBG_SECS    200e-6     // minimum interblock gap in seconds (should depend on current IPS?)
+#define NRZI_MIN_BLOCK   10         // minimum block size in bits
+#define NRZI_MAX_MISMATCH 10        // maximum mismatch between tracks, in bits, for us to try to decode
 #define NRZI_RESET_SPEED false      // should we reset the tape speed based on the second peak of a block?
 
 #define GCR_IDLE_THRESH  4.00       // more than these bit times without a peak mean the track is idle
-//#define GCR_2ZERO_THRESH 2.3 //2.50 //2.42       // more than these bit times without a peak means 2 zero bits intervened
-//#define GCR_1ZERO_THRESH 1.4 //1.50 //1.475      // more than these bit times without a peak means 1 zero bit intervened
 #define GCR_IBG_SECS     200e-6     // minimum interblock gap in seconds (should depend on current IPS?)
 
-#define PE_IDLE_FACTOR   2.5        // PE: how much of the bit spacing to wait for before considering the track idle
-#define IGNORE_POSTAMBLE   5        // PE: how many postable bits to ignore
-#define MIN_PREAMBLE       70       // PE: minimum number of peaks (half that number of bits) for a preamble
-#define MAX_POSTAMBLE_BITS 40       // PE: maximum number of postamble bits we will remove
+#define PE_IDLE_FACTOR     2.5      // how much of the bit spacing to wait for before considering the track idle
+#define PE_IBG_SECS        200e-6   // minimum interblock gap in seconds (should depend on current IPS?
+#define PE_IGNORE_POSTBITS 5        // how many postamble bits to ignore
+#define PE_MIN_PREBITS     70       // minimum number of peaks (half that number of bits) for a preamble
+#define PE_MAX_POSTBITS    40       // maximum number of postamble bits we will remove
 
 #define PKWW_MAX_WIDTH   20         // the peak-detect moving window maximum width, in number of samples
 #define PKWW_PEAKHEIGHT  4.0f       // the assumed peak-to-peak (2x top or bot height) voltage for the pkww_rise parameter
@@ -104,8 +110,15 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 #define CLKRATE_WINDOW   50         // maximum window width for clock averaging
 #define FAKE_BITS        true       // should we fake bits during a dropout?
 #define USE_ALL_PARMSETS false      // should we try to use all the parameter sets, to be able to rate them?
+
+#define SKIP_NOISE       true       // should we skip a noise block whenever we decode one, or try with alternate decodings?
+// The upside of SKIP_NOISE is that true noise before a low-peak block won't cause a higher-threshold parmset to be tried and
+// absorb the block even though it has errors, and the low-threshold parmset would have decoded it perfectly.
+// The downside is that a block starting with high peaks followed by very low peaks will be seen as noise by an initial
+// parmset that has a high threshold. So use SKIP_NOISE but maybe put high-threshold parmsets later in the list?
+
 #define AGC_MAX_WINDOW   10         // maximum number of peaks to look back for the min peak
-#define AGC_MAX          20 //15         // maximum value of AGC
+#define AGC_MAX          20         // maximum value of AGC
 #define AGC_STARTBASE     5         // starting peak for baseline voltage measurement
 #define AGC_ENDBASE      15         // ending peak for baseline voltage measurement
 
@@ -113,11 +126,6 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 #ifndef max
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
-#endif
-#if DEBUG
-#define dlog(...) {debuglog(__VA_ARGS__);}
-#else
-#define dlog(...) {}
 #endif
 #define TICK(x) ((x - torigin) / sample_deltat - 1)
 
@@ -149,8 +157,9 @@ struct trkstate_t {  // track-by-track decoding state
 
    float v_lastpeak;       // last peak (top or bottom) voltage
    double t_lastpeak;      // time of last top or bottom
-   float t_peakdelta;      // delta time between most recent peaks
-   float t_peakdeltaprev;  // the previous delta time between peaks
+   double t_prevlastpeak;  // NRZI: time of the one before that
+   float t_peakdelta;      // GCR: delta time between most recent peaks
+   float t_peakdeltaprev;  // GCR: the previous delta time between peaks
 
    float pkww_v[PKWW_MAX_WIDTH];  // the window of sample voltages
    float pkww_minv;        // the minimum voltage in the window
@@ -170,7 +179,7 @@ struct trkstate_t {  // track-by-track decoding state
    double t_lastbit;       // time of last data bit transition
    double t_firstbit;      // time of first data bit transition in the data block
    double t_lastclock;     // GCR: the time of the last clock
-   double t_last_midbit;   // GCR: the time we did the last mid-bit processing
+// double t_last_midbit;   // GCR: the time we did the last mid-bit processing
    int consecutive_zeroes; // GCR: how many consecutive all-track zeroes we have seen
    float t_clkwindow;      // PE: how late, in usec, a clock transition can be before we consider it data
    float t_pulse_adj;      // PE: how much, in usec, to adjust the pulse by based on previous pulse's timing
@@ -180,7 +189,7 @@ struct trkstate_t {  // track-by-track decoding state
    byte lastdatabit;       // the last data bit we recorded
    bool idle;              // are we idle, ie not seeing transitions?
    bool clknext;           // PE: do we expect a clock next?
-   bool hadbit;            // NRZI: did we have a bit transition since the last check?
+// bool hadbit;            // NRZI: did we have a bit transition since the last check?
    bool datablock;         // PE and GCR are we collecting data on this track?
 
    byte lastbits;          // GCR: accumulate the last bits we decoded, so we can recognize control subgroups on the fly
@@ -196,13 +205,13 @@ struct trkstate_t {  // track-by-track decoding state
 // by precomputing how much to delay the data from each head.
 // For PE, each track in independent and has its own clkavg_t structure.
 
-struct nrzi_t { // NRZI (and GCR) decode state information
+struct nrzi_t { // NRZI decode state information
    double t_lastclock;     // time of the last clock
-   double t_last_midbit;   // time we did the last mid-bit processing
+   double t_last_midbit;   // the last mid-bit boundary we checked for zeroes
    struct clkavg_t clkavg; // the current bit rate estimate
    bool datablock;         // are we in a data block?
    bool reset_speed;       // did we reset the speed ourselves?
-   int post_counter;       // not GCR: counter for post-data bit times: CRC is at 4, LRC is at 8
+   int post_counter;       // counter for post-data bit times: CRC is at 3-4, LRC is at 7-8
 }; // nrzi.
 
 struct parms_t {  // a set of parameters used for decoding a block. We try again with different sets if we get errors.
@@ -217,6 +226,7 @@ struct parms_t {  // a set of parameters used for decoding a block. We try again
    //                         NRZI: how much of the actual transition avg position to use to adjust the next expected
    float pkww_bitfrac;     // what fraction of the bit spacing the window width is
    float pkww_rise;        // the required rise in volts in the window that represents a peak (will be adjusted by AGC and peak height)
+   float midbit;           // NRZI: what fraction of a bit time is the midbit point for determining zeroes
    float z1pt;             // GCR: fraction of a bit time that means one zero bit
    float z2pt;             // GCR: fraction of a bit time that means two zero bits
    // ...add more dynamic parameters above here, and in the arrays at the top of decoder.c
@@ -230,10 +240,12 @@ extern struct parms_t *parmsetsptr;    // pointer to the parmset we are using
 extern char *parmnames[];
 
 enum bstate_t { // the decoding status a block
-   BS_NONE,          // no status available yet
+   // must agree with bs_name[] in readtape.c
+   BS_NONE,          // no status is available yet
    BS_TAPEMARK,      // a tape mark
-   BS_BLOCK,         // a good block, but maybe parity errors or faked bits
-   BS_MALFORMED,     // a malformed block: different tracks are different lengths
+   BS_NOISE,         // a block so short as to be noise
+   BS_BADBLOCK,      // a block so bad we can't write it
+   BS_BLOCK,         // a block we can write, but maybe with errors or warnings
    BS_ABORTED };     // we aborted processing for some reason
 
 struct blkstate_t {  // state of the block, when we're done
@@ -244,12 +256,18 @@ struct blkstate_t {  // state of the block, when we're done
       enum bstate_t blktype;     // the ending state of the block
       int minbits, maxbits;      // the min/max bits of all the tracks
       float avg_bit_spacing;     // what the average bit spacing was, in secs
-      int missed_midbits;        // how many times transitions were recognized after the midbit
-      int vparity_errs;          // how many vertical (byte) parity errors it has
-      int faked_bits;            // how many faked bits it has
-      int errcount;              // how many total errors it has: parity + CRC + LRC
-      int warncount;             // how many warnings it has: NRZI midbit errors, etc.
-      bool crc_bad, lrc_bad;     // NRZI 800: are crc/lrc ok?
+      int warncount;             // how many warnings it has: 
+      int missed_midbits;        //   how many times transitions were recognized after the midbit
+      int faked_bits;            //   how many faked bits we generated
+      int errcount;              // how many total errors it has: 
+      int track_mismatch;        //   how badly the track lengths are mismatched
+      int vparity_errs;          //   how many vertical (byte) parity errors it has
+      int ecc_errs;              //   GCR: how many ECC errors it has
+      int crc_errs;              //   GCR, 9-track NRZI: how many CRC errors it has
+      int lrc_errs;              //   NRZI: how many LRC errors it has
+      int gcr_bad_dgroups;       //   GCR: how many bad dgroups we found
+      int gcr_bad_sequence;      //   GCR: how many sgroup sequence errors we found
+      int first_error;           // GCR: the datacount where we found the first error in the block
       int crc, lrc;              // NRZI 800; the actual crc anc lrc values in the data
       float alltrk_max_agc_gain; // the maximum AGC gain we used for any track
    } results [MAXPARMSETS]; // results for each parmset we tried
@@ -274,12 +292,11 @@ void record_peakstat(float bitspacing, double peaktime, int trknum);
 enum bstate_t process_sample(struct sample_t *);
 void gcr_top(struct trkstate_t *t);
 void gcr_bot(struct trkstate_t *t);
-void gcr_midbit(struct trkstate_t *t);
 void gcr_end_of_block(void);
 void gcr_write_ecc_data(void);
 void nrzi_top(struct trkstate_t *t);
 void nrzi_bot(struct trkstate_t *t);
-void nrzi_midbit(void);
+void nrzi_zerocheck(void);
 void nrzi_end_of_block(void);
 void pe_top(struct trkstate_t *t);
 void pe_bot(struct trkstate_t *t);
@@ -304,13 +321,12 @@ bool ibm_label(void);
 void create_datafile(const char *name);
 void close_file(void);
 void read_parms(void);
-void txtfile_open(void); 
 void txtfile_outputrecord(void);
 void txtfile_tapemark(void);
 void txtfile_close(void);
 
 extern enum mode_t mode;
-extern bool terse, verbose, quiet, multiple_tries, tap_format;
+extern bool verbose, quiet, multiple_tries, tap_format;
 extern bool deskew, doing_deskew, doing_density_detection;
 extern bool trace_on, trace_start;
 extern bool hdr1_label;
@@ -320,7 +336,7 @@ extern double timenow, torigin;
 extern int64_t timenow_ns;
 extern float sample_deltat;
 extern int64_t sample_deltat_ns;
-extern double interblock_expiration;
+extern int interblock_counter;
 extern struct blkstate_t block;
 extern struct trkstate_t trkstate[MAXTRKS];
 extern uint16_t data[], data_faked[];
@@ -332,7 +348,7 @@ extern char baseoutfilename[], baseinfilename[];
 
 // must match arrays in textfile.c
 enum txtfile_numtype_t { NONUM, HEX, OCT };
-enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR };
+enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR, SIXBIT };
 
 extern enum txtfile_numtype_t txtfile_numtype;
 extern enum txtfile_chartype_t txtfile_chartype;

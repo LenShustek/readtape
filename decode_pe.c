@@ -37,7 +37,7 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
    //  -- 80 or more flux reversals (but no data bits) on tracks 0, 2, 5, 6, 7, and P
    //  -- no flux reversals (DC erased) on tracks 1, 3, and 4
    // We actually allow a couple of data bits because of weirdness when the flux transitions stop
-   if (  trkstate[0].datacount <= 2 && trkstate[0].peakcount > 75 &&
+   if (trkstate[0].datacount <= 2 && trkstate[0].peakcount > 75 &&
          trkstate[2].datacount <= 2 && trkstate[2].peakcount > 75 &&
          trkstate[5].datacount <= 2 && trkstate[5].peakcount > 75 &&
          trkstate[6].datacount <= 2 && trkstate[6].peakcount > 75 &&
@@ -52,24 +52,24 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
 
    // to extract a valid data block, we remove the postamble and check that all tracks have the same number of bits
    float avg_bit_spacing = 0;
-   result->minbits=MAXBLOCK;
-   result->maxbits=0;
+   result->minbits = MAXBLOCK;
+   result->maxbits = 0;
 
-   for (int trk=0; trk<ntrks; ++trk) { // process postamble bits on all tracks
+   for (int trk = 0; trk < ntrks; ++trk) { // process postamble bits on all tracks
       struct trkstate_t *t = &trkstate[trk];
       avg_bit_spacing += (float)(t->t_lastbit - t->t_firstbit) / t->datacount;
       //dlog("trk %d firstbit at %.7lf, lastbit at %.7lf, avg spacing %.2f\n", trk, t->t_firstbit, t->t_lastbit, avg_bit_spacing*1e6);
       int postamble_bits;
       if (t->datacount > 0) {
-         for (postamble_bits=0; postamble_bits<=MAX_POSTAMBLE_BITS; ++postamble_bits) {
+         for (postamble_bits = 0; postamble_bits <= PE_MAX_POSTBITS; ++postamble_bits) {
             --t->datacount; // remove one bit
             if ((data_faked[t->datacount] & (1 << (ntrks - 1 - trk))) != 0) { // if the bit we removed was faked,
-               assert(block.results[block.parmset].faked_bits>0, "bad fake data count on trk %d at %.7lf", trk, timenow);
+               assert(block.results[block.parmset].faked_bits > 0, "bad fake data count on trk %d at %.7lf", trk, timenow);
                --block.results[block.parmset].faked_bits;  // then decrement the count of faked bits
                dlog("   remove fake bit %d on track %d\n", t->datacount, trk); //
             }
             // weird stuff goes on as the signal dies at the end of a block, so we ignore the last few data bits.
-            if (postamble_bits > IGNORE_POSTAMBLE &&  	// if we've ignored the last few postamble bits
+            if (postamble_bits > PE_IGNORE_POSTBITS &&  	// if we've ignored the last few postamble bits
                   (data[t->datacount] & (1 << (ntrks - 1 - trk))) != 0)	// and we just passed a "1"
                break;  								// then we've erased the postable and are done
          }
@@ -77,20 +77,20 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
          dlog("trk %d had %d postamble bits, max AGC %5.2f, datacount %d\n", trk, postamble_bits, t->max_agc_gain, t->datacount); }
       if (t->datacount > result->maxbits) result->maxbits = t->datacount;
       if (t->datacount < result->minbits) result->minbits = t->datacount; }
-   result->avg_bit_spacing = avg_bit_spacing/ntrks;
+   result->avg_bit_spacing = avg_bit_spacing / ntrks;
 
    if (result->maxbits == 0) {  // leave result-blktype == BS_NONE
-      dlog("   ignoring noise block at %.7lf\n", timenow); }
+      dlog("   detected noise block at %.7lf\n", timenow); }
    else {
+      result->blktype = BS_BLOCK;
+      interblock_counter = (int)(PE_IBG_SECS / sample_deltat);  // ignore data for a while until we're well into the IBG
       if (result->minbits != result->maxbits) {  // different number of bits in different tracks
-         if (DEBUG) show_track_datacounts("*** malformed block");
-         result->blktype = BS_MALFORMED; }
-      else {
-         result->blktype = BS_BLOCK; }
+         // Unlike NRZI and GCR, we allow blocks with mismatched tracks to be written. Might be ok, sorta.
+         if (DEBUG) show_track_datacounts("*** trkmismatched block");
+         result->track_mismatch = result->maxbits - result->minbits; }
       result->vparity_errs = 0;
-      for (int i=0; i<result->minbits; ++i) // count parity errors
-         if (parity(data[i]) != expected_parity) ++result->vparity_errs;
-      result->errcount = result->vparity_errs; } }
+      for (int i = 0; i < result->minbits; ++i) // count parity errors
+         if (parity(data[i]) != expected_parity) ++result->vparity_errs; } }
 
 void pe_addbit (struct trkstate_t *t, byte bit, bool faked, double t_bit) { // we encountered a data bit transition
    TRACE(data, t_bit, bit ? UPTICK : DNTICK, t);
@@ -135,7 +135,7 @@ void pe_top (struct trkstate_t *t) {  // local maximum: end of a positive flux t
       t->t_pulse_adj = ((float)(t->t_top - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * PARM.pulse_adj;
       adjust_agc(t); }
    else { // !datablock: inside the preamble
-      if (t->peakcount > MIN_PREAMBLE	// if we've seen at least 35 zeroes
+      if (t->peakcount > PE_MIN_PREBITS	// if we've seen at least 35 zeroes
             && t->t_top - t->t_lastpeak > t->t_clkwindow) { // and we missed a clock
          t->datablock = true;	// then this 1 means data is starting (end of preamble)
          t->v_avg_height = t->v_avg_height_sum / t->v_avg_height_count; // compute avg peak-to-peak voltage

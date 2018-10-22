@@ -206,7 +206,8 @@ description of the various tape formats we process.
 - odd parity on each byte for binary data, even parity for BCD text
   (For IBM 729, spaces in memory (0) are converted to 0x10 on tape, 
   to avoid having BCD text create no transitions on any tracks.)
-- LRC character is 4 character times after the end of the block; no CRC
+- LRC character is 4 character times after the end of the block, and
+  it could have bad parity; no CRC character
 - tape mark: 1-bits on tracks 8,4,2,1, then 4 bit times, then the same
 
 *** 9-track 6250 BPI GCR

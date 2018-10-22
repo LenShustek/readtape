@@ -37,8 +37,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 static byte gcr_sgroup[9]; // 5-bit codes for tracks 0..9
 static byte gcr_dgroup[9]; // 4-bit codes for tracks 0..9
 static int gcr_bitnum, gcr_bytenum;
-bool gcr_sequence_err; // got GCR sequence error
-int gcr_bad_dgroups;
 
 #if DUMP_PEAKDATA
 #define MAXPEAKS 10000
@@ -111,24 +109,55 @@ void chk_trk_endings(void) {
 bad:; } }
 #endif
 
-int first_parity_err; //TEMP
+byte dot2(uint64_t x, uint64_t y, int w) {
+   /* dot product of w-bit vectors mod 2   (w <= 64) */
+   int d = 0;
+   x &= y;
+   while (w-- > 0) {
+      d ^= x;
+      x >>= 1; }
+   return (d & 1); }
+
+byte gcr_compute_ecc(void) {
+   // Compute the expected ECC of the 7 data bytes sitting before the ECC byte we just stored.
+   // Thanks to Tom Howell for figuring out the algorithm and writing this code!
+   static uint64_t A[] = {
+      0x0f6a71994c5230ULL,
+      0x70110840108004ULL,
+      0x5a701108401080ULL,
+      0x372be95d5a7011ULL,
+      0xe95d5a70110840ULL,
+      0x4c523001884412ULL,
+      0x2be95d5a701108ULL,
+      0x5d5a7011084010ULL };
+   uint64_t dblock = 0;
+   // gather the 7 data bytes before the ECC, without the parity bits, as a 56-bit big-endian integer
+   for (int i = 8; i > 1; --i)
+      dblock = (dblock << 8) | (data[gcr_bytenum - i] >> 1);
+   byte ecc = 0;
+   for (int i = 0; i < 8; ++i) // generate the ECC
+      ecc |= dot2(dblock, A[i], 56) << i;
+   return ecc; }
 
 void gcr_showdata(char *title) { // display the 8 bytes we just generated
 #if SHOW_GCRDATA
    rlog("%s: ", title);
    for (int i = 8; i > 1; --i)  // 7 data bytes
       rlog("%02X%c ", data[gcr_bytenum - i] >> 1, parity(data[gcr_bytenum - i]) ? ' ' : '!');
-   rlog("  ECC: %02X%c", data[gcr_bytenum - 1] >> 1, parity(data[gcr_bytenum - 1]) ? ' ' : '!');
+   rlog("  ECC: %02X%c ", data[gcr_bytenum - 1] >> 1, parity(data[gcr_bytenum - 1]) ? ' ' : '!');
+   byte expected_ecc = gcr_compute_ecc();
+   if (expected_ecc == data[gcr_bytenum - 1] >> 1) rlog("ok");
+   else rlog("bad (expected %02X)", expected_ecc);
    rlog(" at %.7lf\n", data_time[gcr_bytenum - 1]);
 #endif
-   for (int i = 8; i > 0; --i) // TEMP
-      if (parity(data[gcr_bytenum - i]) == 0 && first_parity_err == -1) first_parity_err = gcr_bytenum; }
+}
 
 byte eccdata[MAXBLOCK];
 int eccdatacount = 0;
 
-void gcr_write_ecc_data(void) {
+
 #if DUMP_DATA //write a file with data + ECC
+void gcr_write_ecc_data(void) {
    static bool fileopen = false;
    static FILE *dataf;
    static eccwriteblks = 0, eccwritebytes = 0;
@@ -142,12 +171,9 @@ void gcr_write_ecc_data(void) {
    assert(fwrite(eccdata, 1, eccdatacount, dataf) == eccdatacount, "bad eccdata.bin write");
    ++eccwriteblks; eccwritebytes += eccdatacount;
    rlog("dumped; eccdatacount %d, eccwriteblks %d, eccwritebytes %d\n", eccdatacount, eccwriteblks, eccwritebytes);
-   eccdatacount = 0;
-#endif
-}
+   eccdatacount = 0; }
 
 void gcr_savedata(void) { // save data with ECC for writing to a file later
-#if DUMP_DATA
 #if DUMP_DATA_1BIT // filter for number of one bits in the data block
    int numones = 0;
    for (int i = 8; i > 1; --i) { // 7 data bytes only
@@ -159,10 +185,8 @@ void gcr_savedata(void) { // save data with ECC for writing to a file later
 #endif
    {
       for (int i = 8; i > 0; --i) // buffer 7 data bytes plus ECC, without parity
-         eccdata[eccdatacount++] = data[gcr_bytenum - i] >> 1; }
+         eccdata[eccdatacount++] = data[gcr_bytenum - i] >> 1; } }
 #endif
-}
-
 
 /********************************************************************************************
    post-processing
@@ -182,7 +206,7 @@ void gcr_savedata(void) { // save data with ECC for writing to a file later
 #define GCR_SECOND2  0b11110  // also data 12
 
 // map from GCR 5-bit code to 4-bit data values
-byte gcr_data[32] = { // 255 means "invalid"
+const byte gcr_data[32] = { // 255 means "invalid"
    255, 255, 255, 255, 255, 255, 255,
    255, 255, 9, 10, 11, 255, 13, 14,
    15, 255, 255, 2, 3, 255, 5,
@@ -216,7 +240,7 @@ void gcr_write_dgroups(void) {
       nibble = gcr_data[gcr_sgroup[trk]];
       if (nibble == 255) {
          // rlog(" bad dgroup at trk %d gcr_bitnum %d: %02X\n", trk, gcr_bitnum, gcr_sgroup[trk]);
-         ++gcr_bad_dgroups;
+         ++block.results[block.parmset].gcr_bad_dgroups;
          nibble = 0; }
       bitnum = 3; do {
          if (nibble & 1)
@@ -226,10 +250,12 @@ void gcr_write_dgroups(void) {
       while (--bitnum >= 0);
       mask <<= 1; }
    while (--trk >= 0);
-   struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
    bitnum = 3; do { // check for odd parity in all four 9-bit bytes we created,
       // including the ECC that will be discarded, which is the 4th byte of group B
-      if (parity(data[gcr_bytenum + bitnum]) != expected_parity) ++result->vparity_errs; }
+      if (parity(data[gcr_bytenum + bitnum]) != expected_parity) {
+         struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
+         ++result->vparity_errs;
+         if (result->first_error < 0) result->first_error = gcr_bytenum + bitnum; } }
    while (--bitnum >= 0);
    gcr_bytenum += 4; }
 
@@ -261,9 +287,7 @@ void gcr_postprocess(void) {
 #endif
    eccdatacount = 0;
    result->blktype = BS_BLOCK;
-   result->vparity_errs = 0;
-   gcr_sequence_err = false;
-   gcr_bad_dgroups = 0;
+   result->first_error = -1;
    gcr_bitnum = 0;   // where we read from in data[]
    enum gcr_state_t state = GCR_preamble;
    bool groupa = true;
@@ -298,9 +322,14 @@ void gcr_postprocess(void) {
          else { // still in data
             gcr_write_dgroups();
             if (!groupa) {
-               // insert check/use of ECC here
-               gcr_showdata("data"); // show all 8 data bytes
+               gcr_showdata("data"); // show all 8 data bytes, maybe
+#if DUMPDATA
                gcr_savedata();
+#endif
+               if (gcr_compute_ecc() != data[gcr_bytenum - 1]>>1) { // see if ECC is ok
+                  struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
+                  ++result->ecc_errs;
+                  if (result->first_error < 0) result->first_error = gcr_bytenum - 1; }
                gcr_bytenum -= 1; // remove ECC
             }
             groupa = !groupa; } }
@@ -324,7 +353,7 @@ void gcr_postprocess(void) {
             gcr_showdata("crc"); // BCCC CCXE
             // insert crc processing here
             int residual_count = data[gcr_bytenum - 2] /* "residual char" (X) in CRC group */ >> (5+1) /* includes parity! */;
-            //rlog("residual char = %02X; adding %d of the residual bytes\n", data[gcr_bytenum - 2] >> 1, residual_count);
+            if (SHOW_GCRDATA) rlog("residual char = %02X; adding %d of the residual bytes\n", data[gcr_bytenum - 2] >> 1, residual_count);
             // remove the residual and crc data groups from the data, except for any valid residual bytes
             gcr_bytenum -= (16 - residual_count);
             state = GCR_postamble; }
@@ -351,14 +380,7 @@ void gcr_postprocess(void) {
 #endif
 #endif
    result->minbits = result->maxbits = gcr_bytenum;
-   result->errcount = result->vparity_errs;
-   if (gcr_bad_dgroups) {
-      //rlog("   found %d bad dgroup codes using parmset %d at time %.7lf\n", gcr_bad_dgroups, block.parmset, timenow);
-      ++result->errcount; }
-   if (gcr_sequence_err) {
-      rlog("   GCR sequence error\n");
-      ++result->errcount; }
-   interblock_expiration = timenow + GCR_IBG_SECS;  // ignore data for a while until we're well into the IBG
+   interblock_counter = (int)(GCR_IBG_SECS / sample_deltat);;  // ignore data for a while until we're well into the IBG
 }
 
 void show_clock_averages(void) {
@@ -383,10 +405,12 @@ void gcr_end_of_block(void) {
    //rlog("ending bitspacing: "); //TEMP
    //for (int trk = 0; trk < ntrks; ++trk) rlog("%.2f ", trkstate[trk].clkavg.t_bitspaceavg*1e6); //TEMP
    //rlog("\n"); //TEMP
-   dlog("GCR end_of_block, min %d max %d, avgbitspacing %.2f uS at %.7lf tick %.1lf\n",
+   dlog("GCR end of block, min %d max %d, avgbitspacing %.2f uS at %.7lf tick %.1lf\n",
         result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow, TICK(timenow));
-   if (result->maxbits <= 1) {  // leave result-blktype == BS_NONE //TEMP ??? changing to 10 causes problems!!!
-      rlog("   ignoring noise block of length %d at %.7lf\n", result->maxbits, timenow); }
+   if (result->maxbits <= 1) {  //TEMP ??? changing to 10 causes problems!!!
+      rlog("   detected noise block of length %d at %.7lf\n", result->maxbits, timenow);
+      result->blktype = BS_NOISE;
+   }
    else if (
       // "The Tape Mark is specified as 250 to 400 flux changes, all "ones," at 9042 frpi
       // in tracks 2, 5, 8, 1, 4, and 7, and no recording in tracks 3, 6, and 9." (Their numbering, not ours!)
@@ -401,12 +425,13 @@ void gcr_end_of_block(void) {
       trkstate[4].peakcount <= 2) {
       result->blktype = BS_TAPEMARK; // it's a tapemark
    }
-   else if (0 /*TEMP result->maxbits - result->minbits > 2*/) {  // different number of bits in different tracks
+   else if (result->maxbits - result->minbits > 2) {  // different number of bits in different tracks
       // Note that a normal block has up to 2 bits of difference, because the last bit "restores the
       // magnetic remanence to the erase state", which means is  0 (no peak) or 1 (peak) such that
       // the last peak was positive.
-      if (DEBUG) show_track_datacounts("*** malformed block");
-      rlog("   malformed before post-processing, %d parity errs, with lengths %d to %d at %.7lf\n", result->vparity_errs, result->minbits, result->maxbits, timenow); }
+      if (DEBUG) show_track_datacounts("*** block with mismatched tracks");
+      result->track_mismatch = result->maxbits - result->minbits;
+      result->blktype = BS_BADBLOCK; }
    else gcr_postprocess(); }
 
 void gcr_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a GCR bit
@@ -438,7 +463,7 @@ void gcr_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a GCR bit
    uint16_t mask = 1 << (ntrks - 1 - t->trknum);  // update this track's bit in the data array
    data[t->datacount] = bit ? data[t->datacount] | mask : data[t->datacount] & ~mask;
    data_time[t->datacount] = t_bit;
-#if KNOW_GOODDATA // TEMP compare data to what it should be
+#if KNOW_GOODDATA // compare data to what it should be
    extern uint16_t gooddata[];
    extern int gooddatacount;
    static int baddatacount = 0;
@@ -546,44 +571,4 @@ void gcr_top(struct trkstate_t *t) {  // detected a topc
       else adjust_agc(t); // otherwise adjust AGC
    } }
 
-#if 0 // deprecated; we switch to pulse location analysis instead
-void gcr_midbit(struct trkstate_t *t) { // we're in between NRZI bit times: make decisions about the previous bits
-   //dlog("midbit started for trk %d at %.7lf tick %.1lf,lastclock %.7lf tick %.1lf, trk0 %d bytes\n", //
-   //     t->trknum, timenow, TICK(timenow), t->t_lastclock, TICK(t->t_lastclock), t->datacount);
-   if (t->trknum == TRACETRK) TRACE(midbit, timenow, UPTICK, NULLP);
-   t->t_last_midbit = timenow;
-   double expected_pos, adjusted_pos;
-   expected_pos = t->t_lastclock + t->clkavg.t_bitspaceavg;  // where we expected a bit should have been
-
-   if (!t->hadbit) {  // if this track had no transition at the last clock (ie since the last midbit)
-      gcr_addbit(t, 0, expected_pos); // add a zero bit at the expected position
-      if (t->trknum == TRACETRK) TRACE(zerpos, expected_pos, UPTICK, NULLP);
-      t->t_lastclock = expected_pos; // use it as the last clock (bit) position
-      if (++t->consecutive_zeroes >= 3) { // if we had 3 or more zeroes
-         t->datablock = false; // then we're at the end of the block for us
-         t->idle = true;
-         dlog("trk %d becomes idle, %d idle at %.7f tick %.1lf, AGC %.2f, v_now %f, v_lastpeak %f, bitspaceavg %.2f\n", //
-              t->trknum, num_trks_idle+1, timenow, TICK(timenow), t->agc_gain, t->v_now, t->v_lastpeak, t->clkavg.t_bitspaceavg*1e6);
-         if (++num_trks_idle >= ntrks) { // and maybe for all tracks
-            //rlog("gcr_end_of_block, trk %d, at %.7lf\n", t->trknum, timenow); //TEMP
-            gcr_end_of_block(); } } }
-
-   else { // there was a transition on this track
-      // use the actual position of the bit to gently adjust the clock
-      adjusted_pos = expected_pos + PARM.pulse_adj * (t->t_lastpeak - expected_pos);
-      float delta = (float)(adjusted_pos - t->t_lastclock);
-      float oldavg;
-      if (DEBUG) oldavg = t->clkavg.t_bitspaceavg;
-      adjust_clock(&t->clkavg, delta, 0);  // adjust the clock rate based on the actual position
-      if (TRACING)
-         dlog("adjust clk on trk %d at %.7lf tick %.1lf with delta %.2fus into avg %.2fus making %.2fus, avg pos %.7lf tick %.1lf, adj pos %.7lf tick %.1lf\n", //
-              t->trknum, timenow, TICK(timenow), delta*1e6, oldavg*1e6, t->clkavg.t_bitspaceavg*1e6,
-              t->t_lastpeak, TICK(t->t_lastpeak), adjusted_pos, TICK(adjusted_pos)); //
-      t->t_lastclock = adjusted_pos;  // use it as the last clock (bit) position
-      t->hadbit = false;
-      t->consecutive_zeroes = 0; }
-   if (TRACING) dlog("midbit finished for trk %d at %.7lf tick %.1lf,lastclock %.7lf tick %.1lf, trk0 %d bytes\n", //
-                        t->trknum, timenow, TICK(timenow), t->t_lastclock, TICK(t->t_lastclock), t->datacount); //
-}
-#endif
 //*

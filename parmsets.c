@@ -68,6 +68,7 @@ parms[] = { // list of: type, name, min_value, max_value
    DEFINE_PARM(P_FLT, pulse_adj, ALLMODES, 0.0, 1.0),
    DEFINE_PARM(P_FLT, pkww_bitfrac, ALLMODES, 0.0, 2.0),
    DEFINE_PARM(P_FLT, pkww_rise, ALLMODES, 0.0, 5.0),
+   DEFINE_PARM(P_FLT, midbit, NRZI, 0.0, 1.0),
    DEFINE_PARM(P_FLT, z1pt, GCR, 1.0, 2.0),
    DEFINE_PARM(P_FLT, z2pt, GCR, 2.0, 3.0),
    DEFINE_PARM(P_STR, id, ALLMODES, 0, 0),
@@ -87,13 +88,15 @@ char *parmcmds_PE[MAXPARMSETS] = { // commands to set defaults for PE
    {0 } };
 struct parms_t parmsets_NRZI[MAXPARMSETS] = { 0 }; // where we store the NRZI default parmsets
 char *parmcmds_NRZI[MAXPARMSETS] = { // commands to set defaults for NRZI
-   "parms  active, clk_window, clk_alpha, agc_window, agc_alpha, min_peak, pulse_adj, pkww_bitfrac, pkww_rise, id",
-   "{       1,          0,       0.05,       0,         0.3,      1.0,       0.5,         0.4,      0.10,      PRM }",
-   "{       1,          0,       0.3,        0,         0.3,      1.5,       0.5,         0.8,      0.10,      PRM }",
-   "{       1,          0,       0.1,        0,         0.3,      1.0,       0.5,         0.5,      0.10,      PRM }",
-   "{       1,          2,       0.0,        0,         0.3,      1.0,       0.5,         0.5,      0.10,      PRM }",
-   "{       1,          0,       0.2,        0,         0.3,      0.5,       0.5,         0.5,      0.10,      PRM }",
-   "{       1,          0,       0.2,        0,         0.3,      0.2,       0.5,         0.7,      0.10,      PRM }",
+   "parms  active, clk_window, clk_alpha, agc_window, agc_alpha, min_peak, pulse_adj, pkww_bitfrac, pkww_rise, midbit,  id",
+   "{        1,       0,      0.200,          0,      0.300,      1.000,      0.300,      0.700,      0.200,      0.500,   PRM }",
+   "{        1,       0,      0.300,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM }",
+   "{        1,       2,      0.000,          0,      0.300,      1.000,      0.400,      0.700,      0.200,      0.500,   PRM }",
+   "{        1,       0,      0.600,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM }",
+   "{        1,       2,      0.000,          1,      0.000,      0.500,      0.500,      0.900,      0.050,      0.500,   PRM }", // for shallow peaks
+   "{        1,       0,      0.200,          1,      0.000,      1.000,      0.500,      0.700,      0.050,      0.500,   PRM }",
+   "{        1,       2,      0.000,          1,      0.000,      0.500,      0.500,      0.700,      0.050,      0.500,   PRM }",
+   "{        1,       0,      0.600,          1,      0.000,      0.500,      0.500,      0.600,      0.050,      0.500,   PRM }",
    { 0 } };
 struct parms_t parmsets_GCR[MAXPARMSETS] = { 0 }; // where we store the GCR default parmsets
 char *parmcmds_GCR[MAXPARMSETS] = { // commands to set defaults for GCR
@@ -164,7 +167,7 @@ bool getchars_to_blank(char **pptr, char *dstptr) {
                inquote = true; ++srcptr; }
             else { // ready to copy a char
                if (iscntrl(nextchar)) {
-                  if (inquote) return false; // quoted string not closed
+                  if (inquote) return false; // quoted string wasn't closed
                   goto goodend; }
                if (!inquote && nextchar == ' ') goto goodend;
                *dstptr++ = nextchar; ++srcptr;
@@ -180,7 +183,7 @@ void dump_parms(struct parms_t *psptr, bool showall) {
    rlog("parms ");
    for (int i = 0; i < MAXPARMSETS && parms[i].type != P_END; ++i)
       if (showall || parms[i].mode & mode)
-         rlog(parms[i].type == P_STR ? "%4s\n" : "%10s, ", parms[i].name);
+         rlog(parms[i].type == P_STR ? "%4s\n" : "%11s,", parms[i].name);
    for (struct parms_t *setptr = psptr; setptr->active == 1; ++setptr) {
       rlog("{   ");
       for (int i = 0; i < MAXPARMSETS && parms[i].type != P_END; ++i) {
@@ -194,8 +197,6 @@ void dump_parms(struct parms_t *psptr, bool showall) {
    rlog("  peak height closeness threshold: %.3f\n", PEAK_THRESHOLD);
    rlog("  nominal peak height for rise calculation: %.1fV\n", PKWW_PEAKHEIGHT/2);
    rlog("  AGC maximum: %.0f\n", (float)AGC_MAX);
-   if (mode == NRZI) {
-      rlog("  NRZI midpoint: %.2f bits\n", NRZI_MIDPOINT); }
    if (mode == GCR) {
       rlog("  GCR idle threshold: %.2f bits\n", GCR_IDLE_THRESH); }
    if (mode == PE) {
@@ -244,6 +245,9 @@ void parse_parms(struct parms_t *parmarray, char*(*getnextline)(void)) {
                if (strcmp(parms[i].name, str) == 0) { // match
                   file_to_parm[filendx] = i;
                   parm_given[i] = true;
+                  if (!(parms[i].mode & mode))
+                     rlog("  --->parm %s ignored because it isn't used for %s\n",
+                          parms[i].name, modename());
                   break; } }
             if (!scan_key(&ptr, ",")) break; }
          assert(*ptr == '\n' || *ptr == 0, "bad parm name: %s", ptr);
@@ -303,16 +307,13 @@ void read_parms(void) {   // process the optional .parms file of parameter sets 
    char filename[MAXPATH];
    struct parms_t *setptr;
 
-   //rlog("parsing precompiled default parms\n"); // but first: parse the built-in parms
-   precompiled_line_ptr = parmcmds_PE;
-   parse_parms(parmsets_PE, next_precompiled_line);
-   //dump_parms(parmsets_PE, false);
-   precompiled_line_ptr = parmcmds_NRZI;
-   parse_parms(parmsets_NRZI, next_precompiled_line);
-   //dump_parms(parmsets_NRZI, false);
-   precompiled_line_ptr = parmcmds_GCR;
-   parse_parms(parmsets_GCR, next_precompiled_line);
-   //dump_parms(parmsets_GCR, false);
+   //rlog("parsing precompiled default parms\n"); // but first: parse the built-in parms for this mode
+   precompiled_line_ptr =
+      mode == PE ? parmcmds_PE :
+      mode == NRZI ? parmcmds_NRZI :
+      /* mode == GCR */ parmcmds_GCR;
+   parse_parms(default_parmset(), next_precompiled_line);
+   //dump_parms(default_parmset(), false);
 
    strncpy(filename, baseinfilename, MAXPATH - 7);  // try <basefilename>.parms
    filename[MAXPATH - 7] = '\0';
@@ -338,7 +339,7 @@ void read_parms(void) {   // process the optional .parms file of parameter sets 
             return; } } }
    if (!quiet) rlog("reading parmsets from file %s\n", filename);
    parse_parms(parmsets, next_file_line);
-   if (!quiet) dump_parms(parmsets, false); // show the parms as read from the file
+   if (!quiet) dump_parms(parmsets, false); // show the parms we will be using
 }
 
 //*
