@@ -1,0 +1,1550 @@
+file: results\PLAGO_beginning.EBCDIC.txt
+options:   -EBCDIC -NEWLINE -LINESIZE=80
+tape mark
+  800: **** LOADER INSTRUCTION REPETOIRE **********************************************
+       ****                                                                        ****
+       ****                            OPERAND TYPES                               ****
+       ****   TYPE DESCRIPTION                 TYPE DESCRIPTION                    ****
+       ****    1   NO-OPERAND                   2   STATIC-CELL                    ****
+       ****    3   STATIC-CELL,LCL-LABEL        4   LCL-LABEL                      ****
+       ****    5   GLB-LABEL                    6   ANY-LABEL                      ****
+       ****    7   ONE-NUMBER                   8   ONE-CHARACTER,ANY-LABEL        ****
+       ****    9   STRING,ANY-LABEL            10   STRING                         ****
+       ****   11   LCL-LABEL-1,...,LCL-LABEL-N 12   STK-NAME                       ****
+  800: ****   13   STK-NAME,LCL-LABEL          14   DESC                           ****
+       ****   15   STK-NAME,DESC               16   STK-NAME,DESC,LCL-LABEL        ****
+       ****   ABBREVIATIONS                    17   STK-NAME,STK-NAME              ****
+       ****   LCL=LOCAL         STK=STACK                                          ****
+       ****   DESC=DESCRIPTOR   GLB=GLOBAL                                         ****
+       ****                                                                        ****
+       ****                                                                        ****
+       *** IDO DEFINITIONS                               ** LEGEND ********************
+       *** OPCODE TYPE OF OPERAND                        **                          **
+       ******* ARITHMETIC                                ** ^     NOT                **
+  800: ***                                               ** |     OR                 **
+       *** ADD    2   C(W0)+C(DC)->W0                    ** &     AND                **
+       *** SUB    2   C(W0)-C(DC)->W0                    ** P     POINTER            **
+       *** MPY    2   C(W0)*C(DC)->W0                    ** SE    STK-ENTRY          **
+       *** TLY    2   C(DC)+1->DC                        ** E     EXIT-STACK         **
+       *** NEG    1   -C(W0)->W0                         ** W     WORK-STACK         **
+       ***                                               ** C( )  CONTENTS-OF        **
+       ******* STATIC & WORK DECISION                    ** W0,WN  CONTENTS OF WORK  **
+       *** BEQ    3   =>LL IF C(W0)=C(DC)                ** LL    LOCAL-LABEL        **
+       *** BNE    3   =>LL IF C(W0)^=C(DC)               ** GL     GLOBAL-LABEL      **
+  800: *** BNZ    3   =>LL IF C(DC)^=0                   ** AL     ANY-LABEL         **
+       *** BGE    3   =>LL IF C(W0)>=C(DC)               ** DC     STATIC-CELL       **
+       *** BLE    3   =>LL IF C(W0)<=C(DC)               ** SN     STACKNAME         **
+       *** BEZ    4   =>LL IF C(W0)=0                    ** S      IMMEDIATE-STRING  **
+       *** BDW    4   C(W0)-1->W0,U(W) IF C(W0)=0        ** ->     ASSIGNED-TO       **
+       ***            ELSE =>LL                          ** =>     BRANCH-TO         **
+       *** BUW   11   C(W0)=0,1,...N-1                   ** D( )   PUSH-DOWN         **
+       ***            U(W) =>LL(0,...,N-1)               ** U( )   POP-UP            **
+       ***                                               ** I      IMMEDIATE-BYTE    **
+       ***                                               ** C      CURRENT-CHARACTER **
+  800: ***                                               ******************************
+       ******* SCAN CONTROL                                                          **
+       *** CSF    8   =>AL IF C^=I  ADVANCE IF I=C            |                      **
+       *** CST    8   =>AL IF C =I  ADVANCE IF I=C            |                      **
+       *** QSF    9   =>AL IF S^=I  ADVANCE IF S=C            |                      **
+       *** QST    9   =>AL IF S =I  ADVANCE IF S=C            |                      **
+       *** CON    4   CONSTANT->                             -| SCAN                 **
+       ***            W2,W1 IF BINARY CONST,0->W0             | ADVANCES             **
+       ****           W2,W1 IF FLOAT SINGLE,1->W0             | IF SUCCESS           **
+       ***            W4-W1 IF FLOAT DOUBLE,2->W0             |                      **
+  800: ***            =>LL IF NOT-A-CONSTANT                 -|                      **
+       *** IDS    4   IDENTIFIER->W3-W0 (BLANK PADDED)        |                      **
+       ***            =>LL IF NOT IDENTIFIER                  |                      **
+       *** SKS    1   SKIP STATEMENT-LEAVES SCAN POINTING AT ;                       **
+       *******UNCONDITIONAL TRANSFER                                                 **
+       *** BUN    6   =>AL                                                           **
+       *******SUBROUTINE LINKAGE                                                     **
+       *** BSB    5   D(E) & =>GL                                                    **
+       *** RET    1   U(E) & RETURN                                                  **
+       *******STATIC AND WORK TRANSMISSIVE AND CONTROL                               **
+  800: *** FET    2   D(W),C(DC)->W0                                                 **
+       *** CLA    2   C(DC)->W0                                                      **
+       *** EAW    7   D(W),I->W0                                                     **
+       *** ASK    2   C(W0)->DC                                                      **
+       *** ASP    2   C(W0)->DC,U(W)                                                 **
+       *** SWT    2   C(W0)->T,C(DC)->W0,T->DC   T=TEMP                              **
+       *** POW    7   U(W),I TIMES                                                   **
+       *******STACK OPERATIONS                                                       **
+       *** AFE   15   D(SN),C(WN,...,W0)->SE,U(WN,...,W0),P->W0                      **
+       *** ZFE   15   D(SN),0->SE,C(WN,...,W0)->SE,U(WN,...,W0),P->W0                **
+  800: *** ARK   14   C(WN,...,WO)->SE VIA P IN WN+1                                 **
+       *** ARP   14   C(WN,...,WO)->SE VIA P IN WN+1,U(WN,...,WO)                    **
+       *** FRK   14   C(SE)->WN,...,W0 VIA P IN WO, P ->WN+1                         **
+       *** FRK   14   C(SE)->WN,...,W0 VIA P IN WO, P IS PURGED                      **
+       *** ZOE   15   0->C(SE) VIA P IN WO                                           **
+       *** CNT   12   D(W),(COUNT OF CURR. SEG)->W0                                  **
+       *** PNE   12   D(SN),D(W),P->W0                                               **
+       *** SRS   16   (WN,...,W0 USED AS ARGS) SEARCHES ACTIVE SEGS                  **
+       ***            =>LL IF NOT FOUND,ELSE U(WN,...,W0),P->W0                      **
+       *** RSV   12   PARTITIONS A STACK TO START A NEW SEGMENT                      **
+  800: *** REL   12   RELEASES ACTIVE STACK SEGMENT                                  **
+       *** COP   17   COPIES THE ACTIVE STACK SEGMENT TO ANOTHER STACK               **
+       ******* ERROR CONTROL AND MESSAGES                                            **
+       *** SER    7   OUTPUTS MESSAGE ASSOCIATED WITH GIVEN NUM.                     **
+       ***            AND PLACES A $ SIGN UNDER CURRENT CHARACTER                    **
+       *** MSG   10   OUTPUTS GIVEN STRING                                           **
+       ******* MACHINE CODE                                                          **
+       *** XIT    7   THE NUMBER IS USED TO SELECT A SPECIALLY CODED                 **
+       ***            SEQUENCE IN THE T-MACHINE                                      **
+       ******* DEBUGGING                                                             **
+  800: *** DPS   12   DUMPS THE NAMED STACK                                          **
+       *** TON    1   TURNS ON GLOBAL SECTION TRACE                                  **
+       *** TOF    1   TURNS OFF TRACE                                                **
+       ******* INSTRUCTION GENERATION                                                **
+       *** INS    2   PLACES C(DC) & C(W0) IN THE CODE STACK. U(W).  UPDATES         **
+       ***            LOCNTR BY 4.                                                   **
+       *** SIN    2   PLACES C(DC) IN THE CODE STACK. UPDATES LOCNTR BY 2.           **
+       *** INP    2   PLACES LEFT BYTE OF DC INTO RIGHT BYTE OF WO AND PLACES        **
+       ***            C(W0) IN THE CODE STACK. U(W). UPDATES LOCNTR BY 2.            **
+       *** PRC    2   IF THE RIGHT BYTE OF DC IS >= RIGHT BYTE OF WO &               **
+  800: ***            W0 ^=0, A CODE STACK ENTRY IS MADE FROM W0,                    **
+       ***            LOCNTR INCREMENTED BY 2 AND U(W). THEN IT REPEATS              **
+       ***            THIS PROCESS, OTHERWISE D(W), C(DC)->WO.                       **
+       ***            U(W). THEN IT REPEATS THIS PROCESS. OTHERWISE                  **
+       ***            D(W), C(DC)->W0                                                **
+       *                                                                      *        
+       *        EXECUTION INSTRUCTION REPETOIRE                               *        
+       *                                                                      *        
+       **********************************************************************          
+       *********TRANSLATION SKELETONS******************************************        
+  800: *                                                                      *        
+       * I.  OPERANDS                                                         *        
+       *                                                                      *        
+       *  A. VARIABLES                                                        *        
+       *                                                                      *        
+       *   A                    |FET |   0|    IF GLOBAL 0 BECOMES BLOCK#.    *        
+       *                        |ID  | ->A|    REPLACED BY OFFSET FROM IDBASE *        
+       *                                                                      *        
+       *  B. CONSTANTS                                                        *        
+       *                                                                      *        
+  800: *   5                    |FBC |   0|                                   *        
+       *                        |BC  |->BC|    REPLACED BY OFFSET FROM IDBASE *        
+       *                                                                      *        
+       *   5E-1                 |FFS |   0|                                   *        
+       *                        |FS  |->FS|    REPLACED BY OFFSET FROM IDBASE *        
+       *                                                                      *        
+       *   639871625E5          |FFD |   0|                                   *        
+       *                        |FD  |->FD|    REPLACED BY OFFSET FROM IDBASE *        
+       *                                                                      *        
+       *   'ABC'                |FST |   L|                                            
+  800: *                        |ST  |->ST|    REPLACED BY OFFSET FROM IDBASE *        
+       *                        ABC            (POINTS TO STRING DOPE VECTOR) *        
+       *                                                                      *        
+       *   ''                   |FST |   0|                                   *        
+       *                        |ST  |->ST|                                   *        
+       *                                                                      *        
+       *  C. SUBSCRIPTED VARIABLES                                            *        
+       *                                                                      *        
+       *   A(3)                 |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+  800: *                        |FSB |   0|    IF GLOBAL 0 BECOMES BLOCK#     *        
+       *                        |ID  | ->A|    REPLACED BY OFFSET FROM IDBASE *        
+       *                        |   0|   1|                                   *        
+       *                                                                      *        
+       *   A(I,J)               |FET |   0|                                   *        
+       *                        |ID  | ->I|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->J|                                   *        
+       *                        |FSB |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+  800: *                        |   0|   2|                                   *        
+       *                                                                      *        
+       *  D. BUILT-IN FUNCTIONS                                               *        
+       *                                                                      *        
+       *   ABS(X)               |FET |   0|                                   *        
+       *                        |ID  | ->X|                                   *        
+       *                        |FSB |   0|    CHANGED TO BIF                 *        
+       *                        |ID  | ABS|    OFFSET ADDRESS OF ABS          *        
+       *                        |   0|   1|                                   *        
+       *  E. PROCEDURE FUNCTION REFERENCE                                     *        
+  800: *                                                                      *        
+       *   F(X,Y)               |FET |   0|                                   *        
+       *                        |ID  | ->X|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->Y|                                   *        
+       *                        |FSB |   0|    CHANGED TO FNC                 *        
+       *                        |ID  | ->F|    OFFSET FROM CDBASE             *        
+       *                        |   0|   2|                                   *        
+       *                                                                      *        
+       *   F                    |FET |   0|    CHANGED TO FNC                 *        
+  800: *                        |ID  | ->F|    OFFSET FROM CDBASE             *        
+       *                                                                      *        
+       * II. EXPRESSIONS                                                      *        
+       *                                                                      *        
+       *   -A                   |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |PMI |   0|    CONVERSIONS & ARRAY OPERAND    *        
+       *                                       DENOTED AFTER FIRST EXECUTION  *        
+       *                                       (APPLIES TO ALL PREFIX AND     *        
+       *                                        INFIX OPERATORS).             *        
+  800: *                                                                      *        
+       *                                                                      *        
+       *   ^-A                  |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |PMI |   0|                                   *        
+       *                        |NOT |   0|                                   *        
+       *                                                                      *        
+       *   A**B**C              |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+  800: *                        |ID  | ->B|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->C|                                   *        
+       *                        |EXP |   0|                                   *        
+       *                        |EXP |   0|                                   *        
+       *                                                                      *        
+       *   A+B*C                |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+  800: *                        |FET |   0|                                   *        
+       *                        |ID  | ->C|                                   *        
+       *                        |MUL |   0|                                   *        
+       *                        |ADD |   0|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+       *   A=B                  |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+  800: *                        |EQU |   0|                                   *        
+       *                                                                      *        
+       *   A>B&C<D              |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+       *                        |GRT |   0|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID    ->C|                                   *        
+       *                        |FET |   0|                                   *        
+  800: *                        |ID  | ->D|                                   *        
+       *                        |LES |   0|                                   *        
+       *                        |AND |   0|                                   *        
+       *                                                                      *        
+       *   A||B||C              |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | -B|                                    *        
+       *                        |CAT |   0|                                   *        
+       *                        |FET |   0|                                   *        
+  800: *                        |ID  | ->C|                                   *        
+       *                        |CAT |   0|                                   *        
+       *                                                                      *        
+       *   A*(B+C)              |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->C|                                   *        
+       *                        |ADD |   0|                                   *        
+  800: *                        |MUL |   0|                                   *        
+       *                                                                      *        
+       *   A|B&C                |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+       *                        |FET     0|                                   *        
+       *                        |ID  | ->C|                                   *        
+       *                        |AND |   0|                                   *        
+       *                        |OR  |   0|                                   *        
+  800: *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       * III. ASSIGNMENT STATEMENT                                            *        
+       *  A=E;                  |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        (E)                                           *        
+       *                        |STD |   0|    CONVERSIONS AND ARRAY TARGET   *        
+       *                                       DENOTED AFTER FIRST EXECUTION  *        
+       *                                                                      *        
+  800: *  A,B=E;                |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+       *                        (E)                                           *        
+       *                        |ST0 |   0|    (SAME AS ABOVE NOTE)           *        
+       *                        |STD |   0|                                   *        
+       *                                                                      *        
+       *  A(I,J)=E;             |FET |   0|                                   *        
+       *                        |ID  | ->I|                                   *        
+  800: *                        |FET |   0|                                   *        
+       *                        |ID  | ->J|                                   *        
+       *                        |FSB |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |   0|   2|                                   *        
+       *                        (E)                                           *        
+       *                        STD                                           *        
+       * IV. IF STATEMENT                                                     *        
+       *                                                                      *        
+       *  IF E THEN S1;         (E)                                           *        
+  800: *                        |BFL |   0|    CONVERSION DENOTED IF NECESSARY*        
+       *                        |GL  | GL0|    REPLACED BY OFFSET FROM CDBASE *        
+       *                        (S1)                                          *        
+       *                        GL0:                                          *        
+       *                                                                      *        
+       *  IF E THEN S1;         (E)                                           *        
+       *   ELSE S2;             |BFL |   0|                                   *        
+       *                        |GL  | GL0|                                   *        
+       *                        (S1)                                          *        
+       *                        |TRG |   0|                                   *        
+  800: *                        |GL  | GL1|    REPLACED BY OFFSET FROM CDBASE *        
+       *                        GL0:                                          *        
+       *                        (S2)                                          *        
+       *                        GL1:                                          *        
+       *                                                                      *        
+       * V. GOTO STATEMENT                                                    *        
+       *                                                                      *        
+       *  GOTO A;               |TRA |   0|    REPLACES 0 BY NEST LEVEL OF A  *        
+       *                        |ID  | ->A|    REPLACED BY OFFSET FROM CDBASE *        
+       *                                       (FOR LABEL VARIABLES, NEST IS           
+  800: *                                        SET TO 255).                           
+       *                                                                               
+       *  GO TO A(EXPR);        (EXPR)                                                 
+       *                        |FSB | BL#|                                            
+       *                        |ID  | ->A|                                            
+       *                        |   0|   1|                                            
+       *                        |TRA | 255|    255 (X'FF') INDICATES TRANSFER          
+       *                        |ID  | ->A|    VIA LABEL VARIABLE                      
+       *                                                                               
+       *                                                                               
+  800: *                                                                      *        
+       *                                                                      *        
+       * VI. STOP STATEMENT                                                   *        
+       *                                                                      *        
+       *  STOP;                 |STP |   0|                                   *        
+       *                                                                      *        
+       * VII. CALL STATEMENT                                                  *        
+       *                                                                      *        
+       *  CALL A;               |LNK |   0|                                   *        
+       *                        |ID  | ->A|    OFFSET FROM CDBASE             *        
+  800: *                                                                      *        
+       *  CALL A(X,Y);          |FET |   0|                                   *        
+       *                        |ID  | ->X|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->Y|                                   *        
+       *                        |LNK |   2|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                                                                      *        
+       * VIII. RETURN STATEMENT                                               *        
+       *                                                                      *        
+  800: *  RETURN;               |RET |   0|                                   *        
+       *                                                                      *        
+       *  RETURN(E);            (E)                                           *        
+       *                        |RTF |   0|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+       * IX. DO GROUPS                                                        *        
+       *                                                                      *        
+       *  DO; ... END;          NO CODE GENERATED                             *        
+       *                                                                      *        
+  800: *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *  DO WHILE(E);          |DOW |NEST|                                   *        
+       *   .                    |GL  | GLO|    END LOOP ADDRESS               *        
+       *   .                    |GL  | GL1|    LOOP RETURN ADDRESS            *        
+       *   .                    GL1:                                          *        
+       *  END;                  (E)                                           *        
+       *                        |WHT |   0|    CONVERSION DENOTED IF NECESSARY*        
+  800: *                        (BODY)                                        *        
+       *                        |LTR |   0|    TRANSFER TO GL1                *        
+       *                        GLO:                                          *        
+       *                        |PTM |NEST|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *   DO V=E;              |DOI |NEST|                                   *        
+  800: *   .                    |FET |   0|                                   *        
+       *   .                    |ID  | ->V|                                   *        
+       *   .                    (E)                                           *        
+       *  END;                  |FBC |   0|    DUMMY TO MAKE GLABELS MATCH    *        
+       *                        |BC  |->BC|    FOR THE GENERAL CASE.          *        
+       *                        |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+       *                        |STR |   0|    CONVERSION DENOTED IF NECESSARY*        
+       *                        |GL  | GL1|                                   *        
+       *                        |GL  | GL0|                                   *        
+  800: *                        (BODY)                                        *        
+       *                        |LTR |   0|                                   *        
+       *                        GL0:                                          *        
+       *                        |PTM |NEST|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *  DO V=E1 TO E2 BY E3   |DOI |NEST|                                   *        
+  800: *   WHILE(E4);           |FET |   0|                                   *        
+       *   .                    |ID  | ->V|                                   *        
+       *   .                    (E1)                                          *        
+       *  END;                  (E2)                                          *        
+       *                        (E3)          REPLACED BY FBC ->0 IF ABSENT   *        
+       *                        |STR |   0|                                   *        
+       *                        |GL  | GL0|                                   *        
+       *                        |GL  | GL1|                                   *        
+       *                        |TRG |   0|                                   *        
+       *                        |GL  | GL2|                                   *        
+  800: *                        GL1:                                          *        
+       *                        |LPI |   0|                                   *        
+       *                        GL2:                                          *        
+       *                        |LPT     0|                                   *        
+       *                        (E4)          DROPS OUT IF WHILE              *        
+       *                        |WHT |   0|    NOT SPECIFIED                  *        
+       *                        (BODY)                                        *        
+       *                        |LTR |   0|                                   *        
+       *                        GLO:                                          *        
+       *                        |PTM |NEST|                                   *        
+  800: *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *   DO V=E1 BY E2        |DOI |NEST|                                   *        
+       *   WHILE(E3);           |FET |   0|                                   *        
+       *   .                    |ID  | ->V|                                   *        
+       *   .                    (E1)                                          *        
+       *   .                    |FBC |   0|    DUMMY TO MATCH GENERAL CASE    *        
+       *  END;                  |BC  |->BC|                                   *        
+       *                        (E2)                                          *        
+  800: *                        |STR |   0|                                   *        
+       *                        |GL  | GL0|                                   *        
+       *                        |GL  | GL1|                                   *        
+       *                        |TRG |   0|                                   *        
+       *                        |GL  | GL2|                                   *        
+       *                        GL1:                                          *        
+       *                        |LPI |   0|                                   *        
+       *                        GL2:                                          *        
+       *                        (E3)           DROPS OUT IF                   *        
+       *                        |WHT |   0|    NOT SPECIFIED                  *        
+  800: *                        (BODY)                                        *        
+       *                        |LTR|    0|                                   *        
+       *                        GLO:                                          *        
+       *                        |PTM |NEST|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+       *  DO V=E1,              |DOI |NEST|                                   *        
+       *     E2 TO E3 BY E4,    |FET |   0|                                   *        
+       *      E5 WHILE(E6);     |ID  | ->V|                                   *        
+       *   .                    (E1)                                          *        
+  800: *   .                    |FBC |   0|    DUMMY                          *        
+       *   .                    |BC  |->BC|                                   *        
+       *  END;                  |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+       *                        |STR |   0|                                   *        
+       *                        |GL  | GL1|                                   *        
+       *                        |GL  | GL0|                                   *        
+       *                        |TRG |   0|                                   *        
+       *                        |GL  | GL2|                                   *        
+       *                        GL0:                                          *        
+  800: *                        |PTV |   0|                                   *        
+       *                        (E2)                                          *        
+       *                        (E3)                                          *        
+       *                        (E4)                                          *        
+       *                        |STR |   0|                                   *        
+       *                        |GL  | GL3|                                   *        
+       *                        |GL  | GL4|                                   *        
+       *                        |TRG |   0|                                   *        
+       *                        |GL  | GL5|                                   *        
+       *                        GL4:                                          *        
+  800: *                        |LPI |   0|                                   *        
+       *                        GL5:                                          *        
+       *                        |LPT |   0|                                   *        
+       *                        |TRG |   0|                                   *        
+       *                        |GL  | GL2|                                   *        
+       *                        GL3:                                          *        
+       *                        |PTV |   0|                                   *        
+       *                        (E5)                                          *        
+       *                        |FBC |   0|    DUMMY                          *        
+       *                        |BC  |->BC|                                   *        
+  800: *                        |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+       *                        |STR |   0|                                   *        
+       *                        |GL  | GL6|                                   *        
+       *                        |GL  | GL7|                                   *        
+       *                        GL7:                                          *        
+       *                        (E6)                                          *        
+       *                        |WHT |   0|                                   *        
+       *                        GL2:                                          *        
+       *                        (BODY)                                        *        
+  800: *                        |LTR |   0|                                   *        
+       *                        GL6:                                          *        
+       *                        |PTM |NEST|                                   *        
+       *                                                                      *        
+       * XI. GET STATEMENT                                                    *        
+       *                                                                      *        
+       *  GET LIST(A,B);        |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+  800: *                        |GLS |   2|                                   *        
+       *                                                                      *        
+       *  GET DATA(A,B);        |FET |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+       *                        |GDT |   2|                                   *        
+       *                                                                      *        
+       *  GET DATA;             |GDB | BL#|                                   *        
+       *                                                                      *        
+  800: * XII, PUT STATEMENT                                                   *        
+       *                                                                      *        
+       *  PUT LIST(E1,E2);      (E1)                                          *        
+       *                        (E2)                                          *        
+       *                        |PLS |   2|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       *   PUT DATA(A,B);       |FET |   0|   NOTE-RESTRICTED TO VARIABLE     *        
+       *                        |ID  | ->A|    NAMES. SUBSCRIPTS NOT PERMITTED*        
+  800: *                        |FET |   0|                                   *        
+       *                        |ID  | ->B|                                   *        
+       *                        |PDT |   2|                                   *        
+       *                                                                      *        
+       *  PUT DATA;             |PDB | BL#|                                   *        
+       *                                                                               
+       *  PUT PAGE LINE(E);     |PGE |   0|                                   *        
+       *                        (E)                                           *        
+       *                        |LNE |   0|                                   *        
+       *                                                                      *        
+  800: *  PUT SKIP;             |FBC |   0|    MAY BE AN EXPRESSION           *        
+       *                        |BC  |->BC|    DEFAULT SKIP OF ONE            *        
+       *                        |SKP |   0|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+       * XIII. PROCEDURE BLOCKS                                               *        
+       *                                                                      *        
+       *                                                                      *        
+       *                                                                      *        
+  800: *                                                                      *        
+       *   A:PROC (X,Y);        |TRG |   0|                                   *        
+       *   .                    |GL  | GL2|                                   *        
+       *   .                    |PRC |NEST|                                   *        
+       *   .                    |ID  | ->0|   REPLACE WITH OFFSET FROM IDBASE *        
+       *  END;                  |TRG |   0|                                   *        
+       *                        |GL  | GL1|                                   *        
+       *                        GL0:                                          *        
+       *                        (BODY)                                        *        
+       *                        |PTM |NEST|                                   *        
+  800: *                        GL1:                                          *        
+       *                        (PROLOGUE)                                    *        
+       *                        |TRG |   0|                                   *        
+       *                        |GL  | GL0|                                   *        
+       *                        GL2:                                          *        
+       *                                                                      *        
+       * XIV. BEGIN BLOCKS                                                    *        
+       *                                                                      *        
+       *  BEGIN;                |BEG |NEST|                                   *        
+       *    .                   |ID  | ->0|   REPLACE WITH OFFSET FROM IDBASE *        
+  800: *    .                   |GL  | GL2|                                   *        
+       *    .                   |TRG |   0|                                   *        
+       *  END;                  |GL  | GL1|                                   *        
+       *                        GLO:                                          *        
+       *                        (BODY)                                        *        
+       *                        |PTM |NEST|                                   *        
+       *                        GL1:                                          *        
+       *                        (PROLOGUE)                                    *        
+       *                        |TRG |   0|                                   *        
+       *                        |GL  | GL0|                                   *        
+  800: *                        GL2:                                          *        
+       *                                                                      *        
+       * XV. DECLARE STATEMENT                                                *        
+       *                                                                      *        
+       *  DCL A(E1:E2);         (E1)                                          *        
+       *                        (E2)                                          *        
+       *                        |DVS |   0|                                   *        
+       *                        |ID  | ->A|    OFFSET FORM IDBASE             *        
+       *                                                                      *        
+       *  DCL A(5);             |FBC |   0|                                   *        
+  800: *                        |BC  |->BC|    TO THE CONSTANT 1.             *        
+       *                        |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+       *                        |DVS |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *  DCL A CHAR(5);        |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+       *                        |DVS |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                                                                      *        
+  800: *  DCL A(*) CHAR(*) VAR; |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+       *                        |FBC |   0|                                   *        
+       *                        |BC  |->BC|                                   *        
+       *                        |FBC |   0|    STRING LENGTH                  *        
+       *                        |BC  |->BC|                                   *        
+       *                        |DVS |   0|                                   *        
+       *                        |ID  | ->A|                                   *        
+       *                                                                      *        
+       *                                                                      *        
+  800: ********************************************************************************
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       * XVI.  LABEL ARRAY INITIALIZATION                                              
+       *                                                                               
+       * A(EXPR): STMT;         (EXPR)         (THIS CODE IS GENERATED AS PART         
+       *                        |FSB | BL#|    OF THE PROLOGUE).                       
+       *                        |ID  | ->A|                                            
+       *                        |   0|   1|                                            
+  800: *                        |LBL |NEST|    NEST LEVEL OF STATEMENT                 
+       *                        |  LOCNTR |    CODESTACK OFFSET OF STATEMENT           
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       * XVII. 'ON' STATEMENTS.                                                        
+       *                                                                               
+       * ON <CONDITION> STOP:   |ONC |   #|    ON-CONDITION NUMBER                     
+       *                        |TRG |   0|    TRANSFER AROUND ON-UNIT                 
+  800: *                        |GL  | GL0|                                            
+       *                        |STP |  0|                                             
+       *                    GL0:    ...                                                
+       *                                                                               
+       * ON <CONDITION> SYSTEM; |ONC |   #|                                            
+       *                        |TRG |   0|                                            
+       *                        |GL  | GL0|                                            
+       *                        |   0|   0|    0 INDICATES 'SYSTEM'                    
+       *                    GL0:    ...                                                
+       *                                                                               
+  800: * ON <CONDITION>;        |ONC |   #|                                            
+       *                        |TRG |   0|                                            
+       *                        |GL  | GL0|                                            
+       *                        |   2|   0|    2 INDICATES RETURN FROM ON-UNIT         
+       *                    GL0:    ...                                                
+       *                                                                               
+       * ON <CONDITION> GOTO A; |ONC |   #|                                            
+       *                        |TRG |   0|                                            
+       *                        |GL  | GL0|                                            
+       *                        |TRA |   0|                                            
+  800: *                        |ID  | ->A|                                            
+       *                    GL0:    ...                                                
+       *                                                                               
+       *                                                                               
+       ********************************************************************* **        
+       * CODE STACK                                                                    
+       *    CONTAINS THE INSTRUCTIONS GENERATED BY THE FIRST PASS TRANSLATION.         
+       *    INSTRUCTIONS ARE ENTERED VIA THE INS,SIN,INP,AND PRC IDO'S.                
+       *             |-------|-------|                                                 
+       *   FORMAT:   |   A   |   B   |        TWO-BYTE ENTRIES                         
+  800: *             |-------|-------|                                                 
+       *   A= OPERATION CODE                                                           
+       *   B= OPERAND, OR NOT USED                                                     
+       *    SOME INSTRUCTIONS USE MORE THAN ONE ENTRY.                                 
+       *    SEE THE TRANSLATION SKELETONS.                                             
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+  800: * IDENTIFIER STACK                                                              
+       *                                                                               
+       *   CONTAINS ALL OF THE IDENTIFIERS DECLARED AND REFERENCED IN THE              
+       *   EXTERNAL PROCEDURE, INCLUDING STATEMENT-LABELS,PROCEDURE-IDENTI-            
+       *   FIERS, VARIABLES, BUILT-IN FUNCTIONS, AND PSEUDO-VARIABLES.  THE            
+       *   STACK IS RESERVED UPON ENTRANCE TO A BLOCK AND ALL DECLARED AND             
+       *   REFERENCED IDENTIFIERS IN THE BLOCK ARE PLACED IN A NEW SEGMENT.            
+       *    UPON EXITING FROM A BLOCK, THE CURRENT IDENTIFIER STACK SEGMENT IS         
+       *   COPIED TO TEMP$ID.  AT THE END OF FIRST PASS TRANSLATION, ALL               
+       *   INTERNAL BLOCK IDENTIFIERS WILL BE IN TEMP$ID.                              
+  800: * THE FIRST ENTRY IS USED TO CONTAIN CERTAIN BLOCK INFORMATION AS               
+       * DENOTED BY THE SECOND FORMAT.                                                 
+       *                                                                               
+       *             |----------------|                                                
+       *             |       A        |        SIXTEEN-BYTE ENTRIES                    
+       *             |----------------|                                                
+       *             |       A        |                                                
+       *             |----------------|                                                
+       *             |       A        |                                                
+       *             |----------------|                                                
+  800: *             |       A        |                                                
+       *             |----------------|                                                
+       *             |   B   |   C    |                                                
+       *             |----------------|                                                
+       *             |       D        |                                                
+       *             |----------------|                                                
+       *             |   E   |   F    |                                                
+       *             |----------------|                                                
+       *             |       G        |                                                
+       *             |----------------|                                                
+  800: *                                                                               
+       *   A= THE IDENTIFIER                                                           
+       *                                                                               
+       *   B= TYPE CODE FOR THE IDENTIFIER                                             
+       *                                                                               
+       *        STATUS AND OTHER INFO = FIRST 4 BITS (IN HEXADECIMAL)                  
+       *          0 - SCALAR                                                           
+       *          2 - ARRAY                                                            
+       *          4 - SCALAR PARAMETER                                                 
+       *          6 - ARRAY PARAMETER                                                  
+  800: *          1 - SCALAR TEMPORARY                                                 
+       *          3 - ARRAY TEMPORARY                                                  
+       *          8 - BUILT-IN FUNCTION                                                
+       *          C - PROCEDURE                                                        
+       *                                                                               
+       *        DATA TYPE = SECOND 4 BITS (IN HEXADECIMAL)                             
+       *          0 - UNDEFINED                                                        
+       *          2 - BINARY FIXED                                                     
+       *          4 - SINGLE FLOAT                                                     
+       *          6 - DOUBLE FLOAT                                                     
+  800: *          8 - CHARACTER VARYING                                                
+       *          A - CHARACTER                                                        
+       *          C - STATEMENT-LABEL CONSTANT OR VARIABLE                     00006420
+       *                                                                               
+       *    C= NEST LEVEL FOR STATEMENT-LABELS OR PROCEDURE-IDENTIFIERS IN THE         
+       *      FIRST PASS. USED FOR BLOCK # FOR VARIABLES IN THE SECOND PASS.           
+       *      THIS BYTE WILL BE SET TO ZERO PRIOR TO THE PROGRAM EXECUTION.            
+       *      NEST OR BLOCK # WILL BE PLACED IN THE INSTRUCTIONS WHERE REQUIRED.       
+       *                                                                               
+       *   D= USED FOR THE FOLLOWING:                                                  
+  800: *      STATEMENT LABEL-OFFSET FROM CDBASE                                       
+       *      PROCEDURE LABEL-OFFSET FROM CDBASE                                       
+       *      VARIABLE-       OFFSET FROM VSTAK DISPLAY POINTER TO LOCATE              
+       *                      THE VARIABLE OR DOPE VECTOR.                             
+       *      BUILT-IN FUNCTION-OFFSET FROM BIFBASE.                                   
+       *                                                                               
+       *   E= ELEMENT SIZE(IN BYTES). IF A SCALAR CHARACTER STRING THEN F=0            
+       *                                                                               
+       *   F= NUMBER OF DIMENSIONS FOR AN ARRAY. ZERO FOR A SCALAR                     
+       *      USED FOR NEST COUNT FOR STATEMENT-LABELS SO THAT SECOND                  
+  800: *      PASS CAN CHECK FOR ILLEGAL TRANSFERS INTO BLOCKS OR DO GROUPS            
+       *                                                                               
+       *   G= USED FOR LABEL CHAINING POINTERS FOR PROCEDURE AND STATEMENT             
+       *      LABEL TESTS FOR MULTIPLE CLOSURE IN THE FIRST PASS.                      
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       * 0 ENTRY IN IDENTIFIER FOR EACH BLOCK                                          
+  800: *                                                                               
+       *             |-------|-------|                                                 
+       *   FORMAT:   |   A   |   B   |      SIXTEEN-BYTE ENTRIES                       
+       *             |---------------|                                                 
+       *             |       C       |                                                 
+       *             |---------------|                                                 
+       *             |       D       |                                                 
+       *             |---------------|                                                 
+       *             |       E       |                                                 
+       *             |---------------|                                                 
+  800: *             |       F       |                                                 
+       *             |---------------|                                                 
+       *             |       G       |                                                 
+       *             |---------------|                                                 
+       *             |       H       |                                                 
+       *             |---------------|                                                 
+       *             |               |                                                 
+       *             |---------------|                                                 
+       *                                                                               
+       *   A= SPECIFIES IF THE BLOCK IS A PROCEDURE (0) OR BEGIN BLOCK (1)             
+  800: *                                                                               
+       *   B= INDICATES THE NUMBER OF PARAMETERS FOR PROCEDURE BLOCKS                  
+       *                                                                               
+       *   C= BLOCK LEVEL                                                              
+       *                                                                               
+       *   D= BLOCK NUMBER                                                             
+       *                                                                               
+       *   E= MOTHER BLOCK NUMBER                                                      
+       *                                                                               
+       *   F= PTR TO BLKTBL ENTRY FOR FIRST PASS                                       
+  800: *      BECOMES THE BYTE COUNT OF INITIAL VSTACK ALLOCATION DURING               
+       *      SCOPE RESOLUTION AND ASSIGNMENT.                                         
+       *                                                                               
+       *   G= PROLOGUE ENTRANCE POINT USED IN FIRST PASS                               
+       *                                                                               
+       *   H= PROLOGUE RETURN POINT USED IN FIRST PASS                                 
+       *      BECOMES THE NUMBER OF ENTRIES IN THE BLOCK SEGMENT                       
+       *                                                                               
+       *                                                                               
+       *   TEMP$ID (SAME FORMATS AS IDENTIFIER)                                        
+  800: *                                                                               
+       *                                                                               
+       *                                                                               
+       * TEMP$CODE STACK                                                               
+       *                                                                               
+       *   CONTAINS CODE WHICH MUST BE REORDERED IN THE CODE STACK.  THE CODE          
+       *   STACK IS RESERVED, AND WHEN THE CODE IS GENERATED, IT IS COPIED TO          
+       *   TEMP$CODE, AND THE CODE STACK IS RELEASED.  AT THE APPROPRIATE              
+       *   TIME, THE CODE IN TEMP$CODE IS COPIED BACK TO THE CODE STACK.               
+       *                                                                               
+  800: *   FORMAT:  SAME AS CODE STACK                                                 
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       * BINARY$CONST STACK                                                            
+       *                                                                               
+       *                                                                               
+       *   CONTAINS ALL OF THE INTEGER CONSTANTS USED IN THE PROGRAM WHICH             
+  800: *   HAVE A VALUE LESS THAT 2**31. THE FIRST IS INITIALIZED TO THE               
+       *   VALUE OF 1 AND THE SECOND ENTRY TO THE ASTERISK VALUE, X'FFFF'.             
+                     |---------------|                                                 
+       *   FORMAT:   |               |        FOUR-BYTE ENTRIES                        
+                     |---------------|                                                 
+       *             |               |                                                 
+                     |---------------|                                                 
+       *                                                                               
+       *                                                                               
+       *                                                                               
+  800: *                                                                               
+       *                                                                               
+       * FLOAT$SINGLE STACK                                                            
+       *                                                                               
+       *   CONTAINS ALL OF THE NON-INTEGER OR FLOATING-POINT CONSTANTS USED            
+       *   IN THE PROGRAM WHICH CAN BE CONTAINED IN A SINGLE-PRECISION FORM.           
+       *   THE VALUES ARE STORED IN NORMALIZED FORM.                                   
+       *             |---------------|                                                 
+       *   FORMAT:   |               |        FOUR-BYTE ENTRIES                        
+       *             |---------------|                                                 
+  800: *             |               |                                                 
+       *             |---------------|                                                 
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       * FLOAT$DOUBLE STACK                                                            
+       *                                                                               
+       *   CONTAINS ALL OF THE NON-INTEGER OR FLOATING-POINT CONSTANTS USED IN         
+  800: *   THE PROGRAM WHICH REQUIRE DOUBLE-PRECISION HEXADECIMAL FORMAT.              
+       *   THE VALUES ARE STORED IN NORMALIZED FORM.                                   
+       *                                                                               
+       *             |---------------|                                                 
+       *   FORMAT:   |               |        EIGHT-BYTE ENTRIES                       
+                     |---------------|                                                 
+       *             |               |                                                 
+                     |---------------|                                                 
+       *             |               |                                                 
+                     |---------------|                                                 
+  800: *             |               |                                                 
+                     |---------------|                                                 
+       *                                                                               
+       *   GLABELS STACK                                                               
+       *     USED FOR COLLECTING THE GENERATED LABEL OFFSETS FROM CDBASE               
+       *     DURING THE FIRST PASS. THE SECOND PASS PLACES THESE                       
+       *     OFFSETS IN THE INSTRUCTIONS.                                              
+       *                                                                               
+                     |---------------|                                                 
+       *   FORMAT:   |               |        TWO-BYTE ENTRIES                         
+  800:               |---------------|                                                 
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       ***********************************************************************         
+       *                                                                               
+       *        EXECUTION-TIME REPRESENTATION OF VARIABLES                             
+       *                                                                               
+       ********************************************************************            
+       *                                                                               
+  800: *                                                                               
+       *             THE BASIC PUSH-DOWN STACK IN THE E-MACHINE IS THE 'DSTK'          
+       *        ('DYNAMIC' STACK), WHICH CONTAINS, PRIMARILY, POINTERS TO              
+       *        VARIABLES AND EXPRESSIONS USED IN THE INTERPRETATION OF THE            
+       *        POLISH EXPRESSIONS.  THE FORMAT OF THE POINTER IS                      
+       *                                                                               
+       *        |-----------------|                                                    
+       *        |TYPE|      --->  |                                                    
+       *        |-----------------|                                                    
+       *                                                                               
+  800: *        WHERE 'TYPE' DESCRIBES THE ATTRIBUTES OF THE VARIABLE OR               
+       *        EXPRESSION AND '--->' IS AN ABSOLUTE ADDRESS.                          
+       *                                                                               
+       *                                                                               
+       *             FOR SCALARS WHICH ARE NOT STRINGS (I.E. FLOAT DOUBLE              
+       *        OR FLOAT SINGLE), THE ADDRESS IS THAT OF THE NUMERIC VALUE.            
+       *                                                                               
+       *                                                                               
+       *             FOR STRINGS AND ARRAYS, THE ADDRESS IS THAT OF A                  
+       *        CONTROL BLOCK CALLED A 'DOPE VECTOR'.  THE FORMATS OF THE              
+  800: *        TWO TYPES OF DOPE VECTORS ARE GIVEN BELOW:                             
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *  SCALAR CHARACTER STRING DOPE VECTOR                                          
+       *                                                                               
+       *                                                                               
+       *        <-----4 BYTES----->                                                    
+  800: *                                                                               
+       *        |-----------------|   ABS. ADDR. = ABSOLUTE ADDRESS OF FIRST           
+       *        |    ABS. ADDR.   |                CHARACTER.                          
+       *        |-----------------|   M.L. = MAXIMUM LENGTH OF STRING                  
+       *        |  M.L.  |  C.L.  |                                                    
+       *        |-----------------|   C.L. = CURRENT LENGTH OF STRING                  
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *                                                                               
+  800: *  ARRAY DOPE VECTOR                                                            
+       *                                                                               
+       *                                                                               
+       *        <-----4 BYTES----->                                                    
+       *                                                                               
+       *        |-----------------|   N = NUMBER OF SUBSCRIPTS                         
+       *        | N | VIRT. ORIG. |                                                    
+       *        |-----------------|   VIRTUAL ORIGIN = ABSOLUTE ADDRESS OF THE ELEMENT 
+       *        |     MULT(1)     |                    ZERO-SUBSCRIPT ELEMENT.         
+       *        |-----------------|                                                    
+  800: *        |  UB(1) |  LB(1) |   MULT(I) = MULTIPLIER FOR THE ITH SUBSCRP         
+       *        |-----------------|                                                    
+       *        |        .        |   UB(I) = UPPER BOUND   "   "   "     "            
+       *                 .                                                             
+       *        |        .        |   LB(I) = LOWER BOUND   "   "   "     "            
+       *        |-----------------|                                                    
+       *        |     MULT(I)     |                                                    
+       *        |-----------------|                                                    
+       *        |  UB(N) |  LB(N) |                                                    
+       *        |-----------------| |                                                  
+  800: *        .  M.L.  |  C.L.  . |--(ONLY FOR CHARACTER STRING ARRAYS)              
+       *        ................... |                                                  
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *             FOR LABEL VARIABLES AND LABEL CONSTANTS, THE DSTK                 
+       *        ELEMENT POINTS TO A FULLWORD IN THE FOLLOWING FORMAT:                  
+       *                                                                               
+       *        |-----------------|                                                    
+       *        |NEST| ID | OFFSET|                                                    
+  800: *        |-----------------|                                                    
+       *                                                                               
+       *  WHERE 'NEST' IS THE NEST LEVEL OF THE LABEL,                                 
+       *        'ID' IS AN IDENTIFYING BYTE (CURRENTLY X'80'),                         
+       *    AND 'OFFSET' IS THE OFFSET FROM THE BEGINNING OF THE CODESTACK OF          
+       *        THE STATEMENT PREFIXED BY THE LABEL.                                   
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       ***********************************************************************         
+  800: *                                                                               
+       *   DSTK CONTROL ELEMENT                                                        
+       *                                                                               
+       *        THIS VARIABLE-LENGTH CONTROL ELEMENT IS PUT ON THE DSTK BY             
+       *        THE E-MACHINE WHENEVER IT INTERPRETS ANY OF THE FOLLOWING              
+       *        OPCODES:  FNC, LNK, BEG, GSB, DOI, DOW                                 
+       *        IT SERVES AS A REPOSITORY FOR VARIOUS INFORMATION WHICH MUST           
+       *        BE SAVED FOR THE DURATION OF THE LOOP (DOI AND DOW) OR THE             
+       *        INVOCATION (FNC, LNK, BEG, OR GSB).  SINCE THE DSTK IS A PUSH-         
+       *        DOWN STACK, RECURSION IS HANDLED WITHOUT DIFFICULTY.                   
+  800: *                                                                               
+       *                                                                               
+       *  OFFSET      FORMAT         APPLICABILITY                                     
+       *                                                                               
+       *        |-----------------|                                                    
+       *        |TYPE|  -->ARG1   |  PRC(FNC,LNK)                                      
+       *        |-----------------|                                                    
+       *        |         .       |                                                    
+       *                  .                                                            
+       *        |         .       |                                                    
+  800: *        |-----------------|                                                    
+       *   --->0|TYPE|  -->ARGN   |  PRC(FNC,LNK)                                      
+       *        |-----------------|                                                    
+       *       4|NEST| VPERM CHAIN|  PRC(FNC,LNK),BEG,GSB,DO(DOI,DOW)                  
+       *        |-----------------|                                                    
+       *       8|CODE| DSTK CHAIN |  PRC(FNC,LNK),BEG,GSB,DO(DOI,DOW)                  
+       *        |-----------------|                                                    
+       *      12|    |  RET. ADDR.|  PRC(FNC,LNK),BEG,GSB                              
+       *        |-----------------|                                                    
+       *      16| BLK|   VSTK BASE|  PRC(FNC,LNK),BEG                                  
+  800: *        |-----------------|                                                    
+       *      20|#ARG|STMT| -->ID |  PRC(FNC,LNK)                                      
+       *        |-----------------|                                                    
+       *      24|TYPE| -->RET.VAL.|  FNC                                               
+       *        |-----------------|                                                    
+       *                                                                               
+       *        EXPLANATION OF FIELDS:                                                 
+       *                                                                               
+       *        TYPE:  DESCRIBES THE TYPE OF A VARIABLE (SEE 'IDSTK' TYPE              
+       *              CODES LISTED ELSEWHERE).                                         
+  800: *                                                                               
+       *        -->ARGN:  AN ABSOLUTE ADDRESS WHICH POINTS TO THE N'TH                 
+       *              ARGUMENT WHICH WAS PASSED IN THE CALL STATEMENT OR               
+       *              FUNCTION REFERENCE.                                              
+       *                                                                               
+       *        NEST:  THE NEST LEVEL OF THE CALLING BLOCK.                            
+       *                                                                               
+       *        VPERM CHAIN:  AN ABSOLUTE ADDRESS WHICH REPRESENTS THE                 
+       *              HIGHEST LEVEL OF VSTK ALLOCATION WHICH MUST BE                   
+       *              MAINTAINED AFTER THE LOOP OR INVOCATION TERMINATES.              
+  800: *                                                                               
+       *        CODE: A NUMBER WHICH IDENTIFIES THE TYPE OF DSTK CONTROL               
+       *              ELEMENT THIS IS:                                                 
+       *                                                                               
+       *              CODE        TYPE                                                 
+       *                1      DOW (DO-WHILE)                                          
+       *                2      DOI (DO-ITERATIVE)                                      
+       *                4      FNC (FUNCTION REFERENCE)                                
+       *                8      LNK (CALL STATEMENT)                                    
+       *               16      BEG (BEGIN BLOCK)                                       
+  800: *               32      GSB (GOSUB INVOCATION)                                  
+       *                                                                               
+       *        DSTK CHAIN:  A POINTER TO THE 0-OFFSET FIELD (--->) OF THE             
+       *              PREVIOUS DSTK CONTROL ELEMENT.                                   
+       *                                                                               
+       *        RET. ADDR.:  THE ABSOLUTE ADDRESS OF THE OPCODE TO BE                  
+       *              INTERPRETED AFTER THE LOOP OR INVOCATION TERMINATES.             
+       *                                                                               
+       *        BLK:  THE BLOCK NUMBER OF THE CALLING BLOCK.                           
+       *                                                                               
+  800: *        VSTK BASE:  THE BASE OF THE VSTK SECTION FOR THE CALLING               
+       *              BLOCK. (THIS IS REQUIRED FOR RECURSIVE INVOCATIONS.)             
+       *                                                                               
+       *        #ARG:  THE NUMBER OF ARGUMENTS PASSED TO THE PROCEDURE.                
+       *                                                                               
+       *        STMT:  THE NUMBER OF THE STATEMENT WHICH INVOKED THE PROCEDURE         
+       *              (USED FOR TRACEBACK).                                            
+       *                                                                               
+       *        -->ID:  THE ADDRESS OF THE ID ENTRY FOR THE INVOKED PROCEDURE          
+       *              RELATIVE TO THE BEGINNING OF THE ID STACK. (ALSO USED            
+  800: *              FOR TRACEBACK).                                                  
+       *                                                                               
+       *        RET.VAL.:  THE ABSOLUTE ADDRESS OF THE AREA ALLOCATED FOR THE          
+       *              RETURNED VALUE.                                                  
+       *                                                                               
+       *                                                                               
+       *                                                                               
+       *        IN THE CASE OF DOI OR DOW, ALTERNATE FIELDS APPEAR AT OFFSET           
+       * 12 IN THE DSTK CONTROL ELEMENT:                                               
+       *                                                                               
+  800: * DOW: 12|-----------------|                                                    
+       *        |       --->GL0   |                                                    
+       *        |-----------------|                                                    
+       *        |       --->GL1   |                                                    
+       *        |-----------------|                                                    
+       *                                                                               
+       *                                                                               
+       * DOI: 12|-----------------|                                                    
+       *        |TYPE| -->CTRL VAR|                                                    
+       *        |-----------------|                                                    
+  800: *        |TYPE|   -->E1    |                                                    
+       *        |-----------------|                                                    
+       *        |TYPE|   -->E2    |                                                    
+       *        |-----------------|                                                    
+       *        |TYPE|   -->E3    |                                                    
+       *        |-----------------|                                                    
+       *        |       --->GL0   |                                                    
+       *        |-----------------|                                                    
+       *        |       --->GL1   |                                                    
+       *        |-----------------|                                                    
+  800: *                                                                               
+       *        --->GL0:  THE ABSOLUTE ADDRESS OF THE IDO TO BE EXECUTED WHEN          
+       *              THE DO-LOOP TERMINATES NORMALLY.                                 
+       *                                                                               
+       *        --->GL1:  THE ABSOLUTE ADDRESS OF THE IDO TO WHICH CONROL              
+       *              RETURNS IN ORDER TO RE-EXECUTE THE BODY OF THE LOOP.             
+       *                                                                               
+       *        -->CTRL VAR:  THE ABSOLUTE ADDRESS OF THE CONTROL VARIABLE.            
+       *                                                                               
+       *        -->E1:  THE ABSOLUTE ADDRESS OF THE INITIAL VALUE OF THE               
+  800: *              CONTROL VARIABLE.                                                
+       *                                                                               
+       *        -->E2:  THE ABSOLUTE ADDRESS OF THE LIMIT OF THE CONTROL               
+       *              VARIABLE.                                                        
+       *                                                                               
+       *        -->E3:  THE ABSOLUTE ADDRESS OF THE INCREMENT.                         
+       *                                                                               
+       ***********************************************************************         
+       *                                                                               
+       *                                                                               
+  800: *        BUILT-IN-FUNCTIONS  AND  BUILT-IN-PROCEDURES                           
+       *                                                                               
+       *                                                                               
+       *             THE BUILT-IN-FUNCTIONS (E.G. ABS, SIN) AND THE BUILT-             
+       *        -IN-PROCEDURES (E.G. TRACE) ARE DIVIDED, FOR CONVENIENCE IN            
+       *        INTERPRETATION, INTO TWO GROUPS:                                       
+       *                                                                               
+       *                                                                               
+       *  I.    MATHEMATICAL FUNCTIONS:  THESE ARE FUNCTIONS WHICH TAKE A              
+       *        SINGLE FLOATING-POINT ARGUMENTS AND RETURN A SINGLE FLOATING-          
+  800: *        POINT RESULT (E.G. SIN, TAN, EXP).  AT THE END OF CODE                 
+       *        RESOLUTION, THE FSB CREATED BY THE LOADER HAS BEEN CHANGED TO:         
+       *                                                                               
+       *              |BIF |   0|             BIF = X'36'                              
+       *          --->|   0|   N|             N = ROUTINE NUMBER                       
+       *              |   0|   M|             M = NO. OF ARGUMENTS (1)                 
+       *                                                                               
+       *        THE ROUTINE NUMBERS BEGIN WITH 0 AND ARE INCREMENTED BY 2 FOR          
+       *        THE VARIOUS MATHEMATICAL FUNCTIONS.                                    
+       *                                                                               
+  800: *        THE OPERAND BYTE (FIRST 0) IS USED DURING EXECUTION TO                 
+       *        INDICATE THE TYPE OF ARGUMENT SUPPLIED.  SIMILARLY, AFTER              
+       *        THE FIRST EXECUTION OF THE FUNCTION, THE SECOND HALFWORD               
+       *        (--->) IS CHANGED TO CONTAIN THE OFFSET OF THE REQUESTED               
+       *        ROUTINE FROM THE BEGINNING OF THE MATHEMATICAL FUNCTION CSECT.         
+       *        THIS EXPEDITES FUTURE INTERPRETATIONS OF THE OPCODE.                   
+       *                                                                               
+       *                                                                               
+       *  II.   PRIMITIVE FUNCTIONS:  THESE ARE ALL THE FUNCTIONS WHICH DO NOT         
+       *        SATISFY THE CONDITIONS OF THE FIRST TYPE (E.G. SUBSTR, MAX,            
+  800: *        SUM).  THEY ARE EACH ASSIGNED A UNIQUE OPCODE FOR INTERPRETA-          
+       *        TION BY THE E-MACHINE.                                                 
+       *                                                                               
+       *  EXAMPLE:    | ABS|   0|             ABS = X'8C'                              
+       *              |    | ABS|                                                      
+       *              |   0|   1|             NUMBER OF ARGUMENTS                      
+       *                                                                               
+       *        IN THE CASE OF BUILT-IN-FUNCTIONS WHICH REQUIRE A FIXED NUMBER         
+       *        OF ARGUMENTS, SECOND-PASS CODE RESOLUTION VERIFIES THAT THE            
+       *        CORRECT NUMBER HAS BEEN SUPPLIED.  FOR FUNCTIONS WHICH MAY             
+  320: *        ACCEPT A VARYING NUMBER OF ARGUMENTS (E.G. SUBSTR, MAS), THE           
+       *        E-MACHINE CHECKS FOR LEGALITY.                                         
+       *                                                                               
+       *                                                                               
+tape mark
+tape mark
+tape mark
+  800: PLAG     TITLE 'PLAGO/MONITOR COMMUNICATIONS TABLE'                             
+       PLAGO    CSECT                                                                  
+       ***********************************************************************         
+       *                                                                               
+       *        PLAGO/MONITOR TRANSFER VECTOR                                          
+       *                                                                               
+       ***********************************************************************         
+        SPACE 2                                                                        
+       *                                                                               
+       * THIS CSECT CONSISTS OF ADDRESS CONSTANTS WHICH ARE NEEDED BY THE              
+  800: * MONITOR.  THE CSECT NAME ('PLAGO') MUST BE THE ENTRY POINT OF THE             
+       * LOAD MODULE (ALSO 'PLAGO') WHICH IS LOADED DYNAMICALLY BY THE                 
+       * MONITOR.                                                                      
+       *                                                                               
+        SPACE 2                                                                        
+                DC    V(LOADER)               COMPILER ENTRY POINT                     
+                DC    V(EMACHINE)             EXECUTION INTERPRETER ENTRY PT           
+                DC    V(TCOM)                 TMACHINE COMMUNICATIONS AREA             
+                DC    V(ECOM)                 EMACHINE COMMUNICATIONS AREA             
+                DC    V(ETRAP)                EMACHINE INTERRUPT PROCESSOR             
+  160:          DC    V(ESTMT)                POINTER TO CURRENT STMT NO.              
+                END   PLAGO                                                            
+tape mark
+tape mark
+tape mark
+  800:  IDOSEM: PROCEDURE OPTIONS (MAIN);                                      00000010
+             DECLARE PUNCH FILE OUTPUT RECORD ENVIRONMENT (CONSECUTIVE F(80)); 00000020
+             DECLARE STKGRT(20) CHAR(8), STKIN(20) CHAR(8),STKLEN(20) CHAR(8); 00000030
+                DECLARE SOURCE CHAR(80),OPCODE CHAR(3),OPERANDS(8) CHAR(20),   00000040
+                OPLENGTH(8) FIXED BINARY;                                      00000050
+             DECLARE GLABELS(0:127) CHAR(8), NLABELS FIXED DECIMAL(3)          00000060
+             INITIAL(0), GLOBNO CHAR(4)                                        00000070
+             INITIAL('G000'),STKNAM(20) CHAR(8),NSTKS INITIAL(0), IB FIXED     00000080
+             DECIMAL(3), IBB FIXED DECIMAL(3), IBG FIXED DECIMAL(3), ISTKS     00000090
+             FIXED DECIMAL(3), IDES FIXED DECIMAL(3), II FIXED DECIMAL(3);     00000100
+  800:       DECLARE BOUNDRY FIXED BINARY INITIAL(0),                          00000110
+             AL1 CHAR(19) INITIAL('         DC    AL1('),                      00000120
+             CL1 CHAR(19) INITIAL('         DC    CL1'''),                     00000130
+             EQU CHAR(19) INITIAL('         EQU       '),                      00000140
+             OBJECT CHAR(80),LABEL CHAR(8)                                     00000150
+             INITIAL('        '), CGLOB CHAR(6);                               00000160
+             N=62;      ND1D2=30;                                              00000170
+             ON ENDFILE(SYSIN) GOTO LSTCRD;                                    00000180
+        BEGIN;                                                                 00000190
+             XX: FORMAT(SKIP,A(80));                                           00000200
+  800:       DECLARE IDOS(N) CHAR(3), OPER(N) LABEL, OTYPE(17) LABEL           00000210
+             INITIAL(NOP,DC,DCL,LOC,GLOB,LOG,IC,ISL,STL,STR,LLIST,SN,SNL,D1D2, 00000220
+             SND1D2,SND1D2L,SNSN),D1D2T(ND1D2)  CHAR(8), ND1D2T(ND1D2) CHAR(8);00000230
+        FSTCD: GET EDIT(SOURCE)(A(80));                                        00000240
+             IF SUBSTR(SOURCE,1,1)='*' THEN DO;                                00000250
+             OBJECT=SOURCE; CALL OLINE;                                        00000260
+             GOTO FSTCD; END;                                                  00000270
+             SUBSTR(SOURCE,1,1)='*';                                           00000280
+             OBJECT=SOURCE; CALL OLINE;                                        00000290
+             ISCAN=2;                                                          00000300
+  800:       I,II=1;                                                           00000310
+        IDOS(1)='ADD';OPER(1)=OTYPE(2);                                        00000320
+        IDOS(2)='AFE';OPER(2)=OTYPE(15);                                       00000330
+        IDOS(3)='ARK';OPER(3)=OTYPE(14);                                       00000340
+        IDOS(4)='ARP';OPER(4)=OTYPE(14);                                       00000350
+        IDOS(5)='ASK';OPER(5)=OTYPE(2);                                        00000360
+        IDOS(6)='ASP';OPER(6)=OTYPE(2);                                        00000370
+        IDOS(7)='BDW';OPER(7)=OTYPE(4);                                        00000380
+        IDOS(8)='BEQ';OPER(8)=OTYPE(3);                                        00000390
+        IDOS(9)='BEZ';OPER(9)=OTYPE(4);                                        00000400
+  800:  IDOS(10)='BGE';OPER(10)=OTYPE(3);                                      00000410
+        IDOS(11)='BLE';OPER(11)=OTYPE(3);                                      00000420
+        IDOS(12)='BNE';OPER(12)=OTYPE(3);                                      00000430
+        IDOS(13)='BNZ';OPER(13)=OTYPE(3);                                      00000440
+        IDOS(14)='BOW';OPER(14)=OTYPE(4);                                      00000450
+        IDOS(15)='BSB';OPER(15)=OTYPE(5);                                      00000460
+        IDOS(16)='BUN';OPER(16)=OTYPE(5);                                      00000470
+        IDOS(17)='BUW';OPER(17)=OTYPE(11);                                     00000480
+        IDOS(18)='BUZ';OPER(18)=OTYPE(4);                                      00000490
+        IDOS(19)='BZE';OPER(19)=OTYPE(4);                                      00000500
+  800:  IDOS(20)='CLA';OPER(20)=OTYPE(2);                                      00000510
+        IDOS(21)='CNT';OPER(21)=OTYPE(12);                                     00000520
+        IDOS(22)='CON';OPER(22)=OTYPE(4);                                      00000530
+        IDOS(23)='COP';OPER(23)=OTYPE(17);                                     00000540
+        IDOS(24)='CSF';OPER(24)=OTYPE(8);                                      00000550
+        IDOS(25)='CST';OPER(25)=OTYPE(8);                                      00000560
+        IDOS(26)='DPS';OPER(26)=OTYPE(12);                                     00000570
+        IDOS(27)='EAW';OPER(27)=OTYPE(7);                                      00000580
+        IDOS(28)='FET';OPER(28)=OTYPE(2);                                      00000590
+        IDOS(29)='FRK';OPER(29)=OTYPE(14);                                     00000600
+  800:  IDOS(30)='FRP';OPER(30)=OTYPE(14);                                     00000610
+        IDOS(31)='IDS';OPER(31)=OTYPE(4);                                      00000620
+             IDOS(32)='INP';OPER(32)=OTYPE(2);                                 00000630
+             IDOS(33)='INS';OPER(33)=OTYPE(2);                                 00000640
+             IDOS(34)='MPY';OPER(34)=OTYPE(2);                                 00000650
+             IDOS(35)='MSG';OPER(35)=OTYPE(10);                                00000660
+             IDOS(36)='NEG';OPER(36)=OTYPE(1);                                 00000670
+             IDOS(37)='PNE';OPER(37)=OTYPE(12);                                00000680
+             IDOS(38)='POW';OPER(38)=OTYPE(7);                                 00000690
+             IDOS(39)='PRC';OPER(39)=OTYPE(2);                                 00000700
+  800:       IDOS(40)='QSF';OPER(40)=OTYPE(9);                                 00000710
+             IDOS(41)='QST';OPER(41)=OTYPE(9);                                 00000720
+             IDOS(42)='REL';OPER(42)=OTYPE(12);                                00000730
+             IDOS(43)='RET';OPER(43)=OTYPE(1);                                 00000740
+             IDOS(44)='RSS';OPER(44)=OTYPE(1);                                 00000750
+             IDOS(45)='RSV';OPER(45)=OTYPE(12);                                00000760
+             IDOS(46)='SER';OPER(46)=OTYPE(7);                                 00000770
+             IDOS(47)='SIN';OPER(47)=OTYPE(2);                                 00000780
+             IDOS(48)='SKS';OPER(48)=OTYPE(1);                                 00000790
+             IDOS(49)='SRS';OPER(49)=OTYPE(16);                                00000800
+  800:       IDOS(50)='SUB';OPER(50)=OTYPE(2);                                 00000810
+             IDOS(51)='SWT';OPER(51)=OTYPE(2);                                 00000820
+             IDOS(52)='TLY';OPER(52)=OTYPE(2);                                 00000830
+             IDOS(53)='TOF';OPER(53)=OTYPE(1);                                 00000840
+             IDOS(54)='TON';OPER(54)=OTYPE(1);                                 00000850
+             IDOS(55)='XIT';OPER(55)=OTYPE(7);                                 00000860
+             IDOS(56)='ZFE';OPER(56)=OTYPE(15);                                00000870
+             IDOS(57)='ZOE';OPER(57)=OTYPE(15);                                00000880
+             IDOS(58)='BGN';OPER(58)=OTYPE(5);                                 00000890
+             IDOS(59)='CGF';OPER(59)=OTYPE(8);                                 00000900
+  800:       IDOS(60)='CGT';OPER(60)=OTYPE(8);                                 00000910
+             IDOS(61)='QGF';OPER(61)=OTYPE(9);                                 00000920
+             IDOS(62)='QGT';OPER(62)=OTYPE(9);                                 00000930
+             SUBSTR(OBJECT,1)='COMPLR   CSECT'; CALL OLINE;                    00000940
+             SUBSTR(OBJECT,1)='         ENTRY DATASTRT'; CALL OLINE;           00000950
+             SUBSTR(OBJECT,1)='         ENTRY GLBSTRT'; CALL OLINE;            00000960
+        PUTID: SUBSTR(OBJECT,1)='ZADD      EQU      0'; CALL OLINE; OBJECT=EQU;00000970
+        PUTIDO: DO IB=2 TO N; SUBSTR(OBJECT,16)='Z'||IDOS(IB-1)||'+2';         00000980
+             SUBSTR(OBJECT,1,4)='Z'||IDOS(IB); CALL OLINE; END PUTIDO;         00000990
+        NEXTD:CALL SCANIDO;                                                    00001000
+  800:       IF OPCODE='DES' THEN GOTO DESTAB;                                 00001010
+             ELSE GOTO PROCESS;                                                00001020
+        DESTAB:D1D2T(II)=OPERANDS(1);                                          00001030
+             SUBSTR(ND1D2T(II),1)= SUBSTR(OPERANDS(2),1,OPLENGTH(2))||'*16+'|| 00001040
+             SUBSTR(OPERANDS(3),1,OPLENGTH(3))||')'; II=II+1; GOTO NEXTD;      00001050
+        PROCESS:;                                                              00001060
+             SUBSTR(OBJECT,1)='GLBSTRT   EQU   *'; CALL OLINE;                 00001070
+        CHECK:IF OPCODE = 'GLB' THEN GOTO GSECT;                               00001080
+             IF OPCODE = 'CEL' THEN GOTO CELL;                                 00001090
+             IF OPCODE = 'STK' THEN GOTO STK;                                  00001100
+  800:           IF(OPCODE='CSF'|OPCODE = 'CST'|OPCODE='QST')                  00001110
+             THEN DO;   IF SUBSTR(OPERANDS(2),1,1) ^='$' THEN                  00001120
+                 SUBSTR(OPCODE,2,1)='G';END;                                   00001130
+                 IF OPCODE='BUN' THEN                                          00001140
+        LSTGCHK: IF SUBSTR(OPERANDS(1),1,1) ^='$' THEN                         00001150
+                 SUBSTR(OPCODE,2,1)='G';                                       00001160
+             OBJECT=AL1;                                                       00001170
+             SUBSTR(OBJECT,1,8)=LABEL;                                         00001180
+             LABEL='        ';                                                 00001190
+             SUBSTR(OBJECT,20)='Z'||OPCODE||')';                               00001200
+  800:       CALL OLINE;                                                       00001210
+             DO I=1 TO N;                                                      00001220
+             IF OPCODE = IDOS(I) THEN                                          00001230
+             GOTO OK;                                                          00001240
+             END;                                                              00001250
+             PUT LIST(' IDO NOT DEFINED');                                     00001260
+        NEXTIDO:CALL SCANIDO;GOTO CHECK;                                       00001270
+        OK: GO TO OPER(I) ;                                                    00001280
+        NOP: GOTO NEXTIDO;                                                     00001290
+        DC:OBJECT=AL1;                                                         00001300
+  800:       SUBSTR(OBJECT,20)=SUBSTR(OPERANDS(1),1,OPLENGTH(1))||'-DATBS)';   00001310
+             CALL OLINE;                                                       00001320
+             GOTO NEXTIDO;                                                     00001330
+        DCL: OBJECT=AL1;                                                       00001340
+             SUBSTR(OBJECT,20)=SUBSTR(OPERANDS(1),1,OPLENGTH(1))               00001350
+             ||'-DATBS)';                                                      00001360
+             CALL OLINE;                                                       00001370
+             SUBSTR(OBJECT,20)=GLOBNO||'L'||                                   00001380
+             SUBSTR(OPERANDS(2),1,OPLENGTH(2))||'-'||GLOBNO                    00001390
+             ||')';                                                            00001400
+  800:       CALL OLINE;                                                       00001410
+             GOTO NEXTIDO;                                                     00001420
+        LOC:GLOB:LOG: OBJECT=AL1;                                              00001430
+             IF SUBSTR(OPERANDS(1),1,1) ^= '$' THEN GOTO GLOB1;                00001440
+             ELSE DO;                                                          00001450
+        LOC1: SUBSTR(OBJECT,20)=GLOBNO||'L'||SUBSTR(OPERANDS(1),1,OPLENGTH(1)) 00001460
+             ||'-'||GLOBNO||')';                                               00001470
+             END;                                                              00001480
+             CALL OLINE;                                                       00001490
+             GOTO NEXTIDO;                                                     00001500
+  800:  GLOB1: DO IBB=1 TO NLABELS; IF SUBSTR(OPERANDS(1),1,8)=GLABELS(IBB)    00001510
+             THEN GOTO GLOB2; END GLOB1;                                       00001520
+        GLOB3: NLABELS=NLABELS+1; GLABELS(NLABELS)=OPERANDS(1);                00001530
+             CGLOB=NLABELS;IB=1; GOTO GLOB2A;                                  00001540
+        GLOB2:CGLOB=IBB; IB=1;                                                 00001550
+        GLOB2A: DO WHILE(SUBSTR(CGLOB,IB,1)=' '& IB < 8);IB=IB+1; END GLOB2A;  00001560
+             IBB=7-IB;                                                         00001570
+             SUBSTR(OBJECT,20)='YG'||SUBSTR(CGLOB,IB,IBB)||'-GLBRTB)';         00001580
+             CALL OLINE; GOTO NEXTIDO;                                         00001590
+        IC: OBJECT=AL1;                                                        00001600
+  800:        SUBSTR(OBJECT,20)=SUBSTR(OPERANDS(1),1,OPLENGTH(1))||')';        00001610
+             CALL OLINE;                                                       00001620
+             GOTO NEXTIDO;                                                     00001630
+        ISL:OBJECT=CL1;                                                        00001640
+           IF ( SUBSTR(OPERANDS(1),1,1)=''''|SUBSTR(OPERANDS(1),1,1)='&') THEN 00001650
+        DBLE: DO; SUBSTR(OPERANDS(1),2,1)=SUBSTR(OPERANDS(1),1,1);             00001660
+              OPLENGTH(1)=2; END DBLE;                                         00001670
+             SUBSTR(OBJECT,20)=SUBSTR(OPERANDS(1),1,OPLENGTH(1))||'''';        00001680
+             CALL OLINE;                                                       00001690
+             IF OPERANDS(2)='        ' THEN GOTO NEXTIDO;                      00001700
+  800:        ELSE DO; OPERANDS(1)=OPERANDS(2); OPLENGTH(1)=OPLENGTH(2);       00001710
+             GO TO LOG; END;                                                   00001720
+        STL:STR: OBJECT=AL1;IBB=OPLENGTH(1)-2; CGLOB=IBB;IB=1;                 00001730
+             DO WHILE(SUBSTR(CGLOB,IB,1) = ' '); IB=IB+1; END;                 00001740
+             IBB=7-IB;                                                         00001750
+             SUBSTR(OBJECT,20)=SUBSTR(CGLOB,IB,IBB)||')'; CALL OLINE;          00001760
+             OBJECT=CL1;                                                       00001770
+             SUBSTR(OBJECT,18)=SUBSTR(CGLOB,IB,IBB)||SUBSTR(OPERANDS(1),1,     00001780
+                 OPLENGTH(1));                                                 00001790
+             CALL OLINE;                                                       00001800
+  800:       IF OPERANDS(2)='        ' THEN GOTO NEXTIDO;                      00001810
+             ELSE OPERANDS(1)=OPERANDS(2); OPLENGTH(1)=OPLENGTH(2);            00001820
+              GOTO LOG;                                                        00001830
+        LLIST: OBJECT = AL1;                                                   00001840
+                DO I=1 TO 8 WHILE(OPERANDS(I) ^= '        ');                  00001850
+             SUBSTR(OBJECT,20)=GLOBNO||'L'||SUBSTR(OPERANDS(I),1,OPLENGTH(I))||00001860
+               '-'||GLOBNO||')';                                               00001870
+             CALL OLINE;                                                       00001880
+             END;                                                              00001890
+             GOTO NEXTIDO;                                                     00001900
+  800:  SN:SNL:OBJECT=AL1;                                                     00001910
+             DO ISTKS=1 TO NSTKS;                                              00001920
+             IF OPERANDS(1)=STKNAM(ISTKS) THEN GOTO STK1;                      00001930
+             END; PUT LIST(' STACKNAME MISSING');                              00001940
+        STK1: CGLOB=ISTKS;                                                     00001950
+             IB=1;DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END; IBB=7-IB;    00001960
+             SUBSTR(OBJECT,20)='S'||SUBSTR(CGLOB,IB,IBB)||')';                 00001970
+             CALL OLINE;                                                       00001980
+             OPERANDS(1)=OPERANDS(2);                                          00001990
+             IF OPERANDS(1)='        ' THEN GOTO NEXTIDO;                      00002000
+  800:       ELSE OPLENGTH(1)=OPLENGTH(2);GOTO LOG;                            00002010
+        SND1D2:SND1D2L: OBJECT=AL1; DO ISTKS=1 TO NSTKS;                       00002020
+             IF OPERANDS(1)=STKNAM(ISTKS) THEN GOTO STK2; END; NSTKS=NSTKS+1;  00002030
+             PUT LIST(' STACKNAME MISSING');                                   00002040
+        STK2: CGLOB = ISTKS; IB=1; DO WHILE(SUBSTR(CGLOB,IB,1)=' ');           00002050
+             IB=IB+1; END; IBB=7-IB;                                           00002060
+             SUBSTR(OBJECT,20)='S'||SUBSTR(CGLOB,IB,IBB)||')';  CALL OLINE;    00002070
+             OPERANDS(1)=OPERANDS(2);                                          00002080
+        D1D2: DO IDES = 1 TO II;                                               00002090
+             IF OPERANDS(1)= D1D2T(IDES) THEN GOTO D1D2A; END D1D2;            00002100
+  800:        PUT LIST(' DESCRIPTOR MISSING'); GOTO NEXTIDO;                   00002110
+        D1D2A: OBJECT=AL1;                                                     00002120
+             SUBSTR(OBJECT,20)=ND1D2T(IDES); CALL OLINE;                       00002130
+             OPERANDS(1)=OPERANDS(3); IF OPERANDS(1)='        ' THEN GOTO      00002140
+             NEXTIDO; ELSE OPLENGTH(1)=OPLENGTH(3); GOTO LOG;                  00002150
+        SNSN: OBJECT=AL1; SNCNT=1;                                             00002160
+        SNSN1: DO ISTKS=1 TO NSTKS; IF OPERANDS(1) = STKNAM(ISTKS) THEN GOTO   00002170
+             STK3; END; PUT LIST(' STACKNAME MISSING');                        00002180
+        STK3: CGLOB=ISTKS; IB=1;                                               00002190
+             DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END; IBB=7-IB;         00002200
+  800:       SUBSTR(OBJECT,20)='S'||SUBSTR(CGLOB,IB,IBB)||')'; CALL OLINE;     00002210
+             SNCNT=SNCNT+1; IF SNCNT <= 2 THEN                                 00002220
+        STK4: DO; OPERANDS(1)=OPERANDS(2); GOTO SNSN1; END STK4;               00002230
+             ELSE GOTO NEXTIDO;                                                00002240
+        STK: NSTKS=NSTKS+1;                                                    00002250
+              STKNAM(NSTKS)=OPERANDS(1);                                       00002260
+             SUBSTR(STKLEN(NSTKS),1)=SUBSTR(OPERANDS(2),1,OPLENGTH(2));        00002270
+             SUBSTR(STKIN(NSTKS),1)=SUBSTR(OPERANDS(3),1,OPLENGTH(3));         00002280
+             SUBSTR(STKGRT(NSTKS),1)=SUBSTR(OPERANDS(4),1,OPLENGTH(4));        00002290
+             GOTO NEXTIDO;                                                     00002300
+  800:  CELL: IF BOUNDRY = 0 THEN DO;                                          00002310
+             SUBSTR(OBJECT,1)='         DS    0D'; CALL OLINE;                 00002320
+             SUBSTR(OBJECT,1)='DATBS   EQU   *'; CALL OLINE;                   00002330
+             SUBSTR(OBJECT,1)='DATASTRT EQU DATBS'; CALL OLINE; END ;          00002340
+             BOUNDRY=BOUNDRY+1; OBJECT=AL1;                                    00002350
+             SUBSTR(OBJECT,1,OPLENGTH(1))=SUBSTR(OPERANDS(1),1,OPLENGTH(1));   00002360
+             SUBSTR(OBJECT,18)='2('||SUBSTR(OPERANDS(2),1,OPLENGTH(2))||')';   00002370
+             CALL OLINE;                                                       00002380
+             GOTO NEXTIDO;                                                     00002390
+        GSECT:IB=1; DO IB=1 TO NLABELS; IF OPERANDS(1)=GLABELS(IB) THEN        00002400
+  800:  GSECTA: DO; CGLOB=IB; GOTO GSECTB; END GSECTA; END;                    00002410
+             NLABELS = NLABELS+1;                                              00002420
+             GLABELS(NLABELS)=OPERANDS(1);                                     00002430
+             CGLOB=NLABELS;                                                    00002440
+        GSECTB: OBJECT=EQU; GLOBNO='G000'; IB=1;                               00002450
+             DO WHILE(SUBSTR(CGLOB,IB,1)=' ');                                 00002460
+             IB=IB+1; END; IBB=7-IB; IBG=5-IBB;                                00002470
+             SUBSTR(GLOBNO,IBG,IBB)=SUBSTR(CGLOB,IB,IBB);                      00002480
+             SUBSTR(OBJECT,1,4)=SUBSTR(GLOBNO,1,4);                            00002490
+             SUBSTR(OBJECT,16)='*';                                            00002500
+  800:       CALL OLINE; OBJECT=CL1;                                           00002510
+             SUBSTR(OBJECT,18)='8'''||SUBSTR(OPERANDS(1),1,OPLENGTH(1))||''''; 00002520
+             CALL OLINE; GOTO NEXTIDO;                                         00002530
+        SCANIDO:PROCEDURE;                                                     00002540
+             XX: FORMAT(SKIP,A(80));                                           00002550
+             DO WHILE(SUBSTR(SOURCE,ISCAN,1)  = ' ');                          00002560
+             CALL SEND;                                                        00002570
+             END;                                                              00002580
+             IF SUBSTR(SOURCE,ISCAN,1) = '$' THEN GOTO BLDLBL;                 00002590
+             ELSE GOTO OPCD;                                                   00002600
+  800:  BLDLBL: K=1;                                                           00002610
+        LBL1: DO WHILE(SUBSTR(SOURCE,ISCAN,1) ^=':'&SUBSTR(SOURCE,ISCAN,1)^=';'00002620
+             );                                                                00002630
+             SUBSTR(OPERANDS(1),K,1)=SUBSTR(SOURCE,ISCAN,1);                   00002640
+        K=K+1; CALL SEND; END LBL1; K=K-1;                                     00002650
+             LABEL=GLOBNO||'L'||SUBSTR(OPERANDS(1),1,K);                       00002660
+             CALL SEND; GOTO NEXTIDO;                                          00002670
+        OPCD: OPCODE = SUBSTR(SOURCE,ISCAN,3);                                 00002680
+             ISCAN=ISCAN+3;                                                    00002690
+                DO J=1 TO 8; OPERANDS(J)=' '; END;                             00002700
+  800:       J=1;                                                              00002710
+        OPSCAN:DO WHILE(SUBSTR(SOURCE,ISCAN,1)  = ' ');                        00002720
+             CALL SEND;                                                        00002730
+             END;                                                              00002740
+        PUTCD: K=1;                                                            00002750
+        PCD1:DO WHILE(SUBSTR(SOURCE,ISCAN,1) ^= ','& SUBSTR(SOURCE,ISCAN,1) ^= 00002760
+             ';' & K<= 12);                                                    00002770
+             IF K<= 8 THEN                                                     00002780
+             DO; SUBSTR(OPERANDS(J),K,1)=SUBSTR(SOURCE,ISCAN,1);               00002790
+             K=K+1;                                                            00002800
+  800:       END;                                                              00002810
+             CALL SEND;                                                        00002820
+               IF K> 8 &(OPCODE='QSF'|OPCODE='QST'| OPCODE= 'MSG' )  THEN      00002830
+        STRNG: DO; DO WHILE(SUBSTR(SOURCE,ISCAN,1) ^= ',' & SUBSTR(SOURCE      00002840
+             ,ISCAN,1) ^= ';');                                                00002850
+              SUBSTR(OPERANDS(J),K,1)=SUBSTR(SOURCE,ISCAN,1); K=K+1; CALL SEND;00002860
+             END; END STRNG;                                                   00002870
+             END PCD1;                                                         00002880
+             OPLENGTH(J)=K-1;                                                  00002890
+             J=J+1;                                                            00002900
+  800:       IF SUBSTR(SOURCE,ISCAN,1) =',' THEN                               00002910
+        COM: DO; CALL SEND; IF SUBSTR(SOURCE,ISCAN,1)=',' THEN DO;             00002920
+             OPERANDS(1)=','; OPLENGTH(1)=1; CALL SEND; END; GOTO OPSCAN;      00002930
+             END COM;                                                          00002940
+             IF SUBSTR(SOURCE,ISCAN,1)=';' THEN                                00002950
+        SEMI: DO; CALL SEND; IF SUBSTR(SOURCE,ISCAN,1)=',' THEN DO;            00002960
+             OPERANDS(1)=';'; OPLENGTH(1)=1 ; CALL SEND; GOTO OPSCAN;          00002970
+             END; END SEMI; RETURN;                                            00002980
+        SEND:PROCEDURE;                                                        00002990
+             XX: FORMAT(SKIP,A(80));                                           00003000
+  800:       ISCAN=ISCAN+1;                                                    00003010
+             IF ISCAN=73 THEN                                                  00003020
+        NXTCD: DO; GET EDIT(SOURCE)(A(80));                                    00003030
+             IF SUBSTR(SOURCE,1,1) = '*' THEN DO;                              00003040
+             OBJECT=SOURCE; CALL OLINE;                                        00003050
+             GOTO NXTCD; END;                                                  00003060
+             SUBSTR(SOURCE,1,1) = '*';                                         00003070
+             OBJECT=SOURCE; CALL OLINE;                                        00003080
+             ISCAN=2;                                                          00003090
+             END;                                                              00003100
+  800:       RETURN;                                                           00003110
+             END SEND;                                                         00003120
+             END SCANIDO;                                                      00003130
+             END /*BEGIN*/;                                                    00003140
+        LSTCRD: IBG=-2;                                                        00003150
+                SUBSTR(OBJECT,1)='STAKNM   EQU   DATBS+252'; CALL OLINE;       00003160
+                SUBSTR(OBJECT,1)='         ORG   STAKNM'; CALL OLINE;          00003170
+        LSTCRD1: DO ISTKS = 1 TO NSTKS;                                        00003180
+             IBG=IBG+2; IB,IBB=1; CGLOB=ISTKS;                                 00003190
+                DO I=1 TO 8 WHILE(SUBSTR(CGLOB,IB,IBB) = ' '); IB=IB+1; END;   00003200
+  800:       IBB=7-IB; SUBSTR(OBJECT,1,3)='S'||SUBSTR(CGLOB,IB,IBB);           00003210
+             SUBSTR(OBJECT,12)=IBG; IF IBG < 10 THEN SUBSTR(OBJECT,16,1)='0';  00003220
+             SUBSTR(OBJECT,10,3)='EQU'; CALL OLINE;                            00003230
+             SUBSTR(OBJECT,1,4)='SS'||SUBSTR(CGLOB,IB,IBB); IB,IBB=1;          00003240
+             SUBSTR(OBJECT,10,3)='EQU';                                        00003250
+                     DO I=1 TO 4 WHILE(SUBSTR(STKLEN(ISTKS),IB,1) ^= ' ');     00003260
+                     IB=IB+1; END;                                             00003270
+                     DO I= 1 TO 4 WHILE (SUBSTR(STKIN(ISTKS),IBB,1) ^= ' ');   00003280
+                     IBB=IBB+1; END;                                           00003290
+               SUBSTR(OBJECT,16)=SUBSTR(STKLEN(ISTKS),1,IB-1)||'*'||SUBSTR     00003300
+  800:         (STKIN(ISTKS),1,IBB-1);  CALL OLINE;                            00003310
+             CGLOB=ISTKS; IB=1;                                                00003320
+           DO I=1 TO  8 WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END;           00003330
+             SUBSTR(OBJECT,1,8)='ENS'||SUBSTR(CGLOB,IB,7-IB);                  00003340
+              SUBSTR(OBJECT,16)=SUBSTR(STKLEN(ISTKS),1,IBB-1); CALL OLINE;     00003350
+              IBB=1;                                                           00003360
+                     DO I=1 TO 4 WHILE(SUBSTR(STKGRT(ISTKS),IBB,1) ^= ' ');    00003370
+                     IBB=IBB+1; END;                                           00003380
+             CGLOB=ISTKS; IB=1;                                                00003390
+           DO I=1 TO  8 WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END;           00003400
+  800:       SUBSTR(OBJECT,1,8)='GRT'||SUBSTR(CGLOB,IB,7-IB);                  00003410
+             SUBSTR(OBJECT,16)=SUBSTR(STKGRT(ISTKS),1,IBB-1); CALL OLINE;      00003420
+             OBJECT=CL1; IB=1;                                                 00003430
+                     DO I= 1 TO 8 WHILE(SUBSTR(STKNAM(ISTKS),IB,1) ^= ' ');    00003440
+                     IB=IB+1; END;                                             00003450
+              SUBSTR(OBJECT,18)='8'''||SUBSTR(STKNAM(ISTKS),1,IB-1)||'''';     00003460
+               CALL OLINE;                                                     00003470
+               END LSTCRD1;                                                    00003480
+        GLBTB1: SUBSTR(OBJECT,1)='GLBRTB   EQU   STAKNM+128'; CALL OLINE;      00003490
+               SUBSTR(OBJECT,1)='         ORG   GLBRTB'; CALL OLINE;           00003500
+  800:  GLBTB: DO IBG =1 TO NLABELS;                                           00003510
+             SUBSTR(OBJECT,1)='*'||GLABELS(IBG); CALL OLINE; GLOBNO='G000';    00003520
+             CGLOB=IBG; IB=1; DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1;  END; 00003530
+             IBB=7-IB; SUBSTR(OBJECT,1)='YG'||SUBSTR(CGLOB,IB,IBB);            00003540
+             SUBSTR(OBJECT,10,2)='DC'; SUBSTR(GLOBNO,5-IBB,IBB)=SUBSTR(CGLOB,IB00003550
+             ,IBB); SUBSTR(OBJECT,16)= 'AL2('||GLOBNO||'-GLBSTRT)'; CALL OLINE;00003560
+             END GLBTB;                                                        00003570
+        STKST1: SUBSTR(OBJECT,1)='STKBS    EQU   GLBRTB+252'; CALL OLINE;      00003580
+             SUBSTR(OBJECT,1)='         ORG   STKBS'; CALL OLINE;              00003590
+              SUBSTR(OBJECT,1)='BASE     EQU   *'; CALL OLINE;                 00003600
+  800:       OBJECT=AL1;                                                       00003610
+        STKSTS: DO ISTKS=1 TO NSTKS; CGLOB=ISTKS; IB=1;                        00003620
+             DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END; IBB=7-IB;         00003630
+              SUBSTR(OBJECT,18)='2(STK'||SUBSTR(CGLOB,IB,IBB)||'-STKBS)';      00003640
+              CALL OLINE; END STKSTS;                                          00003650
+        STKST2: SUBSTR(OBJECT,1)='TOP      EQU   BASE+32'; CALL OLINE;         00003660
+             SUBSTR(OBJECT,1)='         ORG   TOP'; CALL OLINE;                00003670
+             OBJECT = AL1;                                                     00003680
+        STKS3:DO ISTKS=1 TO NSTKS; CGLOB=ISTKS; IB=1;                          00003690
+              DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1;END; IBB=7-IB;         00003700
+  800:        SUBSTR(OBJECT,18)='2(STK'||SUBSTR(CGLOB,IB,IBB)||'-STKBS)';      00003710
+              CALL OLINE; END STKS3;                                           00003720
+        STKST4: SUBSTR(OBJECT,1)='BOT      EQU   TOP+32';  CALL OLINE;         00003730
+             SUBSTR(OBJECT,1)='         ORG   BOT'; CALL OLINE; OBJECT=AL1;    00003740
+        STKS5:DO ISTKS=1 TO NSTKS; CGLOB=ISTKS; IB=1;                          00003750
+              DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1;END; IBB=7-IB;         00003760
+             SUBSTR(OBJECT,18)='2(STK'||SUBSTR(CGLOB,IB,IBB)||'-STKBS-ENS'||   00003770
+             SUBSTR(CGLOB,IB,IBB)||')'; CALL OLINE; END STKS5;                 00003780
+        STKST6: SUBSTR(OBJECT,1)='SIZE     EQU   BOT+32';  CALL OLINE;         00003790
+             SUBSTR(OBJECT,1)='         ORG   SIZE'; CALL OLINE; OBJECT=AL1;   00003800
+  800:  STKST7: DO ISTKS=1 TO NSTKS; CGLOB=ISTKS; IB=1;                        00003810
+             DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END; IBB=7-IB;         00003820
+             SUBSTR(OBJECT,18)='1(GRT'||SUBSTR(CGLOB,IB,IBB)||',ENS'||         00003830
+             SUBSTR(CGLOB,IB,IBB)||')'; CALL OLINE; END STKST7;                00003840
+             SUBSTR(OBJECT,1)='STKBSR EQU SIZE+32'; CALL OLINE;                00003850
+             SUBSTR(OBJECT,1)='         ORG STKBSR'; CALL OLINE;               00003860
+             SUBSTR(OBJECT,1)='ABASE   EQU   *';CALL OLINE;                    00003870
+                OBJECT=AL1;                                                    00003880
+                DO ISTKS=1 TO NSTKS; CGLOB=ISTKS; IB=1;                        00003890
+             DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END; IBB=7-IB;         00003900
+  800:        SUBSTR(OBJECT,18)='2(STK'||SUBSTR(CGLOB,IB,IBB)||'-STKBS)';      00003910
+             CALL OLINE;  END;                                                 00003920
+             SUBSTR(OBJECT,1)='ATOP   EQU   ABASE+32';CALL OLINE;              00003930
+             SUBSTR(OBJECT,1)='         ORG   ATOP';CALL OLINE;                00003940
+             OBJECT=AL1;                                                       00003950
+              DO ISTKS=1 TO NSTKS; CGLOB=ISTKS; IB=1;                          00003960
+              DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1;END; IBB=7-IB;         00003970
+              SUBSTR(OBJECT,18)='2(STK'||SUBSTR(CGLOB,IB,IBB)||'-STKBS)';      00003980
+             CALL OLINE;  END;                                                 00003990
+             SUBSTR(OBJECT,1)='ABOT    EQU  ATOP+32'; CALL OLINE;              00004000
+  800:       SUBSTR(OBJECT,1)='         ORG ABOT'; CALL OLINE; OBJECT=AL1;     00004010
+              DO ISTKS=1 TO NSTKS; CGLOB=ISTKS; IB=1;                          00004020
+              DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1;END; IBB=7-IB;         00004030
+             SUBSTR(OBJECT,18)='2(STK'||SUBSTR(CGLOB,IB,IBB)||'-STKBS-ENS'||   00004040
+             SUBSTR(CGLOB,IB,IBB)||')'; CALL OLINE; END;                       00004050
+             SUBSTR(OBJECT,1)='STKBGN  EQU   ABOT+32'; CALL OLINE;             00004060
+             SUBSTR(OBJECT,1)='         ORG   STKBGN'; CALL OLINE;             00004070
+             SUBSTR(OBJECT,1)='STK1     DS    (SS1)C'; CALL OLINE;             00004080
+             SUBSTR(OBJECT,1)='         DS   (4000+STKBS-STKBGN)C';            00004090
+             CALL OLINE; SUBSTR(OBJECT,1)='         DS';                       00004100
+  800:  STKST9: DO ISTKS = 2 TO NSTKS; CGLOB = ISTKS; IB=1;                    00004110
+             DO WHILE(SUBSTR(CGLOB,IB,1)=' '); IB=IB+1; END; IBB=7-IB;         00004120
+             SUBSTR(OBJECT,1)='STK'||SUBSTR(CGLOB,IB,IBB)||'      DS   (SS'||  00004130
+             SUBSTR(CGLOB,IB,IBB)||')C'; CALL OLINE; END STKST9;               00004140
+             SUBSTR(OBJECT,1)='         END'; CALL OLINE;                      00004150
+             RETURN;                                                           00004160
+        OLINE: PROCEDURE;                                                      00004170
+             WRITE FILE(PUNCH) FROM (OBJECT);                                  00004180
+             RETURN;                                                           00004190
+             END OLINE;                                                        00004200
+   80:       END IDOSEM;                                                       00004210
+tape mark
+endfile
+there were 156 data blocks with 122,960 bytes, and 8 tapemarks
+no blocks had errors

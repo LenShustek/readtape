@@ -1,0 +1,495 @@
+file: results\SRI_SDS_102715028_4secs.SDS.txt
+options:   -SDS  -LINESIZE=144
+  720:  $                                                                                                                                      ]-A04000
+        SYMS   IDENT   4/26/68                                                                                                                 ]-A04000
+        $$DOUBLE                                                                                                                               ]-A04000
+                                                                                                                       SSYMS      1            ]-A04000
+                                                                                                                       SSYMS      0            ]-A04800
+  720:         NOLIST  LCTrVAL                                                                                                                 ]-A04000
+                                                                                                                                               ]-A04000
+                                                                                                                                               ]-A04000
+        $                                                                                                                                      ]-A04000
+        $      SYSTEM FLAGSr OPDSr PARAMETERSr AND MACROS                                                                                      ]-A04000
+  720:  CRXF   EQU     *1              [NO CARD READER]                                                                                        ]-A04000
+        SCRSYS EQU     21                                                                                                                      ]-A04000
+        SYSNUM EQU     0                                                                                                                       ]-A04000
+        $ ASSEMBLY FLAGS                                                                                                                       ]-A04000
+               LIST                                                                                                                            ]-A04000
+  720:         NOLIST                                                                                                                          ]-A04000
+        SRI    EQU      *1            [1 FOR SRIr *1 FOR BERK? AND OTHER 940S]                                                                 ]-A04000
+        PUMKIN EQU      1               [DIRECT TAPE I/O]                                                                                      ]-A04000
+        MAPCHN EQU     *1              [NO MAP IN DRUM CHANNEL]                                                                                ]-A04000
+        LPXF   EQU     *1              [NO LINE PRINTER]                                                                                       ]-A04000
+  720:  3QTR   EQU     1               [3/4 DENSITY DRUMr 12K AROUND]                                                                          ]-A04000
+        PNXF   EQU     *1              [NO PAPER TAPE PUNCH]                                                                                   ]-A04000
+        DISK   EQU     1               [BRYANT PRODUCTS DISK]                                                                                  ]-A04000
+               LIST                                                                                                                            ]-A04000
+               IF      *SRI                                                                                                                    ]-A04000
+  720:  DISK   EQU     1               [BRYANT PRODUCTS DISK]                                                                                  ]-A04000
+               LIST                                                                                                                            ]-A04000
+               ELSE                                                                                                                            ]-A04000
+               NOLIST                                                                                                                          ]-A04000
+        940M   EQU     *1              [*1 FOR BERKELEYr 1 FOR 940]                                                                            ]-A04000
+  720:         ENDF                                                                                                                            ]-A04000
+               NOLIST                                                                                                                          ]-A04000
+        940M   EQU     1               [*1 FOR BERKELEYr 1 FOR 940]                                                                            ]-A04000
+        3QTR   EQU     *1              [3/4 DENSITY DRUMr 12K AROUND]                                                                          ]-A04000
+        PNXF   EQU     1               [NO PAPER TAPE PUNCH]                                                                                   ]-A04000
+  720:  A[0]   OPD A[1]r1; ENDM                                                                                                                ]-A04000
+        OP     LMACRO A;$ OPDr NO ARGS                                                                                                         ]-A04000
+        $ OPDS FOR THE MONITOR                                                                                                                 ]-A04000
+         $$SINGLE                                                                                                                              ]-A04000
+                                                                                                                                               ]-A04000
+  720:  LRR2   OP     00221000B       LOAD RELABELLING REGISTER 2                                                                              ]-A04000
+        LRR1   OP     00220400B       LOAD RELABELLING REGISTER 1                                                                              ]-A04000
+        CKF    OP     00220200B       TURN OFF THE CLOCK                                                                                       ]-A04000
+        CKN    OP     00220100B       TURN ON THE CLOCK                                                                                        ]-A04000
+        TSN    OP     00222000B       GO FROM NORMAL TO MONITOR MODE                                                                           ]-A04000
+  720:  RSR    OP      04050026B       RAD SKIP READY                                                                                          ]-A04000
+        TTYS   OP      20277777B       SELECT TELETYPE INTERFACE                                                                               ]-A04000
+               IF      940M                                                                                                                    ]-A04000
+        UMTN   OP     00222400B       ENABLE USER MODE TRAP                                                                                    ]-A04000
+        LRR3   OP     00221400B       LOAD RELABELLING REGISTER 3                                                                              ]-A04000
+  720:  WRF    OP      00602266B       WRITE RAD FILE                                                                                          ]-A04000
+        RRF    OP      00602226B       READ RAD FILE                                                                                           ]-A04000
+        ALR    OP     00610026B       ALERT RAD                                                                                                ]-A04000
+        ALRS   OP     00610226B       READ RAD SECTOR ADDRESS                                                                                  ]-A04000
+        RSE    OP      04051026B       RAD SKIP NO ERROR                                                                                       ]-A04000
+  720:  ALCE   OP      00650000B       ALERT E*BUFFER                                                                                          ]-A04000
+        CETE   OP      04051000B       E CHANNEL ERROR TEST                                                                                    ]-A04000
+        IOSDEN EQU     00614200B       NO INTERRUPT                                                                                            ]-A04000
+                                                                                                                       SSYMS      2            ]-A04000
+        IOSDE  EQU     00615200B       E CHAN IOSD                                                                     SSYMS      1            ]-A04800
+  720:  SNPS   OP      00230012B       SELECT SNOOPERS                                                                                         ]-A04000
+        TTYS   OP      00230001B       SELECT TELETYPE INTERFACE                                                                               ]-A04000
+               ELSE                                                                                                                            ]-A04000
+        EOD    OPD     00600000Br2                                                                                                             ]-A04000
+        DISE   OP      00600000B       DISCONNECT E*BUFFER                                                                                     ]-A04000
+  720:         ENDM                                                                                                                            ]-A04000
+               ENDM                                                                                                                            ]-A04000
+               DATA    A[1]*LINKNO[1]                                                                                                          ]-A04000
+        A[0]   MACRO   LINKNO                                                                                                                  ]-A04000
+        OPDL   LMACRO  A                                                                                                                       ]-A04000
+  720:  LRS    OPDL    00230503B                                                                                                               ]-A04000
+        LTS    OPDL    00230403B                                                                                                               ]-A04000
+        LTE    OPDL    00230303B                                                                                                               ]-A04000
+        LCL    OPDL    00230203B                                                                                                               ]-A04000
+        LTR    OPDL    00230103B                                                                                                               ]-A04000
+  720:  DSR    OP      04030204B       SKIP IF DRUM NOT BUSY                                                                                   ]-A04000
+        DRA    OP      00230504B       READ DRUM TIMING COUNTER INTO 21B                                                                       ]-A04000
+        DSC    OP      00230204B       START DRUM CHANNEL [NO CHAIN]                                                                           ]-A04000
+        DCC    OP      00230404B       RESET DRUM CHANNEL                                                                                      ]-A04000
+        LSR    OPDL    04030503B                                                                                                               ]-A04000
+  720:  SGCI   OPD     16500000Br2                                                                                                             ]-A04000
+        $ SYSPOPS WITH BIT 0 REMOVED                                                                                                           ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        !DLCTR EQU     20B             DRUM CHANNEL LOCATION COUNTER                                                                           ]-A04000
+        DSE    OP      04037404B       SKIP IF NO DRUM ERROR                                                                                   ]-A04000
+  720:  SLDP   OPD     16600000Br2                                                                                                             ]-A04000
+        SSKSE  OPD     16300000Br2                                                                                                             ]-A04000
+        SBRS   OPD     17300000Br2                                                                                                             ]-A04000
+        SCIO   OPD     16100000Br2                                                                                                             ]-A04000
+        SWCI   OPD     15700000Br2                                                                                                             ]-A04000
+  720:  KCC    OP      00230010B       RESET DISK CHANNEL                                                                                      ]-A04000
+               IF      *SRI                                                                                                                    ]-A04000
+               IF      DISK $$$$$$                                                                                                             ]-A04000
+                                                                                                                                               ]-A04000
+        SOST   OPD     15100000Br2                                                                                                             ]-A04000
+  720:  KCC    OP      00230401Br2     RESET DISK CHANNEL                                                                                      ]-A04000
+               ELSE                                                                                                                            ]-A04000
+        !KLCTR EQU     51B             COMMAND POINTER                                                                                         ]-A04000
+        !KERRWD EQU    53B             ERROR CELL                                                                                              ]-A04000
+        KSC    OP      00230410B       START DISK CHANNEL [NO CHAIN]                                                                           ]-A04000
+  720:         ENDF                                                                                                                            ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        !KLCTR EQU     50B             COMMAND POINTER                                                                                         ]-A04000
+        !KERRWD EQU    52B             ERROR CELL                                                                                              ]-A04000
+        KSC    OP      00230201Br2     START DISK CHANNEL [NO CHAIN]                                                                           ]-A04000
+  720:  NFQU   EQU     60              FULL QUANTUM SIZE                                                                                       ]-A04000
+        UMSZ   EQU     24              INITIAL MACHINE SIZE                                                                                    ]-A04000
+        NLFILE EQU     16              NUMBER OF LOCAL FILES [<~ 24]                                                                           ]-A04000
+        NFILE  EQU     32              NUMBER OF FILES                                                                                         ]-A04000
+         $ SYSTEM CONFIGURATION PARAMETERS                                                                                                     ]-A04000
+  720:         ELSE                                                                                                                            ]-A04000
+        NTTY   EQU     12                                                                                                                      ]-A04000
+               IF      SRI                                                                                                                     ]-A04000
+                                                                                                                       SSYMS      3            ]-A04000
+        NPAC   EQU     40              NUMBER OF PACT SLOTS                                                            SSYMS      2            ]-A04800
+  720:         IF      SRI                                                                                                                     ]-A04000
+        NRTTY  EQU     NTTY            NUMBER OF REAL TTYS                                                                                     ]-A04000
+        NPTTY  EQU     0               NUMBER OF PSEUDO*TTYS                                                                                   ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        NTTY   EQU     24               NUMBER OF TTYS                                                                                         ]-A04000
+  720:         IF      SRI                                                                                                                     ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        NTTY   EQU     NTTY+NWS                                                                                                                ]-A04000
+        TT2SIZ EQU     470B            WORDS IN TTY SIMULATION DISPLAY BUFF?                                                                   ]-A04000
+        NWS    EQU     6               NUMBER OF SRI WORK STATIONS?                                                                            ]-A04000
+  720:  NSQU   EQU     15              NUMBER OF CLOCK CYCLES IN SHORT QUANTUM                                                                 ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        NJOB1  EQU     15              NUMBER OF JOBS WITHOUT P?U?                                                                             ]-A04000
+               ELSE                                                                                                                            ]-A04000
+        NJOB1  EQU     15                                                                                                                      ]-A04000
+  720:  PNCNT  EQU     40              PAPER TAPE PUNCH BUFFER LENGTH                                                                          ]-A04000
+        RTCNT  EQU     64              PAPER TAPE READER BUFFER LENGTH                                                                         ]-A04000
+        $ PARAMETERS FOR W*BUFFER I/O SYSTEM                                                                                                   ]-A04000
+        NSMT   EQU     100B            SIZE OF SMT                                                                                             ]-A04000
+        NCMEM  EQU     43B             COMMON PART OF USER MACHINE                                                                             ]-A04000
+  720:  NTAPE  EQU     3                                                                                                                       ]-A04000
+               ELSE                                                                                                                            ]-A04000
+        NTAPE  EQU     1               NUMBER OF MAG TAPE UNITS                                                                                ]-A04000
+               IF      *SRI                                                                                                                    ]-A04000
+        CRCNT  EQU     82              CARD READER BUFFER LENGTH                                                                               ]-A04000
+  720:         ELSE                                                                                                                            ]-A04000
+        SNCNT  EQU     0                                                                                                                       ]-A04000
+        NLINK  EQU     0                                                                                                                       ]-A04000
+               IF      940M                                                                                                                    ]-A04000
+               ENDF                                                                                                                            ]-A04000
+  720:  LPCNT  EQU     120             LINE PRINTER BUFFER LENGTH                                                                              ]-A04000
+        TCNT   EQU     199             LENGTH OF MAG TAPE BUFFER                                                                               ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        SNCNT  EQU     9               NUMBER OF -SNOOPER- COUNTERS                                                                            ]-A04000
+        NLINK  EQU     2               NUMBER OF PDP*5 LINKS                                                                                   ]-A04000
+  720:  P8NCNT EQU     159             8*LEV? PAPER TP? PUNCH BUFF LENG?                                                                       ]-A04000
+        R8TCNT EQU     255             8*LEVEL PAPER TP READER BUFF LENG?                                                                      ]-A04000
+               IF      SRI                                                                                                                     ]-A04000
+        PNWT   EQU     PNCNT$400/6     PAPER TAPE PUNCH TIME                                                                                   ]-A04000
+        RTWT   EQU     RTCNT$40/3      PAPER TAPE READ TIME                                                                                    ]-A04000
+  720:  TXWT   EQU     20+TCNT/10      MAG TAPE TIME                                                                                           ]-A04000
+        CRWT   EQU     300             CARD READ TIME                                                                                          ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        P8NWT  EQU     P8NCNT$100/6    8*LEV PAPER TP? PUNCH TIME                                                                              ]-A04000
+        R8TWT  EQU     R8TCNT$10/3     8*LEV PAPER TP? READ TIME                                                                               ]-A04000
+  720:  $ PDP5*LINK PARAMETERS                                                                                                                 ]-A04000
+               IF      *940M                                                                                                                   ]-A04000
+        NTWTRY EQU     3               NUMBER OF REWRITES                                                                                      ]-A04000
+        NTRTRY EQU     10              NUMBER OF REREADS                                                                                       ]-A04000
+        LPWT   EQU     133             LINE PRINT TIME                                                                                         ]-A04000
+  720:         ENDM                                                                                                                            ]-A04000
+               DATA    A[1]+.A[2]*A[1]\$LINKNO                                                                                                 ]-A04000
+        A[0]   MACRO   LINKNO                                                                                                                  ]-A04000
+                                                                                                                       SSYMS      4            ]-A04000
+        EQUL   LMACRO  A                                                                                               SSYMS      3            ]-A04800
+  720:  LAIR   EQUL    214000Br201400B                                                                                                         ]-A04000
+        DMCI   EQUL    270244Br270240B                                                                                                         ]-A04000
+        DMCU   EQUL    272244Br272240B                                                                                                         ]-A04000
+        LCXA   EQUL    245Br241B                                                                                                               ]-A04000
+               ENDM                                                                                                                            ]-A04000
+  720:  $ PARAMETERS FOR TELETYPE I/O                                                                                                          ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        LRXN   EQU     2               LINK DSC -READ- CONTROL                                                                                 ]-A04000
+        LWXN   EQU     1               LINK DSC -WRITE- CONTROL                                                                                ]-A04000
+        LDAR   EQUL    563777Br576377B                                                                                                         ]-A04000
+  720:  NOBT   EQU     40                                                                                                                      ]-A04000
+               ELSE                                                                                                                            ]-A04000
+        NOBT   EQU     32                                                                                                                      ]-A04000
+               IF      SRI                                                                                                                     ]-A04000
+        TTYOBL EQU     8                                                                                                                       ]-A04000
+  720:  AIB    EQU     100000B         ACCEPT INPUT BIT                                                                                        ]-A04000
+        AMB    EQU     40000B          ACCEPT MESSAGE BIT                                                                                      ]-A04000
+        TTYEWI EQU     TTYOBL$3*6                                                                                                              ]-A04000
+        TTYEWO EQU     6                                                                                                                       ]-A04000
+               ENDF                                                                                                                            ]-A04000
+  720:  ILB    EQU     1000000B        INPUT LINK BIT                                                                                          ]-A04000
+        8PB    EQU     2000000B        8*LEVEL OUTPUT BIT                                                                                      ]-A04000
+        8RB    EQU     4000000B        8*LEVEL INPUT BIT                                                                                       ]-A04000
+        NOB    EQU     200000B         NO OUTPUT BIT [INHIBITS TOI]                                                                            ]-A04000
+        APB    EQU     10000000B       ACCEPT PRINTER LINK BIT                                                                                 ]-A04000
+  720:  WSNCB  EQU     6               NUMBER OF CHARS IN WORK STA? BUFFER                                                                     ]-A04000
+               IF      SRI                                                                                                                     ]-A04000
+        $ SRI TTY SIMULATION ON DISPLAYS?                                                                                                      ]-A04000
+        NTTB   EQU     NTTY+NPTTY      TOTAL TTY LINES                                                                                         ]-A04000
+        OLB    EQU     400000B         OUTPUT LINK BIT                                                                                         ]-A04000
+  720:  TT2RRP EQU     6               RELABLED RUNTIME PAGE OF DISP? BUFF?                                                                    ]-A04000
+        TT2RIP EQU     7               RELABLED INIT? PAGE OF DISP? BUFF?                                                                      ]-A04000
+        TT2PP  EQU     7               PHYSICAL PAGE OF DISPLAY BUFFER                                                                         ]-A04000
+        TT2NW  EQU     72/3            NUMBER OF WORDS PER TTY DISP? LINE BUFFER?                                                              ]-A04000
+        TT2NL  EQU     25              NUMBER OF LINES PER TTY DISPLAY BUFFER                                                                  ]-A04000
+  720:  NPPAR  EQU     12              LENGTH OF PACT ENTRY                                                                                    ]-A04000
+        $ PARAMETERS FOR SCHEDULER AND SWAPPER                                                                                                 ]-A04000
+        NATTB  EQU     30              LENGTH OF BUFFER FOR 217 INT?                                                                           ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        TT2NMS EQU     2               MSMT LOC? OF D? B? PAGE SMT ENTRY?                                                                      ]-A04000
+  720:         IF      SRI                                                                                                                     ]-A04000
+        NPOP   EQU     45B             NUMBER OF SYSPOPS IN USE                                                                                ]-A04000
+        NSMEM  EQU     6               NUMBER OF PAGES USED BY SYSTEM                                                                          ]-A04000
+        NMEM   EQU     32              NUMBER OF PAGES                                                                                         ]-A04000
+        NJOB   EQU     NJOB1+1         NUMBER OF JOBS                                                                                          ]-A04000
+  720:  NSEC   EQU     2                                                                                                                       ]-A04000
+               IF      940M                                                                                                                    ]-A04000
+        NPUQ   EQU     10              NUMBER OF PUCT ENTRIES                                                                                  ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        SRIPOP EQU     2               NUMBER OF SYSPOPS ADDED AT SRI                                                                          ]-A04000
+  720:  L2NSEC EQU     3               LOG2 [NSEC]                                                                                             ]-A04000
+        NSEC   EQU     8               NUMBER OF 2K PAGES AROUND DRUM                                                                          ]-A04000
+               ELSE                                                                                                                            ]-A04000
+                                                                                                                       SSYMS      5            ]-A04000
+        L2NSEC EQU     1                                                                                               SSYMS      4            ]-A04800
+  720:  DIRTY  EQU 4B6 [IN RMT]                                                                                                                ]-A04000
+        $ BITS FOR MEMORY TABLES                                                                                                               ]-A04000
+        NDHT   EQU     64              SIZE OF DHT [MUST BE POWER OF 2]                                                                        ]-A04000
+        NUMEM  EQU     100B*NCMEM      NUMBER OF PRIVATE USER PAGES                                                                            ]-A04000
+               ENDF                                                                                                                            ]-A04000
+  720:  RLSBIT EQU     2B6 #                                                                                                                   ]-A04000
+        SHDBIT EQU 2B7 [IN PMT]                                                                                                                ]-A04000
+        ERBIT  EQU 4B5 #                                                                                                                       ]-A04000
+        WIPBIT EQU 1B6 #                                                                                                                       ]-A04000
+        RIPBIT EQU 2B6 #                                                                                                                       ]-A04000
+  720:  EOFB   EQU 2B5 END OF FILE                                                                                                             ]-A04000
+        EORB   EQU 1B5 END OF RECORD                                                                                                           ]-A04000
+        $ BITS IN I/O BUFFERS                                                                                                                  ]-A04000
+        ROBIT  EQU 4B6 #                                                                                                                       ]-A04000
+        EXMBIT EQU 1B7 [IN SMT/PMT]                                                                                                            ]-A04000
+  720:  OUTB   EQU 1B5 OUTPUT                                                                                                                  ]-A04000
+        CHRB   EQU 1B7 CHARACTER MODE DEVICE                                                                                                   ]-A04000
+        $ BITS IN FD AND DEVICE WORD                                                                                                           ]-A04000
+        EOTB   EQU 1B6 END OF TAPE                                                                                                             ]-A04000
+        ERRB   EQU 4B5 I/O ERROR                                                                                                               ]-A04000
+  720:  DPCB   EQU 2B7 POSITIONABLE FILE                                                                                                       ]-A04000
+        DWCB   EQU 1B6 WRITABLE FILE                                                                                                           ]-A04000
+        DRCB   EQU 2B6 READABLE FILE                                                                                                           ]-A04000
+        $ BITS IN FD ONLY                                                                                                                      ]-A04000
+        DRMB   EQU 4B6 DRUM OR DISK                                                                                                            ]-A04000
+  720:  NUDE   EQU     10              NUMBER OF ENTRIES IN DRUM ERROR BUFFER                                                                  ]-A04000
+        $ PARAMETERS FOR DRUM I/O                                                                                                              ]-A04000
+        WBDB   EQU 2B5 W*BUFFER                                                                                                                ]-A04000
+        SBFB   EQU 4B5 USES BUFFER IN TS BLOCK                                                                                                 ]-A04000
+        $ BITS IN DEVICE WORD ONLY                                                                                                             ]-A04000
+  720:  NDBW   EQU     3777B/NBUFA      LENGTH OF FILE BUFFER                                                                                  ]-A04000
+        NBUF   EQU     NBUFX+NBUFA     TOTAL NUMBER OF BUFFERS                                                                                 ]-A04000
+        NBUFA  EQU     5               NUMBER OF BUFFERS IN SHARED BLOCK                                                                       ]-A04000
+        NBUFX  EQU     3               NUMBER OF BUFFERS IN THE EXEC BLOCK                                                                     ]-A04000
+        NDRQ   EQU     30              NUMBER OF ENTRIES IN DRUM QUEUE                                                                         ]-A04000
+  720:  NSBND  EQU     48              NUMBER OF 16K BANDS RESERVED FOR SWAPPING                                                               ]-A04000
+               IF      *SRI                                                                                                                    ]-A04000
+        NDTRY  EQU     4               NUMBER OF READ TRIES FOR DRUM                                                                           ]-A04000
+        NDXW   EQU     NDBW*NDDW*10    LENGTH OF INDEX BLOCK                                                                                   ]-A04000
+        NDDW   EQU     256             LENGTH OF BUFFER FOR DISK OR DRUM                                                                       ]-A04000
+  720:  NPBND  EQU     11                                                                                                                      ]-A04000
+        NSBND  EQU     36              ASSUMING 3 RADS                                                                                         ]-A04000
+               ELSE                                                                                                                            ]-A04000
+        NFBND  EQU     32              NUMBER OF 16K BANDS RESERVED FOR FILES                                                                  ]-A04000
+        NPBND  EQU     12              NUMBER OF 16K BANDS RESERVED FOR SUBSYSTEMS                                                             ]-A04000
+  720:         IF DISK $$$$$$                                                                                                                  ]-A04000
+        MONDA1 EQU     MONDA+16000B+3QTR$2000B  SECOND 6K OF MONITOR                                                                           ]-A04000
+        MONDA  EQU     17$20000B+SYSNUM$40000B  DRUM ADDRESS OF MONITOR                                                                        ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        NFBND  EQU     48                                                                                                                      ]-A04000
+  720:  NHEADS EQU     24              NUMBER OF HEADS USABLE FOR FILES                                                                        ]-A04000
+        NKTRY  EQU     7               NUMBER OF REREADS ON DISK ERROR                                                                         ]-A04000
+        LKQC   EQU     5               SIZE OF DISK QUEUE ENTRY                                                                                ]-A04000
+                                                                                                                       SSYMS      6            ]-A04000
+        NKQC   EQU     20              NUMBER OF ENTRIES IN DISK QUEUE                                                 SSYMS      5            ]-A04800
+  720:         ENDF                                                                                                                            ]-A04000
+        NKBTW  EQU     .NHEADS$2+23\/24 NUMBER OF BIT WORDS/ARM POS?                                                                           ]-A04000
+        NUMAP  EQU     MAXAP*MINAP                                                                                                             ]-A04000
+        MAXAP  EQU     256             MAXIMUM ARM POSITION + 1                                                                                ]-A04000
+        MINAP  EQU     212             MINIMUM ARM POSITION                                                                                    ]-A04000
+  720:  MBUFX  EQU     34000000B       FBWRD FOR EXEC BLOCK                                                                                    ]-A04000
+        MBUFA  EQU     03700000B       FBWRD FOR SHARED BLOCK                                                                                  ]-A04000
+        $                              BEGINNING OF DRUM BUFFERS IN EXEC TS                                                                    ]-A04000
+        !DBTOP  EQU     DBEND*NBUFX$NDBW                                                                                                       ]-A04000
+        DBEND  EQU     37777B          END OF DRUM BUFFER AREA                                                                                 ]-A04000
+  720:  BXU    EQU     BXO+NDXW*NDXU   ORIGIN OF USER WORDS                                                                                    ]-A04000
+        NDXU   EQU     5               NUMBER OF -USER WORDS- IN INDEX BLOCK                                                                   ]-A04000
+        !BXO   EQU     NDBW*NDXW       INDEX BLOCK ORIGIN REL TO BUFF                                                                          ]-A04000
+        DCBR   EQU     6B7                                                                                                                     ]-A04000
+        DCTX   EQU     4B7                                                                                                                     ]-A04000
+  720:  !BLX   EQU     BXE+3           FILE LENGTH                                                                                             ]-A04000
+        !BDS   EQU     BXE+2           LOG2[DATA BLOCK SIZE/NDDW]                                                                              ]-A04000
+        !BBP   EQU     BXE+1           BACKWARD CHAIN WORD                                                                                     ]-A04000
+        !BFP   EQU     BXE             FORWARD CHAIN WORD                                                                                      ]-A04000
+        BXE    EQU     BXU*5           END OF POINTER AREA                                                                                     ]-A04000
+  720:  !BDA   EQU     NDDW+6          DATA BLOCK DRUM ADDRESS                                                                                 ]-A04000
+        !BIC   EQU     NDDW+7          INDEX CHANGED FLAG                                                                                      ]-A04000
+        NDXD   EQU     NDXP+2          WORDS TO BE READ                                                                                        ]-A04000
+        NDXP   EQU     BXE*BXO         NUMBER OF POINTERS                                                                                      ]-A04000
+        !BCK   EQU     BXE+4           INDEX BLK CHECKSUM [EXCLUDING BCK]                                                                      ]-A04000
+  720:  !BFL   EQU     NDDW+8          FILE LENGTH                                                                                             ]-A04000
+        !BIN   EQU     NDDW+2          INDEX BLOCK NUMBER                                                                                      ]-A04000
+        !BDN   EQU     NDDW+4          DATA BLOCK NUMBER                                                                                       ]-A04000
+        !BIA   EQU     NDDW+3          INDEX BLOCK DRUM ADDRESS                                                                                ]-A04000
+        !BDC   EQU     NDDW+5          CHANGED DATA FLAG                                                                                       ]-A04000
+  720:  UEXECR EQU     10002B          USER RESTART ENTRY                                                                                      ]-A04000
+        UEXECP EQU     10001B          TOP LEVEL EXEC PANIC ENTRY                                                                              ]-A04000
+        UEXECI EQU     10000B          USER STARTUP ENTRY                                                                                      ]-A04000
+        $ EXECUTIVE ENTRY POINTS FROM MONITOR                                                                                                  ]-A04000
+        !BPT   EQU     NDDW+9          SEQ-L I/O POINTER                                                                                       ]-A04000
+  720:  $ MACROS FOR THE MONITOR                                                                                                               ]-A04000
+        $$DOUBLE                                                                                                                               ]-A04000
+                                                                                                                                               ]-A04000
+        UEXECM EQU     10004B          ERROR MESSAGE ENTRY                                                                                     ]-A04000
+        UEXECS EQU     10003B          SYSTEM STARTUP ENTRY                                                                                    ]-A04000
+  720:         IF      940M                                                                                                                    ]-A04000
+        GTRT   MACRO; LDA TNO; ADD TRTC; CAB; ENDM                                                                                             ]-A04000
+        TDT    MACRO L;L[1]W EQU $; RPT NTAPE; L[2] L[3]B+$*L[1]W; ENDR; ENDM                                                                  ]-A04000
+        SETINT MACRO A; LDA ~A[1]; STA BLK31; ENDM                                                                                             ]-A04000
+        ARMI   MACRO D; AIR; POT D[1]; ENDM                                                                                                    ]-A04000
+  720:         STA $+2; BRU $+2; ZRO; ALR; POT $*2                                                                                             ]-A04000
+               IF -D[3!1]-~-g-; LDA D[3!2r]; RSH 6                                                                                             ]-A04000
+        READ   MACRO DrGr1;G[1] RSR; BRU $*1                                                                                                   ]-A04000
+        SMFF   MACRO; ENDM                                                                                                                     ]-A04000
+        RMFF   MACRO; ENDM                                                                                                                     ]-A04000
+  720:         RSE; BRU G[1]; CETE; BRU G[1]; ENDM                                                                                             ]-A04000
+               POT ~.D[1])1777B\$40000B+.D[2])37777B\; RRF; RSR; BRU $*1                                                                       ]-A04000
+               EOD$ 10000B; DATA IOSDEN+.D[1]/2000B)37B\+.D[2]/40000B)3\$40B                                                                   ]-A04000
+                                                                                                                       SSYMS      7            ]-A04000
+               ELSE;1X EQU D[3]; ALR; POT ~1X/100B; ENDF                                                               SSYMS      6            ]-A04800
+  720:         BRU G[1];G[2] DATA D[3]+4B7; ENDF; DATA D[1]rD[2]                                                                               ]-A04000
+               MRG ~4B7; STA G[2]; BRU G[1];G[2] ZRO; ELSE                                                                                     ]-A04000
+        READ   MACRO DrGr2; IF -D[3!1]-~-g-; LDA D[3!2r]                                                                                       ]-A04000
+        SMFF   MACRO D; DATA 234006B+D[1]$40B; ENDM                                                                                            ]-A04000
+               ELSE                                                                                                                            ]-A04000
+  720:  PUNT   MACRO; BRM RCVRM1; ENDM;$ CAUSES AUTOMATIC RESTART                                                                              ]-A04000
+               ENDF                                                                                                                            ]-A04000
+        RMFF   MACRO D; DATA 230006B+D[1]$40B; ENDM                                                                                            ]-A04000
+               DSR; BRU $*1; DSE; BRU G[1]; ENDM                                                                                               ]-A04000
+        G[1]   LDX ~G[2]; STX 20B; DSC                                                                                                         ]-A04000
+  720:         ELSE; BRU PEST; BRU PACACT; ENDF; ENDM                                                                                          ]-A04000
+               IF D[1]; BRU PACACT; BRU PEST                                                                                                   ]-A04000
+        CACR   MACRO D; D[2]                                                                                                                   ]-A04000
+               FRGT L[2X]; ENDR; ENDM                                                                                                          ]-A04000
+        TRP    LMACRO L;1X NARG; RPT [2X~1r1X];L[2X] EQU L[0]                                                                                  ]-A04000
+  720:  DB     MACRO D                                                                                                                         ]-A04000
+        A[1X]  EXT; ENDR; ENDM                                                                                                                 ]-A04000
+        ENTRY  MACRO A;ENTCNT NARG; RPT [1X~1rENTCNT]                                                                                          ]-A04000
+               DATA    D[1]$1B6+D[2]$1B4+D[3]$1B2+D[4]; ENDM                                                                                   ]-A04000
+        MAP    MACRO   D                                                                                                                       ]-A04000
+  720:  1X     EQU N[1]+23; RPT 1X/24*1; DATA *1; ENDR                                                                                         ]-A04000
+        BITSTR MACRO N                                                                                                                         ]-A04000
+                                                                                                                                               ]-A04000
+               RPT D[3]; DATA ENTCNT;ENTCNT EQU ENTCNT+100B; ENDR; ENDM                                                                        ]-A04000
+        ENTCNT EQU D[1]$4B2+D[2]$1B2+.D[4])1\$ROBIT+.D[4])2\$EXMBIT/2                                                                          ]-A04000
+  720:  SYSPOP LMACRO A;A[0] POPD 5?)A[1]00000Br2; ENDM                                                                                        ]-A04000
+        WCU    MACRO A; EAX A[1]; BRM WCU; ENDM                                                                                                ]-A04000
+        GCU    MACRO A; EAX A[1]; BRM GCU; ENDM                                                                                                ]-A04000
+                                                                                                                                               ]-A04000
+               DATA 2d.1X*1X/24$24+1\*1; ENDM                                                                                                  ]-A04000
+  720:         IF 1X; BSS D[1]; ELSE; BSS 1; ENDF; ENDM                                                                                        ]-A04000
+        XSYM   LMACRO D;!D[0] EQU $+X;1X NARG                                                                                                  ]-A04000
+        RMTORG MACRO D; RETREL; BSS 1ORG*$+D[1]; RELORG D[1]; ENDM                                                                             ]-A04000
+        LOCORG MACRO D; RETREL; BSS 1ORG*$+D[1]; ENDM                                                                                          ]-A04000
+        1ORG   EQU     $               [PSEUDO*LOC CTR FOR LOCORG]                                                                             ]-A04000
+  720:                                                                                                                                         ]-A04000
+               FRGT    1ORGrX                                                                                                                  ]-A04000
+        !X     EQU     34000B                                                                                                                  ]-A04000
+               ELSE;!E?)D[0!2r] EQU $; ENDF; ENDM                                                                                              ]-A04000
+        BSE    LMACRO D;D[0] BSS D[1]; IF -D[0!1]-0-!-;!E?)D[0] EQU $                                                                          ]-A04000
+  720:  UPL    XSYM 1  RETURN LOC?                                                                                                             ]-A04000
+        $ STATE WORD OF EXBRS CALLER                                                                                                           ]-A04000
+               RMTORG  1                                                                                                                       ]-A04000
+        $ MONITOR*EXEC COMMUNICATION CELLS                                                                                                     ]-A04000
+        $$ SINGLE                                                                                                                              ]-A04000
+  720:  !UBRL2 EQU UBRL1+1                                                                                                                     ]-A04000
+        UBRL1  XSYM 2  MAP                                                                                                                     ]-A04000
+        UBX    XSYM 1  [X]                                                                                                                     ]-A04000
+        UBB    XSYM 1  [B]                                                                                                                     ]-A04000
+        UBA    XSYM 1  [A]                                                                                                                     ]-A04000
+  720:  !UPRRL2 EQU UPRRL1+1                                                                                                                   ]-A04000
+        UPRRL1 XSYM 2                                                                                                                          ]-A04000
+        $ #PROGRAM# MAP                                                                                                                        ]-A04000
+                                                                                                                       SSYMS      8            ]-A04000
+        UBE    XSYM 1  EFF? ADDR? FOR SICrISC                                                                          SSYMS      7            ]-A04800
+  720:  UEXFLG XSYM                                                                                                                            ]-A04000
+        $ #EXECUTIVITY# FLAG                                                                                                                   ]-A04000
+        UIDIOT XSYM                                                                                                                            ]-A04000
+        UWAIT  XSYM                                                                                                                            ]-A04000
+        $ BRS 37 FLAGS                                                                                                                         ]-A04000
+  720:  $ PERCENT*OF*CPU FACTOR                                                                                                                ]-A04000
+        !EXECL6 EQU EXECL+6                                                                                                                    ]-A04000
+        !EXECL EQU UEXECL*X                                                                                                                    ]-A04000
+        UEXECL XSYM 7                                                                                                                          ]-A04000
+        $ TOP*LEVEL EXEC PANIC TABLE                                                                                                           ]-A04000
+  720:  $ TEMP STORAGE FOR CLASS 2 BRS-S                                                                                                       ]-A04000
+                                                                                                                                               ]-A04000
+        PMA    XSYM                                                                                                                            ]-A04000
+        $ MACHINE SIZE                                                                                                                         ]-A04000
+        TTFACT XSYM                                                                                                                            ]-A04000
+  720:  GSIN3  XSYM                                                                                                                            ]-A04000
+        GSIN2  XSYM                                                                                                                            ]-A04000
+        GSIN1  XSYM    1               BRS 33                                                                                                  ]-A04000
+        SBRSRT XSYM                                                                                                                            ]-A04000
+                                                                                                                                               ]-A04000
+  720:  OUTNO1 XSYM    1               BRS 36                                                                                                  ]-A04000
+        STRO3  XSYM                                                                                                                            ]-A04000
+        STRO21 XSYM                                                                                                                            ]-A04000
+        STRO2  XSYM                                                                                                                            ]-A04000
+        STRO1  XSYM    1               BRS 34r35                                                                                               ]-A04000
+  720:  OUTNO9 XSYM                                                                                                                            ]-A04000
+        OUTNO5 XSYM                                                                                                                            ]-A04000
+        OUTNO4 XSYM                                                                                                                            ]-A04000
+        OUTNO3 XSYM                                                                                                                            ]-A04000
+        OUTNO2 XSYM                                                                                                                            ]-A04000
+  720:  WR1    XSYM                                                                                                                            ]-A04000
+        GETNO7 XSYM                                                                                                                            ]-A04000
+        GETNO3 XSYM                                                                                                                            ]-A04000
+        GETNO2 XSYM                                                                                                                            ]-A04000
+        GETNO1 XSYM    1               BRS 38                                                                                                  ]-A04000
+  720:  WR4PT  XSYM     2                                                                                                                      ]-A04000
+        WR4    XSYM    15                                                                                                                      ]-A04000
+        WR31   XSYM                                                                                                                            ]-A04000
+        WR3    XSYM                                                                                                                            ]-A04000
+        WR2    XSYM                                                                                                                            ]-A04000
+  720:  WR8    XSYM                                                                                                                            ]-A04000
+        WR7    XSYM                                                                                                                            ]-A04000
+        WR6    XSYM                                                                                                                            ]-A04000
+        WR5    XSYM                                                                                                                            ]-A04000
+        !WR4PT1 EQU WR4PT+1                                                                                                                    ]-A04000
+  720:  WR13   XSYM                                                                                                                            ]-A04000
+        WR12   XSYM                                                                                                                            ]-A04000
+        WR11   XSYM                                                                                                                            ]-A04000
+        WR10   XSYM                                                                                                                            ]-A04000
+        WR9    XSYM                                                                                                                            ]-A04000
+  720:   $ USER STATUS STORAGE                                                                                                                 ]-A04000
+        SKS11  XSYM                                                                                                                            ]-A04000
+        SKS1   XSYM    1               BRS 5r37 [SKCO]                                                                                         ]-A04000
+                                                                                                                       SSYMS      9            ]-A04000
+        WR14   XSYM                                                                                                    SSYMS      8            ]-A04800
+  720:  TTOCK  XSYM                                                                                                                            ]-A04000
+        TTICK  XSYM                                                                                                                            ]-A04000
+                                                                                                                                               ]-A04000
+                                                                                                                                               ]-A04000
+               RMTORG  225B                                                                                                                    ]-A04000
+  720:  LFN    XSYM    NLFILE                                                                                                                  ]-A04000
+        $ LOCAL FILE NUMBER TABLE                                                                                                              ]-A04000
+                                                                                                                                               ]-A04000
+        RL3    XSYM                                                                                                                            ]-A04000
+        PLFA   XSYM                                                                                                                            ]-A04000
+  720:  UPMT   XSYM    100B                                                                                                                    ]-A04000
+        $ NON*RESIDENT PMT                                                                                                                     ]-A04000
+                                                                                                                                               ]-A04000
+        LFFLST XSYM                                                                                                                            ]-A04000
+        !ELFN  EQU     $+X                                                                                                                     ]-A04000
+  720:  XUBBT  XSYM    *NLUBBT                                                                                                                 ]-A04000
+        !NLUBBT EQU    *NSBND$8/24*1                                                                                                           ]-A04000
+        $ BRS 126 BIT TABLE                                                                                                                    ]-A04000
+                                                                                                                                               ]-A04000
+        UPMC   XSYM    100B                                                                                                                    ]-A04000
+  720:  TSMFIL XSYM    1               SECONDARY MEMORY FILE NUMBER                                                                            ]-A04000
+        FBWRD  XSYM    1               BUFFER AVAILABILITY BIT WORD                                                                            ]-A04000
+        $ STORAGE FOR BASIC FILE SYSTEM                                                                                                        ]-A04000
+                                                                                                                                               ]-A04000
+        XEUBBT XSYM    0                                                                                                                       ]-A04000
+  720:  TSMFB  XSYM    1               SEC? MEM? FB ADDRESS                                                                                    ]-A04000
+        TSMDRN XSYM    1               SEC? MEM? BDN ADDRESS                                                                                   ]-A04000
+        TSMBA  XSYM    1               SEC? MEM? BUFFER ADDRESS r2                                                                             ]-A04000
+        TSMOFG XSYM    1               SEC? MEM? OUTPUT FG                                                                                     ]-A04000
+        TSMIFG XSYM    1               SEC? MEM? INPUT FG                                                                                      ]-A04000
+  720:         RMTORG  4100B                                                                                                                   ]-A04000
+               IF      PUMKIN+SRI+1                                                                                                            ]-A04000
+        $    BLOCK 1 TEMPORARY STORAGE                                                                                                         ]-A04000
+                                                                                                                                               ]-A04000
+        LKXBA  XSYM    1               LAST DISK INDEX BLOCK ADDRESS                                                                           ]-A04000
+  720:         ENTRY   FDBTDTrFDBITrFDBIT1rFDBT0rFDBT1rFDBT2                                                                                   ]-A04000
+                                                                                                                                               ]-A04000
+               ENDF                                                                                                                            ]-A04000
+               RMTORG 4000B                                                                                                                    ]-A04000
+               ELSE                                                                                                                            ]-A04000
+  720:         ENTRY   TNERRrTURERRrTRERRrTWERRrTUWERR                                                                                         ]-A04000
+               ENDF                                                                                                                            ]-A04000
+               ENTRY   KBTDTrKBTrEKBTrKBIT                                                                                                     ]-A04000
+               IF      DISK                                                                                                                    ]-A04000
+               ENTRY   IDRAT1rIDRAT2rDRAT1rDRAT2rEDRAT1rEDRAT2                                                                                 ]-A04000
+endfile
+there were 98 data blocks with 70,560 bytes, and 0 tapemarks
+no blocks had errors

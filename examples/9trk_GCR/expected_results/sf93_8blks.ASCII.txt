@@ -1,0 +1,1084 @@
+file: results\sf93_8blks.ASCII.txt
+options:   -ASCII -NEWLINE -LINESIZE=80
+   80: STORE/RESTORE LABEL-HP/3000.VIIB                 D                              
+tape mark
+ 8184: SANFRAN2CSLBUILDSYS     DBCHECK CM      SANFRAN2DBDRIVERCM      SANFRAN2SPX     
+       CMD     SANFRAN2ASF     CMDFILE SANFRAN2CHKDAT  CMDFILE SANFRAN2DSF     CMDFILE 
+       SANFRAN2GETOUTDBCMDFILE SANFRAN2IBMJCLCKCMDFILE SANFRAN2LSF     CMDFILE SANFRAN2
+       PR      CMDFILE SANFRAN2RSF     CMDFILE SANFRAN2SPFNUM  CMDFILE SANFRAN2SSF     
+       CMDFILE SANFRAN2TESTDEV CMDFILE SANFRAN2ALIAS   COMMAND SANFRAN2CHECK   COMMAND 
+       SANFRAN2DATELKUPCOMMAND SANFRAN2FINDSTR COMMAND SANFRAN2GSCAN   COMMAND SANFRAN2
+       IBMPRINTCOMMAND SANFRAN2LJOB    COMMAND SANFRAN2MAIL    COMMAND SANFRAN2MAILBAT 
+       COMMAND SANFRAN2MAILCHK COMMAND SANFRAN2MAILCHK2COMMAND SANFRAN2MAILRCL COMMAND 
+       SANFRAN2NETCMD  COMMAND SANFRAN2PRINTLIBCOMMAND SANFRAN2REMIND  COMMAND SANFRAN2
+       REPLYBATCOMMAND SANFRAN2REPLYRCLCOMMAND SANFRAN2SHOWTRANCOMMAND SANFRAN2SORTTBL 
+       COMMAND SANFRAN2STOPTRANCOMMAND SANFRAN2TAPESW  COMMAND SANFRAN2TAPESWR COMMAND 
+       SANFRAN2TAPETOSWCOMMAND SANFRAN2TELLX   COMMAND SANFRAN2UNALIAS COMMAND SANFRAN2
+       UT801RCLCOMMAND SANFRAN2WHEREIS COMMAND SANFRAN2BOX     COMPILE SANFRAN2BROWSE  
+       COMPILE SANFRAN2CTAPE   COMPILE SANFRAN2DATELKU1COMPILE SANFRAN2DATELKU2COMPILE 
+       SANFRAN2GSCAN   COMPILE SANFRAN2HEXDUMP COMPILE SANFRAN2IBMPRINTCOMPILE SANFRAN2
+       SDREPT  COMPILE SANFRAN2SORTTBL1COMPILE SANFRAN2SORTTBL2COMPILE SANFRAN2STREAMO 
+       COMPILE SANFRAN2TAPESW  COMPILE SANFRAN2BOX     COPYLIB SANFRAN2DATELKUPCOPYLIB 
+       SANFRAN2SORTTBL COPYLIB SANFRAN2BOXDEMO DATA    SANFRAN2BOXLISTFDATA    SANFRAN2
+       ENFORC  DATA    SANFRAN2ENFORC01DATA    SANFRAN2ENFORC02DATA    SANFRAN2ENFORC03
+       DATA    SANFRAN2ENFORC04DATA    SANFRAN2ENFORC05DATA    SANFRAN2ENFORC06DATA    
+       SANFRAN2ENFORC07DATA    SANFRAN2ENFORCPVDATA    SANFRAN2GSCAN   DATA    SANFRAN2
+       GSCANAK DATA    SANFRAN2GSCANAT DATA    SANFRAN2GSCANEK DATA    SANFRAN2GSCANEN 
+       DATA    SANFRAN2GSCANKBMDATA    SANFRAN2IBMPRINTDATA    SANFRAN2NB1MIN  DATA    
+       SANFRAN2NB1MOUT DATA    SANFRAN2NORMAL  DATA    SANFRAN2NORMALAKDATA    SANFRAN2
+       NORMALATDATA    SANFRAN2NORMALEKDATA    SANFRAN2NORMALENDATA    SANFRAN2NORMLKBM
+       DATA    SANFRAN2PCLTEST DATA    SANFRAN2PHONE   DATA    SANFRAN2PHONE01 DATA    
+       SANFRAN2PHONE02 DATA    SANFRAN2PHONE2  DATA    SANFRAN2PHONE3  DATA    SANFRAN2
+       PHONE4  DATA    SANFRAN2SHOWDEF1DATA    SANFRAN2SHOWDEF2DATA    SANFRAN2SHOWDEF3
+       DATA    SANFRAN2SHOWDEF4DATA    SANFRAN2SHOWDEF5DATA    SANFRAN2SHOWDEF6DATA    
+       SANFRAN2SHOWDEF7DATA    SANFRAN2SHOWDEF8DATA    SANFRAN2SUMMARY DATA    SANFRAN2
+       TAPESWS DATA    SANFRAN2TAPESWY DATA    SANFRAN2BOXDEMO DEMO    SANFRAN2ALIAS   
+       DOC     SANFRAN2BACKCHEKDOC     SANFRAN2BOX     DOC     SANFRAN2BROWSE  DOC     
+       SANFRAN2CHECK   DOC     SANFRAN2COPYLDOCDOC     SANFRAN2DATELKUPDOC     SANFRAN2
+       DEVINFO DOC     SANFRAN2ENFORCERDOC     SANFRAN2ERASEF  DOC     SANFRAN2FILELIST
+       DOC     SANFRAN2FINDSTR DOC     SANFRAN2GSCAN   DOC     SANFRAN2HEXDUMP DOC     
+       SANFRAN2IBMPRINTDOC     SANFRAN2LISTACC4DOC     SANFRAN2MAILDOC1DOC     SANFRAN2
+       MAILDOC2DOC     SANFRAN2MAILDOC3DOC     SANFRAN2MAILDOC4DOC     SANFRAN2MAILDOC5
+       DOC     SANFRAN2MAKE    DOC     SANFRAN2NETCMD  DOC     SANFRAN2ONLINE  DOC     
+       SANFRAN2PCL     DOC     SANFRAN2PHONE   DOC     SANFRAN2PURGER  DOC     SANFRAN2
+       README  DOC     SANFRAN2READYQ  DOC     SANFRAN2SCREENP DOC     SANFRAN2SHOWDEF 
+       DOC     SANFRAN2SHOWOPENDOC     SANFRAN2SHOWREDODOC     SANFRAN2SORTTBL DOC     
+       SANFRAN2SPXNOTESDOC     SANFRAN2STREAMO DOC     SANFRAN2SUMMARY DOC     SANFRAN2
+       SYSINFO DOC     SANFRAN2TAPESW  DOC     SANFRAN2TAPESWA DOC     SANFRAN2TAPESWB 
+       DOC     SANFRAN2TERMSHOWDOC     SANFRAN2UNALIAS DOC     SANFRAN2UT801D1 DOC     
+       SANFRAN2UT801D2 DOC     SANFRAN2UT801D3 DOC     SANFRAN2WHEREIS DOC     SANFRAN2
+       BOXDEMO HELP    SANFRAN2DBCHECK HELP    SANFRAN2DBDRIVERHELP    SANFRAN2FILERPT 
+       HELP    SANFRAN2MAILCAT HELP    SANFRAN2TAPEDIR HELP    SANFRAN2XCLOSE  HELP    
+       SANFRAN2INDEX   INFOBASESANFRAN2SUBMIT  INFOBASESANFRAN2MAILTRANJOB     SANFRAN2
+       MAKETAPEJOB     SANFRAN2MAKEX1  JOB     SANFRAN2NETCMDSVJOB     SANFRAN2PHONE   
+       JOB     SANFRAN2PHONE1  JOB     SANFRAN2RJOB    JOB     SANFRAN2SDREPT  JOB     
+       SANFRAN2SHOWDEF JOB     SANFRAN2STREAMO JOB     SANFRAN2SUMMARY JOB     SANFRAN2
+       LF07D6  LJENV   SANFRAN2LF07D8  LJENV   SANFRAN2LF07S6  LJENV   SANFRAN2LF07S8  
+       LJENV   SANFRAN2LF08S6  LJENV   SANFRAN2LF08S8  LJENV   SANFRAN2LF09S6  LJENV   
+       SANFRAN2LF09S8  LJENV   SANFRAN2LF25S6  LJENV   SANFRAN2LF25S8  LJENV   SANFRAN2
+       LF26S6  LJENV   SANFRAN2LF26S8  LJENV   SANFRAN2LF27S6  LJENV   SANFRAN2LF27S8  
+       LJENV   SANFRAN2LF35S6  LJENV   SANFRAN2LF35S8  LJENV   SANFRAN2LF36S6  LJENV   
+       SANFRAN2LF36S8  LJENV   SANFRAN2LF37S6  LJENV   SANFRAN2LF37S8  LJENV   SANFRAN2
+       LF45S6  LJENV   SANFRAN2LF45S8  LJENV   SANFRAN2LF46S6  LJENV   SANFRAN2LF46S8  
+       LJENV   SANFRAN2LF47S6  LJENV   SANFRAN2LF47S8  LJENV   SANFRAN2LF55S6  LJENV   
+       SANFRAN2LF55S8  LJENV   SANFRAN2LF56S6  LJENV   SANFRAN2LF56S8  LJENV   SANFRAN2
+       LF57S6  LJENV   SANFRAN2LF57S8  LJENV   SANFRAN2LF65S6  LJENV   SANFRAN2LF65S8  
+       LJENV   SANFRAN2LF66S6  LJENV   SANFRAN2LF66S8  LJENV   SANFRAN2LF67S6  LJENV   
+       SANFRAN2LF67S8  LJENV   SANFRAN2LJENVDOCLJENV   SANFRAN2PF00D6  LJENV   SANFRAN2
+       PF00D8  LJENV   SANFRAN2PF00S6  LJENV   SANFRAN2PF00S8  LJENV   SANFRAN2PF01S6  
+       LJENV   SANFRAN2PF01S8  LJENV   SANFRAN2PF02S6  LJENV   SANFRAN2PF02S8  LJENV   
+       SANFRAN2PF03S6  LJENV   SANFRAN2PF03S8  LJENV   SANFRAN2PF04S6  LJENV   SANFRAN2
+       PF04S8  LJENV   SANFRAN2PF05S6  LJENV   SANFRAN2PF05S8  LJENV   SANFRAN2PF06S6  
+       LJENV   SANFRAN2PF06S8  LJENV   SANFRAN2PF10S6  LJENV   SANFRAN2PF10S8  LJENV   
+       SANFRAN2PF11S6  LJENV   SANFRAN2PF11S8  LJENV   SANFRAN2PF12S6  LJENV   SANFRAN2
+       PF12S8  LJENV   SANFRAN2PF13S6  LJENV   SANFRAN2PF13S8  LJENV   SANFRAN2PF14S6  
+       LJENV   SANFRAN2PF14S8  LJENV   SANFRAN2PF15S6  LJENV   SANFRAN2PF15S8  LJENV   
+       SANFRAN2PF16S6  LJENV   SANFRAN2PF16S8  LJENV   SANFRAN2PF17S6  LJENV   SANFRAN2
+       PF17S8  LJENV   SANFRAN2PF18S6  LJENV   SANFRAN2PF18S8  LJENV   SANFRAN2PF19S6  
+       LJENV   SANFRAN2PF19S8  LJENV   SANFRAN2PF20S6  LJENV   SANFRAN2PF20S8  LJENV   
+       SANFRAN2PF21S6  LJENV   SANFRAN2PF21S8  LJENV   SANFRAN2PF22S6  LJENV   SANFRAN2
+       PF22S8  LJENV   SANFRAN2PF23S6  LJENV   SANFRAN2PF23S8  LJENV   SANFRAN2PF24S6  
+       LJENV   SANFRAN2PF24S8  LJENV   SANFRAN2PF28S6  LJENV   SANFRAN2PF28S8  LJENV   
+       SANFRAN2PF29S6  LJENV   SANFRAN2PF29S8  LJENV   SANFRAN2PF30S6  LJENV   SANFRAN2
+       PF30S8  LJENV   SANFRAN2PF31S6  LJENV   SANFRAN2PF31S8  LJENV   SANFRAN2PF32S6  
+       LJENV   SANFRAN2PF32S8  LJENV   SANFRAN2PF33S6  LJENV   SANFRAN2PF33S8  LJENV   
+       SANFRAN2PF34S6  LJENV   SANFRAN2PF34S8  LJENV   SANFRAN2PF38S6  LJENV   SANFRAN2
+       PF38S8  LJENV   SANFRAN2PF39S6  LJENV   SANFRAN2PF39S8  LJENV   SANFRAN2PF40S6  
+       LJENV   SANFRAN2PF40S8  LJENV   SANFRAN2PF41S6  LJENV   SANFRAN2PF41S8  LJENV   
+       SANFRAN2PF42S6  LJENV   SANFRAN2PF42S8  LJENV   SANFRAN2PF43S6  LJENV   SANFRAN2
+       PF43S8  LJENV   SANFRAN2PF44S6  LJENV   SANFRAN2PF44S8  LJENV   SANFRAN2PF48S6  
+       LJENV   SANFRAN2PF48S8  LJENV   SANFRAN2PF49S6  LJENV   SANFRAN2PF49S8  LJENV   
+       SANFRAN2PF50S6  LJENV   SANFRAN2PF50S8  LJENV   SANFRAN2PF51S6  LJENV   SANFRAN2
+       PF51S8  LJENV   SANFRAN2PF52S6  LJENV   SANFRAN2PF52S8  LJENV   SANFRAN2PF53S6  
+       LJENV   SANFRAN2PF53S8  LJENV   SANFRAN2PF54S6  LJENV   SANFRAN2PF54S8  LJENV   
+       SANFRAN2PF58S6  LJENV   SANFRAN2PF58S8  LJENV   SANFRAN2PF59S6  LJENV   SANFRAN2
+       PF59S8  LJENV   SANFRAN2PF60S6  LJENV   SANFRAN2PF60S8  LJENV   SANFRAN2PF61S6  
+       LJENV   SANFRAN2PF61S8  LJENV   SANFRAN2PF62S6  LJENV   SANFRAN2PF62S8  LJENV   
+       SANFRAN2PF63S6  LJENV   SANFRAN2PF63S8  LJENV   SANFRAN2PF64S6  LJENV   SANFRAN2
+       PF64S8  LJENV   SANFRAN2TTLJ    LJENV   SANFRAN2VFCLJ   LJENV   SANFRAN2VLF07D6 
+       LJENV   SANFRAN2VLF07D8 LJENV   SANFRAN2VLF07S6 LJENV   SANFRAN2VLF07S8 LJENV   
+       SANFRAN2VLF08S6 LJENV   SANFRAN2VLF08S8 LJENV   SANFRAN2VLF09S6 LJENV   SANFRAN2
+       VLF09S8 LJENV   SANFRAN2VLF25S6 LJENV   SANFRAN2VLF25S8 LJENV   SANFRAN2VLF26S6 
+       LJENV   SANFRAN2VLF26S8 LJENV   SANFRAN2VLF27S6 LJENV   SANFRAN2VLF27S8 LJENV   
+       SANFRAN2VLF35S6 LJENV   SANFRAN2VLF35S8 LJENV   SANFRAN2VLF36S6 LJENV   SANFRAN2
+       VLF36S8 LJENV   SANFRAN2VLF37S6 LJENV   SANFRAN2VLF37S8 LJENV   SANFRAN2VLF45S6 
+       LJENV   SANFRAN2VLF45S8 LJENV   SANFRAN2VLF46S6 LJENV   SANFRAN2VLF46S8 LJENV   
+       SANFRAN2VLF47S6 LJENV   SANFRAN2VLF47S8 LJENV   SANFRAN2VLF55S6 LJENV   SANFRAN2
+       VLF55S8 LJENV   SANFRAN2
+ 7032: VLF56S6 LJENV   SANFRAN2VLF56S8 LJENV   SANFRAN2VLF57S6 LJENV   SANFRAN2VLF57S8 
+       LJENV   SANFRAN2VLF65S6 LJENV   SANFRAN2VLF65S8 LJENV   SANFRAN2VLF66S6 LJENV   
+       SANFRAN2VLF66S8 LJENV   SANFRAN2VLF67S6 LJENV   SANFRAN2VLF67S8 LJENV   SANFRAN2
+       VPF00D6 LJENV   SANFRAN2VPF00D8 LJENV   SANFRAN2VPF00S6 LJENV   SANFRAN2VPF00S8 
+       LJENV   SANFRAN2VPF01S6 LJENV   SANFRAN2VPF01S8 LJENV   SANFRAN2VPF02S6 LJENV   
+       SANFRAN2VPF02S8 LJENV   SANFRAN2VPF03S6 LJENV   SANFRAN2VPF03S8 LJENV   SANFRAN2
+       VPF04S6 LJENV   SANFRAN2VPF04S8 LJENV   SANFRAN2VPF05S6 LJENV   SANFRAN2VPF05S8 
+       LJENV   SANFRAN2VPF06S6 LJENV   SANFRAN2VPF06S8 LJENV   SANFRAN2VPF10S6 LJENV   
+       SANFRAN2VPF10S8 LJENV   SANFRAN2VPF11S6 LJENV   SANFRAN2VPF11S8 LJENV   SANFRAN2
+       VPF12S6 LJENV   SANFRAN2VPF12S8 LJENV   SANFRAN2VPF13S6 LJENV   SANFRAN2VPF13S8 
+       LJENV   SANFRAN2VPF14S6 LJENV   SANFRAN2VPF14S8 LJENV   SANFRAN2VPF15S6 LJENV   
+       SANFRAN2VPF15S8 LJENV   SANFRAN2VPF16S6 LJENV   SANFRAN2VPF16S8 LJENV   SANFRAN2
+       VPF17S6 LJENV   SANFRAN2VPF17S8 LJENV   SANFRAN2VPF18S6 LJENV   SANFRAN2VPF18S8 
+       LJENV   SANFRAN2VPF19S6 LJENV   SANFRAN2VPF19S8 LJENV   SANFRAN2VPF20S6 LJENV   
+       SANFRAN2VPF20S8 LJENV   SANFRAN2VPF21S6 LJENV   SANFRAN2VPF21S8 LJENV   SANFRAN2
+       VPF22S6 LJENV   SANFRAN2VPF22S8 LJENV   SANFRAN2VPF23S6 LJENV   SANFRAN2VPF23S8 
+       LJENV   SANFRAN2VPF24S6 LJENV   SANFRAN2VPF24S8 LJENV   SANFRAN2VPF28S6 LJENV   
+       SANFRAN2VPF28S8 LJENV   SANFRAN2VPF29S6 LJENV   SANFRAN2VPF29S8 LJENV   SANFRAN2
+       VPF30S6 LJENV   SANFRAN2VPF30S8 LJENV   SANFRAN2VPF31S6 LJENV   SANFRAN2VPF31S8 
+       LJENV   SANFRAN2VPF32S6 LJENV   SANFRAN2VPF32S8 LJENV   SANFRAN2VPF33S6 LJENV   
+       SANFRAN2VPF33S8 LJENV   SANFRAN2VPF34S6 LJENV   SANFRAN2VPF34S8 LJENV   SANFRAN2
+       VPF38S6 LJENV   SANFRAN2VPF38S8 LJENV   SANFRAN2VPF39S6 LJENV   SANFRAN2VPF39S8 
+       LJENV   SANFRAN2VPF40S6 LJENV   SANFRAN2VPF40S8 LJENV   SANFRAN2VPF41S6 LJENV   
+       SANFRAN2VPF41S8 LJENV   SANFRAN2VPF42S6 LJENV   SANFRAN2VPF42S8 LJENV   SANFRAN2
+       VPF43S6 LJENV   SANFRAN2VPF43S8 LJENV   SANFRAN2VPF44S6 LJENV   SANFRAN2VPF44S8 
+       LJENV   SANFRAN2VPF48S6 LJENV   SANFRAN2VPF48S8 LJENV   SANFRAN2VPF49S6 LJENV   
+       SANFRAN2VPF49S8 LJENV   SANFRAN2VPF50S6 LJENV   SANFRAN2VPF50S8 LJENV   SANFRAN2
+       VPF51S6 LJENV   SANFRAN2VPF51S8 LJENV   SANFRAN2VPF52S6 LJENV   SANFRAN2VPF52S8 
+       LJENV   SANFRAN2VPF53S6 LJENV   SANFRAN2VPF53S8 LJENV   SANFRAN2VPF54S6 LJENV   
+       SANFRAN2VPF54S8 LJENV   SANFRAN2VPF58S6 LJENV   SANFRAN2VPF58S8 LJENV   SANFRAN2
+       VPF59S6 LJENV   SANFRAN2VPF59S8 LJENV   SANFRAN2VPF60S6 LJENV   SANFRAN2VPF60S8 
+       LJENV   SANFRAN2VPF61S6 LJENV   SANFRAN2VPF61S8 LJENV   SANFRAN2VPF62S6 LJENV   
+       SANFRAN2VPF62S8 LJENV   SANFRAN2VPF63S6 LJENV   SANFRAN2VPF63S8 LJENV   SANFRAN2
+       VPF64S6 LJENV   SANFRAN2VPF64S8 LJENV   SANFRAN2ALLEGRO MAKETAPESANFRAN2NAGY    
+       MAKETAPESANFRAN2ARMCTRLYNMOBJ   SANFRAN2DATELKU2NMOBJ   SANFRAN2GETSESS NMOBJ   
+       SANFRAN2PHONE1  NMOBJ   SANFRAN2PHONE2  NMOBJ   SANFRAN2SORTTBL2NMOBJ   SANFRAN2
+       BROWSE  NMPRG   SANFRAN2CHECKX  NMPRG   SANFRAN2COPYLSTONMPRG   SANFRAN2CTAPE   
+       NMPRG   SANFRAN2DATELKU1NMPRG   SANFRAN2ERASEF  NMPRG   SANFRAN2GSCAN   NMPRG   
+       SANFRAN2HEXDUMP NMPRG   SANFRAN2IBMPRINTNMPRG   SANFRAN2IRSDREPTNMPRG   SANFRAN2
+       NETCMD  NMPRG   SANFRAN2NETCMDSVNMPRG   SANFRAN2PHONE   NMPRG   SANFRAN2SCREENP 
+       NMPRG   SANFRAN2SORTTBL1NMPRG   SANFRAN2STREAMO NMPRG   SANFRAN2TERMSHOWNMPRG   
+       SANFRAN2VOLFMT  NMPRG   SANFRAN2VOLINFO NMPRG   SANFRAN2DEVINFO NMPRV   SANFRAN2
+       EN150   NMPRV   SANFRAN2EN224   NMPRV   SANFRAN2EN225   NMPRV   SANFRAN2EN300   
+       NMPRV   SANFRAN2EN950   NMPRV   SANFRAN2FINDSTR NMPRV   SANFRAN2LISTACC4NMPRV   
+       SANFRAN2SYSINFO NMPRV   SANFRAN2WHEREISXNMPRV   SANFRAN2PHONE   NMRL    SANFRAN2
+       SCREENP NMRL    SANFRAN2DATELKUPNMXL    SANFRAN2ENFORCXLNMXL    SANFRAN2PHONE   
+       NMXL    SANFRAN2SORTTBL NMXL    SANFRAN2STREAMO NMXL    SANFRAN2MAILEDITPRIV    
+       SANFRAN2MAILFIX PRIV    SANFRAN2MAILINJ PRIV    SANFRAN2MAILMGR PRIV    SANFRAN2
+       MAILSL  PRIV    SANFRAN2MAILV   PRIV    SANFRAN2MAILXL  PRIV    SANFRAN2ONLINE  
+       PRIV    SANFRAN2XCLOSE  PRIV    SANFRAN2BROWSE  PROG    SANFRAN2MAKE    PROG    
+       SANFRAN2PHONE   PROG    SANFRAN2SCREENP PROG    SANFRAN2UT105   PROG    SANFRAN2
+       UT801   PROG    SANFRAN2DBCHECK PUB     SANFRAN2DBDRIVERPUB     SANFRAN2FILERPT 
+       PUB     SANFRAN2IRSDREPTPUB     SANFRAN2ONLINE  PUB     SANFRAN2ONLINENPPUB     
+       SANFRAN2PCLPROG PUB     SANFRAN2PURGER  PUB     SANFRAN2READYQ  PUB     SANFRAN2
+       SHOWOPENPUB     SANFRAN2SHOWREDOPUB     SANFRAN2SUMDAY  PUB     SANFRAN2SUMHOUR 
+       PUB     SANFRAN2SUMWEEK PUB     SANFRAN2TAPEDIR PUB     SANFRAN2PHONE   RL      
+       SANFRAN2SCREENP RL      SANFRAN2BOM     SITECNFGSANFRAN2CLJ2K   SITECNFGSANFRAN2
+       CONFIG  SITECNFGSANFRAN2CONFIG01SITECNFGSANFRAN2CONFIG02SITECNFGSANFRAN2CONFIG03
+       SITECNFGSANFRAN2CONFIGF SITECNFGSANFRAN2CRKTREP2SITECNFGSANFRAN2CRKTREPTSITECNFG
+       SANFRAN2CRKTRPT SITECNFGSANFRAN2CRKTRPTLSITECNFGSANFRAN2CRKTSLP SITECNFGSANFRAN2
+       ISCHEMA SITECNFGSANFRAN2LDEVMGR SITECNFGSANFRAN2LDEVMGRSSITECNFGSANFRAN2LDEVREPT
+       SITECNFGSANFRAN2LDEVRPT2SITECNFGSANFRAN2LDEVRPT4SITECNFGSANFRAN2LDEVRPTLSITECNFG
+       SANFRAN2LDEVTEMPSITECNFGSANFRAN2OLDDEV  SITECNFGSANFRAN2PORTLOG SITECNFGSANFRAN2
+       PORTLOGJSITECNFGSANFRAN2PORTLOGSSITECNFGSANFRAN2QSCHEMA SITECNFGSANFRAN2QSCHEMAC
+       SITECNFGSANFRAN2README  SITECNFGSANFRAN2SETEMP  SITECNFGSANFRAN2X       SITECNFG
+       SANFRAN2XX      SITECNFGSANFRAN2Z       SITECNFGSANFRAN2ZZ      SITECNFGSANFRAN2
+       ZZZ     SITECNFGSANFRAN2ENFORCSLSL      SANFRAN2PHONE   SL      SANFRAN2SL      
+       SL      SANFRAN2BACKCHEKSOURCE  SANFRAN2BOX     SOURCE  SANFRAN2BOXDEMO SOURCE  
+       SANFRAN2BROWSE1 SOURCE  SANFRAN2BROWSE2 SOURCE  SANFRAN2BROWSE3 SOURCE  SANFRAN2
+       CHECKS  SOURCE  SANFRAN2CLIENT  SOURCE  SANFRAN2CTAPE   SOURCE  SANFRAN2DATELKU1
+       SOURCE  SANFRAN2DATELKU2SOURCE  SANFRAN2EN150   SOURCE  SANFRAN2EN224   SOURCE  
+       SANFRAN2EN225   SOURCE  SANFRAN2EN300   SOURCE  SANFRAN2EN950   SOURCE  SANFRAN2
+       ERASEF  SOURCE  SANFRAN2GSCAN   SOURCE  SANFRAN2HEXDUMP SOURCE  SANFRAN2IBMPRINT
+       SOURCE  SANFRAN2LISTACC4SOURCE  SANFRAN2MAKE    SOURCE  SANFRAN2NETCMD  SOURCE  
+       SANFRAN2NETCMDSVSOURCE  SANFRAN2NETORIG SOURCE  SANFRAN2PCL     SOURCE  SANFRAN2
+       PCL2    SOURCE  SANFRAN2PCLPROG SOURCE  SANFRAN2PHONE   SOURCE  SANFRAN2SCREENP 
+       SOURCE  SANFRAN2SDREPT  SOURCE  SANFRAN2SERVER  SOURCE  SANFRAN2SOCKLIB SOURCE  
+       SANFRAN2SORTTBL1SOURCE  SANFRAN2SORTTBL2SOURCE  SANFRAN2STREAMO SOURCE  SANFRAN2
+       SUMDAY  SOURCE  SANFRAN2SUMHOUR SOURCE  SANFRAN2SUMWEEK SOURCE  SANFRAN2TAPESW  
+       SOURCE  SANFRAN2TAPESWC SOURCE  SANFRAN2TAPESWP SOURCE  SANFRAN2TAPESWQ SOURCE  
+       SANFRAN2TAPESWS SOURCE  SANFRAN2TAPESWSZSOURCE  SANFRAN2TAPESWX SOURCE  SANFRAN2
+       TAPESWY SOURCE  SANFRAN2TERMSHOWSOURCE  SANFRAN2VOLFMT  SOURCE  SANFRAN2VOLINFO 
+       SOURCE  SANFRAN2WHEREISSSOURCE  SANFRAN2PCLPROG TESTJOB SANFRAN2ENFUDC  UDC     
+       SANFRAN2ENFUDC2 UDC     SANFRAN2MAIL    UDC     SANFRAN2MAILBAT UDC     SANFRAN2
+       MAILCHK UDC     SANFRAN2MAILCHK2UDC     SANFRAN2MAILRCL UDC     SANFRAN2REPLYBAT
+       UDC     SANFRAN2REPLYRCLUDC     SANFRAN2SHOWTRANUDC     SANFRAN2STOPTRANUDC     
+       SANFRAN2STREAMO UDC     SANFRAN2BOX     USL     SANFRAN2BOXDEMO USL     SANFRAN2
+       PHONE1  USL     SANFRAN2PHONE2  USL     SANFRAN2BACKCHEKUTIL    SANFRAN2
+tape mark
+ 16384: SANFRAN2CSLBUILDSYS     MANAGER                
+         > [                =:       x   G G                                           
+                                                                                       
+                  
+                    E                DISC    !JOB NEWA,MANAGER.SYS;OUTCLASS=,1         
+                                             !COMMENT ********** CREATED:THU, SEP 23, 1
+       993,  8:45 AM                         !                                         
+                                             SANFRAN2VPF04S8 !COMMENT -----------------
+       ---- SANFRAN2         ---------------                 !                         
+                                                             !SETJCW CIERROR,0         
+                                                             LJENV   SANFRAN2!CONTINUE 
+                                                                             !NEWACCT S
+       ANFRAN2,MGR                                                           !COMMENT P
+       urge MGR in case actual AM is different                               VPF18S6 LJ
+       ENV   !IF CIERROR = 0 THEN                                                      
+             !PURGEUSER MGR.SANFRAN2                                                   
+             !PURGEGROUP PUB.SANFRAN2                                                  
+             SANFRAN2VPF23S8 !ENDIF                                                    
+                             !                                                         
+                             !CONTINUE                                                 
+                             LJENV   SANFRAN2!ALTACCT SANFRAN2;CAP=AM,AL,GL,ND,SF,BA,IA
+       ;ACCESS=(R,A,W,L,X,S:AC);MAXPRI=CS    !                                         
+                                             !CONTINUE                                 
+                                             VPF40S6 LJENV   !NEWGROUP CM.SANFRAN2     
+                                                             !CONTINUE                 
+                                                             !ALTGROUP CM.SANFRAN2;CAP=
+       BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                        SANFRAN2VPF48S8 !;HOMEVS=M
+       PEXL_SYSTEM_VOLUME_SET                                                !         
+                                                                             !CONTINUE 
+                                                                             LJENV   SA
+       NFRAN2!NEWGROUP CMD.SANFRAN2                                                    
+             !CONTINUE                                                                 
+             !ALTGROUP CMD.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                 
+             VPF62S6 LJENV   !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                          
+                             !                                                         
+                             !CONTINUE                                                 
+                             SANFRAN2PHONE1  !NEWGROUP CMDFILE.SANFRAN2                
+                                             !CONTINUE                                 
+                                             !ALTGROUP CMDFILE.SANFRAN2;CAP=BA,IA;ACCES
+       S=(R,A,W,L,X,S:GU)&                   NMPRG   SANFRAN2!;HOMEVS=MPEXL_SYSTEM_VOLU
+       ME_SET                                                !                         
+                                                             !CONTINUE                 
+                                                             VOLINFO NMPRG   !NEWGROUP 
+       COMMAND.SANFRAN2                                                      !CONTINUE 
+                                                                             !ALTGROUP 
+       COMMAND.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                   SANFRAN2PH
+       ONE   !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                                          
+             !                                                                         
+             !CONTINUE                                                                 
+             PRIV    SANFRAN2!NEWGROUP COMPILE.SANFRAN2                                
+                             !CONTINUE                                                 
+                             !ALTGROUP COMPILE.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:G
+       U)&                   UT801   PROG    !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET          
+                                             !                                         
+                                             !CONTINUE                                 
+                                             SANFRAN2SHOWREDO!NEWGROUP COPYLIB.SANFRAN2
+                                                             !CONTINUE                 
+                                                             !ALTGROUP COPYLIB.SANFRAN2
+       ;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                   SITECNFGSANFRAN2!;HOMEVS=M
+       PEXL_SYSTEM_VOLUME_SET                                                !         
+                                                                             !CONTINUE 
+                                                                             LDEVMGRSSI
+       TECNFG!NEWGROUP DATA.SANFRAN2                                                   
+             !CONTINUE                                                                 
+             !ALTGROUP DATA.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                
+             SANFRAN2QSCHEMAC!;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                          
+                             !                                                         
+                             !CONTINUE                                                 
+                             SL      SANFRAN2!NEWGROUP DEMO.SANFRAN2                   
+                                             !CONTINUE                                 
+                                             !ALTGROUP DEMO.SANFRAN2;CAP=BA,IA;ACCESS=(
+       R,A,W,L,X,S:GU)&                      DATELKU2SOURCE  !;HOMEVS=MPEXL_SYSTEM_VOLU
+       ME_SET                                                !                         
+                                                             !CONTINUE                 
+                                                             SANFRAN2MAKE    !NEWGROUP 
+       DOC.SANFRAN2                                                          !CONTINUE 
+                                                                             !ALTGROUP 
+       DOC.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                       SOURCE  SA
+       NFRAN2!;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                                          
+             !                                                                         
+             !CONTINUE                                                                 
+             TAPESWQ SOURCE  !NEWGROUP HELP.SANFRAN2                                   
+                             !CONTINUE                                                 
+                             !ALTGROUP HELP.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&
+                             SANFRAN2ENFUDC2 !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET          
+                                             !                                         
+                                             !CONTINUE                                 
+                                             UDC     SANFRAN2!NEWGROUP INFOBASE.SANFRAN
+       2                                                     !CONTINUE                 
+                                                             !ALTGROUP INFOBASE.SANFRAN
+       2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                  PF58S8  LJENV   !;HOMEVS=M
+       PEXL_SYSTEM_VOLUME_SET                                                !         
+                                                                             !CONTINUE 
+                                                                             SANFRAN2PF
+       64S6  !NEWGROUP JOB.SANFRAN2                                                    
+             !CONTINUE                                                                 
+             !ALTGROUP JOB.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                 
+             LJENV   SANFRAN2!;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                          
+                             !                                                         
+                             !CONTINUE                                                 
+                             VLF36S8 LJENV   !NEWGROUP LJENV.SANFRAN2                  
+                                             !CONTINUE                                 
+                                             !ALTGROUP LJENV.SANFRAN2;CAP=BA,IA;ACCESS=
+       (R,A,W,L,X,S:GU)&                     SANFRAN2        !;HOMEVS=MPEXL_SYSTEM_VOLU
+       ME_SET                                                !                         
+                                                             !CONTINUE                 
+                                                                             !NEWGROUP 
+       MAKETAPE.SANFRAN2                                                     !CONTINUE 
+                                                                             !ALTGROUP 
+       MAKETAPE.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                            
+             !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                                          
+             !                                                                         
+             !CONTINUE                                                                 
+                             !NEWGROUP NMOBJ.SANFRAN2                                  
+                             !CONTINUE                                                 
+                             !ALTGROUP NMOBJ.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)
+       &                                     !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET          
+                                             !                                         
+                                             !CONTINUE                                 
+                                                             !NEWGROUP NMPRG.SANFRAN2  
+                                                             !CONTINUE                 
+                                                             !ALTGROUP NMPRG.SANFRAN2;C
+       AP=BA,IA,PH,DS,MR;ACCESS=(R,A,W,L,X,S:GU)&                            !;HOMEVS=M
+       PEXL_SYSTEM_VOLUME_SET                                                !         
+                                                                             !CONTINUE 
+                                                                                       
+             !NEWGROUP NMPRV.SANFRAN2                                                  
+             !CONTINUE                                                                 
+             !ALTGROUP NMPRV.SANFRAN2;CAP=BA,IA,PH,DS,MR;ACCESS=(R,A,W,L,X,S:GU)&      
+                             !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                          
+                             !                                                         
+                             !CONTINUE                                                 
+                                             !NEWGROUP NMRL.SANFRAN2                   
+                                             !CONTINUE                                 
+                                             !ALTGROUP NMRL.SANFRAN2;CAP=BA,IA;ACCESS=(
+       R,A,W,L,X,S:GU)&                                      !;HOMEVS=MPEXL_SYSTEM_VOLU
+       ME_SET                                                !                         
+                                                             !CONTINUE                 
+                                                                             !NEWGROUP 
+       NMXL.SANFRAN2                                                         !CONTINUE 
+                                                                             !ALTGROUP 
+       NMXL.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                                
+             !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                                          
+             !                                                                         
+             !CONTINUE                                                                 
+                             !NEWGROUP POSIX.SANFRAN2                                  
+                             !CONTINUE                                                 
+                             !ALTGROUP POSIX.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)
+       &                                     !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET          
+                                             !                                         
+                                             !CONTINUE                                 
+                                                             !NEWGROUP PRIV.SANFRAN2   
+                                                             !CONTINUE                 
+                                                             !ALTGROUP PRIV.SANFRAN2;CA
+       P=BA,IA,DS,MR,PH;ACCESS=(R,A,W,L,X,S:GU)&                             !;HOMEVS=M
+       PEXL_SYSTEM_VOLUME_SET                                                !         
+                                                                             !CONTINUE 
+                                                                                       
+             !NEWGROUP PROG.SANFRAN2                                                   
+             !CONTINUE                                                                 
+             !ALTGROUP PROG.SANFRAN2;CAP=BA,IA,PH,DS,MR;ACCESS=(R,A,W,L,X,S:GU)&       
+                             !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                          
+                             !                                                         
+                             !CONTINUE                                                 
+                                             !NEWGROUP PUB.SANFRAN2                    
+                                             !CONTINUE                                 
+                                             !ALTGROUP PUB.SANFRAN2;CAP=BA,IA,PH,DS;ACC
+       ESS=(R,X:ANY;A,W,L,S:AL;A,W,L,S:GU)&                  !;HOMEVS=MPEXL_SYSTEM_VOLU
+       ME_SET                                                !                         
+                                                             !CONTINUE                 
+                                                                             !NEWGROUP 
+       RL.SANFRAN2                                                           !CONTINUE 
+                                                                             !ALTGROUP 
+       RL.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                                  
+             !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                                          
+             !                                                                         
+             !CONTINUE                                                                 
+                             !NEWGROUP SITECNFG.SANFRAN2                               
+                             !CONTINUE                                                 
+                             !ALTGROUP SITECNFG.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:
+       GU)&                                  !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET          
+                                             !                                         
+                                             !CONTINUE                                 
+                                                             !NEWGROUP SL.SANFRAN2     
+                                                             !CONTINUE                 
+                                                             !ALTGROUP SL.SANFRAN2;CAP=
+       BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                                        !;HOMEVS=M
+       PEXL_SYSTEM_VOLUME_SET                                                !         
+                                                                             !CONTINUE 
+                                                                                       
+             !NEWGROUP SOURCE.SANFRAN2                                                 
+             !CONTINUE                                                                 
+             !ALTGROUP SOURCE.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&              
+                             !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                          
+                             !                                                         
+                             !CONTINUE                                                 
+                                             !NEWGROUP TESTJOB.SANFRAN2                
+                                             !CONTINUE                                 
+                                             !ALTGROUP TESTJOB.SANFRAN2;CAP=BA,IA;ACCES
+       S=(R,A,W,L,X,S:GU)&                                   !;HOMEVS=MPEXL_SYSTEM_VOLU
+       ME_SET                                                !                         
+                                                             !CONTINUE                 
+                                                                             !NEWGROUP 
+       UDC.SANFRAN2                                                          !CONTINUE 
+                                                                             !ALTGROUP 
+       UDC.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&                                 
+             
+ 1792: !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                                                
+       !                                                                               
+       !CONTINUE                                                                       
+               DISC    !NEWGROUP USL.SANFRAN2                                          
+                       !CONTINUE                                                       
+                       !ALTGROUP USL.SANFRAN2;CAP=BA,IA;ACCESS=(R,A,W,L,X,S:GU)&       
+                       SANFRAN2VPF04S8 !;HOMEVS=MPEXL_SYSTEM_VOLUME_SET                
+                                       !                                               
+                                       !CONTINUE                                       
+                                       LJENV   SANFRAN2!NEWGROUP UTIL.SANFRAN2         
+                                                       !CONTINUE                       
+                                                       !ALTGROUP UTIL.SANFRAN2;CAP=BA,I
+       A;ACCESS=(R,A,W,L,X,S:GU)&                      VPF18S6 LJENV   !;HOMEVS=MPEXL_S
+       YSTEM_VOLUME_SET                                                !               
+                                                                       !CONTINUE       
+                                                                       SANFRAN2VPF23S8 
+       !NEWUSER MGR.SANFRAN2                                                           
+       !CONTINUE                                                                       
+       !ALTUSER MGR.SANFRAN2;PASS=MYMOSC;CAP=AM,AL,GL,ND,SF,BA,IA;HOME=PUB             
+       LJENV   SANFRAN2!                                                               
+                       !SHOWTIME                                                       
+                       !EOJ                                                            
+                       VPF40S6 LJENV   
+tape mark
+ 16384: DBCHECK CM      SANFRAN2MANAGER                  !                  Y{          
+                                                                                       
+                                                                              ~        
+               DISC        %    M    u0 u         q     v                              
+           . &                                         b  w  W  P  T  >  M  ,  G     g 
+           x     n     (     I     P`    b  z  .  b     R  _  8  v     i     
+        `    f`    $     (           k@ ~  V@ M                                        
+                          ( ) *     T           w                                      
+                                                                                       
+                        d                                                              
+          L           P                                                         f h    
+          - .     
+                    ??   >        '              % & c       -                         
+          8(= =  ~  
+         1x9@9R9 :Z> ; ; >rJ J  .=b                                                    
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                         
+ 16384:                                                                                 
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                       : B   B -     : 
+       " 2   B      
+          Checking base:  "  "#   B  2R   : " 2   B -a  2 2   R   R B   R B   R " R   "
+        B P           N   B ?   B -   B -   2 2   2  L  2  B  B 2       B '     "  3   
+          2       N R B -!  B           set: name = "  "  "  2      , type =  "  "  "  
+       2R   2     N R  ( l ) <   <B 2  b b   `8  l!x <!y   x  N R   $D GB   r      dB  
+        r r R B -!  B         media record length = "  "B    2R B : " 2 B B    2R   2  
+        B ?   2 B @     B       
+        (     Oops: maximum media record DBCHECK can handle is "4 "B    2R A": " 2 B B 
+          2       words. "  "R   2   B          Set appears to require a buffer of "& "
+       B    2R B : " 2 B B    2     
+         words...will use "  "R   2   B          our maximum instead. "  "R   2   A R B
+          R   R   $D C2
+          2   2  B   B  2  L   LB -   B       (Rest of dataset skipped) "  "R   2   2  
+        B     B $   B -   B -     2    3 2 1 0B $   B   B  2R * R B -1  B        A M"  
+       "R B        A &a "  "B    2R B   : " 2 B B    2R "C2 B -     2   B            Su
+       mmary of # of errors, by type: "# "R   2   2   B      
+              Type  #found"  "R   2   B      
+              ----  ------"  "R   2     S   " ".P  5   %    B        +      "  "B    2R
+        C " : " 2 B B    2        "  "B    2R    %" : " 2 B B    2R   2   U3  2   B -  
+        B $  FB        M 4                     CPU =  "  "R  B" 2 B       , elapsed = "
+         "R  L" 2 B        milliseconds "  "R   B $   B   B  2R +   $   " 2  B" 2 " 2  
+       L" 2   R B -   B   R       B -   B ?   B        (skipped)"
+         "R   B   B        ok "  "R   2   B   B -     2   T      L  2   2   B -   B : "
+        2 B $  MB        % error"  "R   B        errors "  "R B        found in databas
+       e  "  "R   B       No errors detected for  "  "R B #   B  2R B   B -   B B B  T 
+        2   2   B -!    2   B      ( IThe 'word' offset mentioned in errors e8/e27/e33 
+       is the 0-based 16-bit index"L "R   2   B       into an entry's media record. "  
+       "R   2   B   R 3         DBCHECK'02             %    0 0                        
+                            @   B -!        B      ( IThe 'word' offset mentioned in er
+       rors e8/e27/e33 is the 0-based 16-bit i    B   R B  
+        R   2
+        2 2 B   R B  
+        R   2
+        B   R B   R C R B B -   . R B B -   . R B B -q  .qR B B -   . R B -q    B -    
+        B   R B   R "
+        R   2 $  F"  @R R   "  @R R B -   "  @R  @R R  
+        B -a  "  @R  @R R B -   " R C C 2   : " 2 ,   * R   R * R 2 *     2 *    B2   2
+        :   B       Tests to be done/skipped: "  "R   2   " S   " " P  nB          #  "
+         "B    2R C : " 2 B B    2      : "  "R C $  LB       BITMAP"  "R  !C $  LB    
+          FREE  "  "R   C $  LB       PATHS "  "R   C : " 2 B         = "  "R   N   B  
+            skip"  "R  
+        B       do  "  "R   2   Ul  2   B       Paths to skip:  "  "R " S   " " P     N
+            C $   @ 2 C : " 2 U C $  PB       , (none)"  "R   2       2     2   3 C    
+        S   B       , "  "R B B  @s $M    2       R 4 C     B C C  2R 4 C       " s    
+       *C   B       no"  "R B C C  2R 4 C %    >B C C  2R "=2   : " 2 4 C %    NB C C  
+       2R "=2 C : " 2 4 :   : *   2   B       /Options: "
+         "R B B  @S B $  UB $  RB $  OB! ! @      HEX "  "     m  B $
+         WB $
+         TB $
+         QB! ! @      DECIMAL "  "        B $  UB $  RB $  OB! ! @      OCT "  "       
+        B $  PB! ! @      HEXDUMP "  "      B $  PB! ! @      HEXNAMES"  "      B $  QB
+       ! ! @      HEXNUMBERS"
+         "      B $
+         PB! ! @      DECDUMP "  "      B $
+         PB! ! @      DECNAMES"  "      B $
+         RB! ! @      DECNUMBERS"
+         "        B $  QB! ! @      OCTDUMP "  "        B $  QB! ! @      OCTNAMES"  " 
+              B $  RB! ! @      OCTNUMBERS"
+         "        B! ! @      MAXEACH "  "   j      B $  QB! ! @      NOSTOP"  "       
+         #B $  PB! ! @      STOP"  "          B! ! @      MAXERR"  "  B       B! ! @   
+          MAXSETERR "  "  B       B! ! @      NAMES "  "  B -q     YB! ! @      NUMBERS
+        "  "  B -      GB! ! @      PAGING"  "  B -      6B! ! @      PROGRESS"  "  B -
+             $B -   B! ! @      PRINTER "  "  B -       B ?   B! ! @      QUIET "  "  B
+        ?       B! ! @      TIMES "  "  B -       ??  B A     "       B       PRI="  "R
+        B 2   2   * S   C $<    N   C   @ 2    I G,     R B       IGNORE Errors:  "  "R
+        B B  @S * S B B  @"O&       2       R C : " 2 C "<    C   N   C %   N   C   N  
+        C $<      "/2 C : " 2  TB B  @$     2   3 :   : " 2 ,   * S B B 2 B  
+        R B         NO"    PB $   #      I" R   : " 2   S B ,  RB $P  B $  MC   B $  X"
+        R B        ( ' & &w6f132X "  "R   : " 2     B     "PR B        &w6f80X"  "R   :
+        " 2      T  B! ! @      BASE"  "  : " 2     "=  2 ,  C < =  " : " 2 *    WB " "
+          2 #   B B  3  * 2 *    C2   " 2 2   B       Expected a database name: "  "B B
+         2R   2   " 2       B! ! @      DEBUG1"  "  : " 2   B C .!R       B! ! @      D
+       EBUG2"  "  : " 2   B C . R       B! ! @      DEBUG "  "  : " 2   B       Calling
+        DEBUG..."  "R   : " 2   2       B! ! @      DECIMAL "  "  " " 2   C   "
+        R "
+        R "
+        R       B! ! @      DECNAMES"  "  " " 2   C   "
+        R    v  B! ! @      DECNUMBERS"
+         "  " " 2   C   "
+        R    ]  B! ! @      HEX "  "  : " 2   C   " R " R " R    C  B! ! @      HEXDUMP
+        "  "  " " 2   C   " R    +  B! ! @      HEXNAMES"  "  " " 2   C   " R       B! 
+       ! @      HEXNUMBERS"
+         "  " " 2   C   " R       B! ! @         `IGNOREERRORS"  "  " " 2     "=  2 ,  
+       sB $  vB $< 9B S B S   : " 2     $/ Y  : " 2 ,  JB $  GB $<  B S   B ,  D"<S    
+         :    R * R C c   C C S S     C     C 2   ",  2 ,  F  R * R  L  R * R  L  B! ! 
+       @      ALL "  "  : " 2   B "<  C 2  6B       Expected an error number in range 0
+       .. "% "B    2R "<: " 2 B B    2      , not:  "  "B B  2R   2      E  B! ! @     
+        INTERVALMINS"  "  " " 2   C     "=  2 ,  QB $   B R B    P8 !x ^ ( ) (   `B    
+          Expected # of minutes (at least 1 minute):  "+ "B B  2R   2         B! ! @   
+          MAXEACH "  "  " " 2   C     "=  2 ,   B ,  F   j & ' &B       Expected maximu
+       m number of each error, not: ", "B B  2R   2         B! ! @      MAXERRORS "  " 
+        " " 2   C     "=  2 ,  FB R  " # "B       Expected Overall Error limit, not:  "
+       # "B B  2R   2      l  B! ! @      MAXSETERRORS"  "  " " 2   C     "=  2 ,  FB R
+         " # "B       Expected max # errors per set, not: "$ "B B  2R   2      *  B! ! 
+       @      OCTAL "  "  " " 2   C   " R " R " R       B! ! @      OCTDUMP "  "  : " 2
+          C   " R       B! ! @      OCTNAMES"  "  " " 2   C   " R       B! ! @      OCT
+       NUMBERS"
+         "  " " 2   C   " R       B! ! @      NAMES "  "  " " 2   B C .qR       B! ! @ 
+            NUMBERS "  "  " " 2   B C . R       B! ! @      PAGING"  "  : " 2   B   C  
+        B        C/PAGING ignored in batch"  "R   2    .B C . R B -   B       (paging e
+       nabled)"  "R   2     B      
+        (paging disabled) "  "R   2      ;  B! ! @        PRINTER "  "  : " 2   C   B $
+         I  : " 2   B   R         B! ! @           hPRIORITY"  "  " " 2   C     "=  2  
+        B B 2 B  
+        R B $  {  $C    $D    $E X#   $S UB   . R B #   . R   B   " 2   B        , +Get
+       priority failed"  "R   2   @ R   ??B      
+        ok, got priority  "  "B "  2R   2     B       Expected CS/DS/ES, not: "  "B B  
+       2R   2         B! ! @      PROGRESS"  "  : " 2   B C . R B -     "=  2 ,  DB R  
+          R * R    d  B! ! @      QUIET "  "  : " 2   B C . R    M  B! ! @      QUIETOP
+        "  "  : " 2   B C . R    5  B! ! @      SKIP"  "  : " 2     : " 2 ,  FB        
+       K  Expected SKIP test type, not end-of-line"( "R   2      )  B! ! @      ALL "  
+       "  : " 2   B " % C 2       B! ! @      BITMAP"  "  : " 2   C # ^     B! ! @     
+        FREECHAIN "  "  " " 2   C # ^     B! ! @      NONE"  "  : " 2   B " % C   2    
+        B! ! @      PATH"  "  : " 2     "=  2 ,  G" "        @ %C ^  !B       Expected 
+       path # in range 1..16, not:  "% "B B  2R   2     B       Expected a path #, not:
+        "  "B B  2R   2    t  B! ! @      PATHS "  "  : " 2   C # ^ B " C 2  [B ,  F" "
+               0C ^  ,B       Test# out of range 1.."  "B    2R " : " 2 B B    2      ,
+        ignored."
+         "R   2    #B       Expected a test number/name to skip, not: "* "B B  2R   2  
+        B   R       B! ! @      SHOWTIMES "  "  " " 2   B C .qR       B! ! @      STOP"
+         "  : " 2   C   " R     R     B! ! @      TIMES "  "  " " 2   B C . R     $, B 
+        B       Ignoring unknown option:  "  "B B  2R   2   #   $  GB   B        < ;(If
+        you want to specify a basename via INFO, use: "1 "R   2   B          INFO=" BAS
+       E  "  "B B  2      ")"  "R   2   B   B         (No second chance when run with I
+       NFO string)", "R   2   2    JB -q    B -     B           (assuming /NUMBERS and 
+       /NAMES)"  "R   2   B   R B   R 2 B -a    2   2 3   S " R   " B P     N     U C S
+        4 B B  @s $O G  2       R 4 C %     C   B   C  2R @ 2 4 , :   "   @&  : *   S "
+        : " 2!7"  2#    C   B&"   2 B'"   2 B "P    2 @
+          ^&  R        !  ??          "   B   R   R   R   2$  C   B " "   2   2   * R B
+                Enter base name [<cr> = exit] "  "R B     : " 2%   B2 B       : "  "B B
+         2R   2       @ : " 2&   B2   : " 2 ,   B       : //"    B2   $/ C2   B -!  B  
+            token = ' "  "B B  2      ' "  "R   2     B! ! @      EXIT"  "  " " 2      
+        $.      $/  2   $? C2     " : " 2    \B       Bad file name:  "  "B B  2R   2  
+        B   " 2       B B     : "<2'    B " "   2 #       ? $     #       #       ?  3#
+           c      .  #            ; "  #    "  3  B #       2(  B -!  B      
+        s->d: base' (2) = "  "#   B  2R   2   2)  #   " "@:
+        @ @ 2*S   C   : " 2.B        p   /Failed to FOPEN root file, err #  "! "B    2R
+        C : " 2 B B    2      : "  "R   2   " C 2/    B -!  B         fopen of root ok,
+        file #  "  "B    2R C : " 2 B B    2R   2   C B&"   2+  C   : " 2.B -!  B      
+         % #Failed to read root file, err # "  "B    2R C : " 2 B B    2R   2    +B -! 
+        B        #Root file, record 0, word 0 = "  "B    2R   N&: " 2,B B    2R   2   C
+        B'"   " 2-  C   : " 2.B        4Error "  "B    2R C : " 2 B B    2       trying
+        to read userlabel 0 from root file: "+ "R   2   " C 2/C   20  S   2   B       D
+       atabase information: "  "R   2   B          Created: "  "R # N' '" 21  2   B    
+             Stored:  "  "R # N'@    NB         (never) "  "R   # N'#  '" 21  2   B    
+             Flags:   "  "R B B  @S B -!  "(2 # N': " 2,@ 2 #,N': " 2,@ 2 #-N': " 2,")2
+          2       R B! ! @      , not Dirty "  "  # N'-         B! ! @      Dirty "  " 
+        # N'-       B! ! @      Access"  "  # N'-!      B! ! @      NOaccess"  "  # N'-
+       !        B! ! @      Autodefer "  "  # N'-A      # N'-   B! ! @       "CIU=Allow
+       ed "  "  #,N'-       B! ! @      CIU=On"  "  #,N'-1     ~B! ! @      DBRECOV res
+       tart "  "  # N'-      gB! ! @      Dumping "  "  # N'-1     TB! ! @      ILR "  
+       "  # N'-q     CB! ! @      Logging "  "  # N'-      0# N'-   B! ! @      Prefetc
+       h"  "  #,N'-!      B! ! @      Recovery"  "  # N'-       B! ! @      Rollback"  
+       "  # N'-       # N'-R"      3x24  4 3B       Subsys = READ,  "  "R  #B       Sub
+       sys = 2, "  "R   B       Subsys = NONE,  "  "R           #   $   "       B      
+        LogId = "  "#   "  2R 22@ 2 # N'-   #,N'-A  #,N'-S    "P    ,      {#,N'-A  B  
+            TPI enabled for "  "R #,N'-SR   B      
+        TPI DISABLED for  "  "R #,N'-S"    MB       Omnidex "  "R  )#,N'-S"    MB      
+        Superdex"  "R   B       # "  "B    2R #,N'-S: " 2 B B    2R B      
+        , #index files =  "  "R #4N'@    E"?2     #4N': " 2 B       , checksum =  "  "B
+           2R #3N': " 2,B B    2      , "  "R 22B B  @$   +   $, D" +     2   N'@
+              2   B       FW KDatabase mode flag =  "  "R   N'2 N'- "A   S  N'- "Z     
+        N'? "A   G  N'? "Z    B        ("  "R   N': " 2,")2   2   N'@    FB       JB  N
+       EW database (uninitialized root file)"& "R   2       N'@    WB       RMDatabase 
+       marked BAD "  "R   2       N'@    ZB       MCDatabase was being created"  "R   2
+              N'@    ZB       MEDatabase was being erased "  "R   2    e  N'@    _B    
+          ARDatabase was being changed by Adager"$ "R   2    B  N'@    FB       TP !Dat
+       abase was being setup for Third Party Indexing "1 "R   2     B       (Unknown da
+       tabase mode!)"  "R   2     2   B       Do you want to continue?  "  "R B   B    
+          (Batch: YES)"  "R   2       : * : " 23    N&- "A      N&- "B      N&@    OB  
+        R " R B -A  B      '  C  l FThis is a pre-TurboIMAGE database, MPE XL's DBOPEN 
+       will probably not"D "R   2   B       like it, but we'll try it anyway... "# "R  
+        2    %B       Database created by IMAGE version "" "R   N&- 2 N&? : " 2   2    
+        B   R " R B -!  B       TurboIMAGE database "  "R   2     24    25  B B   B*26F
+       *,  I# N*$  FB          <Database appears to be a remote database... "+ "R   2  
+        B       You cannot check remote databases."" "R   2          p# N*$1 EB      # 
+       gDatabase appears to be a remote database, opening it resulted in a"B "R   2   B
+              file system error of "unimplemented function".". "R   2   B       Perhaps
+        your machine lacks NS or DS?"$ "R   2      9  25        24      27B -q  B      
+         <dbopen took "  "B    2R   : " 2 B B    2       cpu, "  "B    2R   : " 2 B B  
+         2       elapsed millisecs. "  "R   2     "  *  B*28    " R     B " : " 29   F 
+        2$        N,R B        @   # sets = "  "B    2R B : " 2 B B    2R   2   B     B
+        B  
+        B*B+2:F*$  \B     "( 2R 22@D2 B #(  "
+         2R 22@;2 # N+#  +" 21  2   B " "   2 B " "   2   R    @#       R " r     $. Q"
+        r      @@  q  R   " r     B  3B -!  B          ; 'Base prefix = ' "  "  B  2   
+          ', suffix = ' "  "  B  2      ' "  "R   2   " R   " " P 
+ 16384:   B 2;U " R   " B P     B 2<  U " R   " B   P       ^ U B " "   2 C   * S       
+       : " 2 ,   B           Ignored trailing input: "  "B B  2R   2     2           C 
+         "(2 C b  LB        ,all "  "R   C : " 2 B        set"  "R C $   "s2 B      
+         selected so far) "  "R   2   B       Dataset:  (use @ for ALL, / to exit, ? fo
+       r list)"0 "R C $  NB        [cr = @] "  "R   B        [cr = start] "  "R   @ : "
+        2&   B2 B   B B B  2R   2     : " 2 ,  KC         :   $       $? C2=    S   R *
+        R * S   : " 2 ,     $, O  : " 2 ,     R * R           $& K  : " 2 ,   B        
+       - %An ampersand (&) may only be at the end of a line: &  "5 "B B  2R   2   B R  
+                  $+    $- f" R   $+   B  S     B       /A"     B       /a"       $@ N"
+        R   " B P   C   ^ U     B       //"    D2       $/ K  : " 2 ,   B        1Ignor
+       ed input after slash (/):  "  "B B  2R   2   B      
+        (closing database)"  "R   2      s   gB ,  I" B     B          /Set # must be i
+       n range 1.."  "B    2R B : " 2 B B    2      : "  "B B  2R   2   B   " 2    1B S
+        B S   : " 2 ,  DC S  x  $/ L  : " 2 ,  GC B        e 5B S  1" C      +B       T
+       he second number must not be less than the first number. "9 "R   2            /B
+        ,     $, HB S   R * R  "B       Expected a set name, number, or ? "! "R   2   B
+          " 2         R * R C R   " C P   C   ^ U   B B 2   R * R   " : " 2   B $   B  
+             ,Truncating set name ' "  "B B  2     
+        ' to 16 characters"  "R   2   #   B & "   2 " R   B B  3  B B " : * " 29   [B  
+            Bad/unknown set name: "  "  B  2R   2      9F, @    R C   ^ B          ("  
+       "  B  2       : set #  "  "B    2R B : " 2 B B    2      ) "  "R   2            
+          $                 $@  C $  P" R   " B P   *   ^ U B S @ V   2   B -Q  B      
+        @ Check pre-TurboIMAGE base:  "  "R   B       Check TurboIMAGE base:  "  "R B #
+          "  2R 22@ 2 C b   C : " 2 " 2 C $  FB       ;   set:  "  "R   B       sets: "
+         "R F @     C b  IB $  OB       @  !1 "  "R   2     B       1/"  "B    2R B : "
+        2 B B    2R   2    9  R   B b     N   B B  @% $O    2   B        "            "
+         "R B : " 2 B   N   B   N       "/2 B : " 2 @ 2  4, B B  @$   +         , "    
+       C"     2     2   * S 3   :   2>B       DBCHECK "  "          "  "      SS 930917
+        "  "      .   Run on: "  "R : " 2?  2   2   B       For help, enter:  ? "  "R  
+        2   B   " R @ R B   R " R   ' "PR @@R B  
+        R " R B    P87!x ^B " "   2 B "<  2 B "<  2 B "   2 B "   2 8! -8! /@!V @ V B  
+        2 $    B  .AR 2 B -   B $  F  : " 2   3      ` [    8 ; ?;        DBCHECK'INIT 
+                 %                                                                     
+                                                         "            @?    B "     8! 
+       -8! /@!V @ V B     $    B  .AR   B -   B $  F  : "     3      ` [    8 ; ?;     
+          DBCHECK'INIT           %                                                     
+                                                : B $     R B - S B   B  
+        R B         "  "R   2     B         DBCHECK "  "          "  "      SS 930917 "
+         "R   2     B       Author: Stan Sieler "  "R   2     B        oContact: sieler
+       @allegro.com or support@adager.com "1 "R   2   B         "  "R   2     B      # 
+       ?DBCHECK checks the integrity of a TurboIMAGE (or IMAGE) database. "A "R   2    
+        B         (Note: as of version 930916, DBCHECK attempts to be aware of"< "R   2
+            B         databases enabled for Third Party Indexing.)", "R   2     B      
+          "  "R   2     B         DBCHECK options may be specified via the INFO string 
+       or "7 "R   2     B         via the PARM= option of the RUN command:"( "R   2    
+        B         "  "R   2     B        f  PARM PARM "  "R   2     B         Add# Bit#
+        Meaning "  "R   2     B        ?     1  15  Suppress most output (unless error 
+       occurs). "7 "R   2     B              2  14  Show entry numbers, names, and 'dum
+       ps' in hex.": "R   2     B      #       4  13  Suppress output to system console
+        in batch (QUIETOP). "A "R   2     B              8  12  Don't show times for ev
+       ery set checked. "3 "R   2     B             16  11  Don't report progress perio
+       dically. "/ "R   2     B           32  10  Stop on finding the first error.", "R
+          2     B        V    64   9  Send copy of all output to PRINTER. "/ "R   2    
+        B          128   8  Show record numbers in errors (SHOWNUMBERS)."8 "R   2     B
+                   256   7  Show record names in errors (SHOWNAMES)."4 "R   2     B    
+               512   6  Show entry numbers, names, and 'dumps' in octal."< "R   2     B
+                  "  "R   2     B      "If both Parm bit 14 (HEX) and Parm bit 6 (OCTAL
+       ) are on, HEX will "A "R   2     B      !  be used.  On MPE XL, HEX is the defau
+       lt, and on MPE V OCTAL is"> "R   2     B        Wthe default."  "R   2     B    
+            "  "R   2     B      "The INFO string allows all of the above commands as w
+       ell as a few "A "R   2     B      "  more.  The INFO string command may consist 
+       of none, one, or more"@ "R   2     B         of the following keywords:"  "R   2
+            B         "  "R   2     B            132"  "R   2     B             132 tel
+       ls DBCHECK to enter 132-column mode on a 700/92"< "R   2     B               ter
+       minal.  DBCHECK will ignore 132 in batch mode. "7 "R   2     B        \      Def
+       ault: 80 "  "R   2     B         "  "R   2     B          80 "  "R   2     B    
+           -      80 tells DBCHECK to enter 80-column mode on a 700/92": "R   2     B  
+                    terminal.  DBCHECK will ignore 80 in batch mode."6 "R   2     B    
+                  Default: 80 "  "R   2     B         "  "R   2     B          BASE  [=
+       ] databasename "  "R   2     B               Specifies name of database to check
+       .  All datasets"8 "R   2     B        |      will be checked."  "R   2     B    
+            "  "R   2     B          DECimal"
+         "R   2     B        I      DECimal tells DBCHECK that you want decimal values.
+        "9 "R   2     B      "        The DECIMAL keyword is equivalent to specifying a
+       ll of the"@ "R   2     B               following keywords: DECDUMP, DECNAMES, an
+       d DECNUMBERS."< "R   2     B               See also: HEX... and OCT... options."
+       * "R   2     B         "  "R   2     B            <DEC | HEX | OCT>DUMP"  "R   2
+            B             DECDUMP, HEXDUMP, and OCTDUMP specify what base the "9 "R   2
+            B        ]      "dumping" of array values are in. "' "R   2     B         "
+         "R   2     B        1   <DEC | HEX | OCT>NAMES "  "R   2     B             DEC
+       NAMES, HEXNAMES, and OCTNAMES specify what base"8 "R   2     B               ent
+       ry names are printed in. "! "R   2     B         "  "R   2     B            <DEC
+        | HEX | OCT>NUMBERS "  "R   2     B             DECNUMBERS, HEXNUMBERS, and OCT
+       NUMBERS specify what base"> "R   2     B               entry numbers are printed
+        in. "# "R   2     B         "  "R   2     B        Z   HEX"  "R   2     B      
+              HEX tells DBCHECK that you want hex values. "1 "R   2     B        '     
+        The HEX keyword is equivalent to specifying all of the"< "R   2     B          
+            following keywords: HEXDUMP, HEXNAMES, and HEXNUMBERS."< "R   2     B      
+                See also: DEC... and OCT... options."* "R   2     B         "  "R   2  
+          B            IGNoreerrors <ALL | # [/# ...]>"" "R   2     B             IGNOR
+       EERRORS tells DBCHECK to suppress reporting the": "R   2     B      # a      spe
+       cified errors.  (When DBCHECK reports an error, the type "A "R   2     B      " 
+       4      (or "number") of the error is reported in parenthesis with"@ "R   2     B
+                      a lower-case "e", as in:  #Error # 1 (e38) ... this is"< "R   2  
+          B      "        error 38 (and it is the first one that has been reported)."@ 
+       "R   2     B           "  "R   2     B             To suppress error 38, do:  /I
+       GNORE 38 "+ "R   2     B           "  "R   2     B             To un-suppress er
+       ror 38, do:  /NOIGNORE 38"0 "R   2     B        T  "  "R   2     B      !      A
+        range of error numbers may be specified with a slash, as"@ "R   2     B        
+              in: /IGNORE 1/9 "  "R   2     B         "  "R   2     B          INTERVAL
+       mins [=] # "  "R   2     B      "        INTERVALMINS tells DBCHECK that you wan
+       t periodic progress"@ "R   2     B      "        messages sent every # minutes. 
+        INTERVALMINS defaults to 2"@ "R   2     B               for sessions, and 5 for
+        batch jobs. ") "R   2     B         "  "R   2     B        ^   MAXEACH #"  "R  
+        2     B             When you are hitting many instances of the same error "; "R
+          2     B        #      number (e.g.: several hundred "e8" errors), you might "
+       ; "R   2     B               decide that it would be nice if DBCHECK would stop"
+       8 "R   2     B      #        reporting that particular error.  The MAXEACH numbe
+       r is the "A "R   2     B      "        maximum number of each particular error t
+       hat DBCHECK will "? "R   2     B      # x      report.  If this value is non-0, 
+       and DBCHECK generates that "A "R   2     B      ! K      many errors for a parti
+       cular error number, then it will "= "R   2     B               stop reporting th
+       at error number (but will count them)"< "R   2     B      !        until it reac
+       hes the end of the dataset.  (Then, it will"> "R   2     B      "        report 
+       the counts as a summary.)  Setting # to 0 disables "? "R   2     B              
+        this check.  Default: 100 "  "R   2     B         "  "R   2     B        w   MA
+       XERRors #"  "R   2     B             Tells DBCHECK to terminate upon hitting the
+        "#"th error."> "R   2     B        :      When the limit is hit, DBCHECK will d
+       o: SETJCW JCW #": "R   2     B      "        and then call terminate.  Note: STO
+       P sets MAXERRORS to 1. "? "R   2     B               Setting # to 0 disables thi
+       s check. ") "R   2     B             Default: 0"  "R   2     B           "  "R  
+        2     B      
+           MAXSETErrors # "  "R   2     B      !      Tells DBCHECK to skip testing the
+        rest of a dataset after "? "R   2     B        e      the specified number of e
+       rrors are found. "/ "R   2     B             Setting # to 0 disables this check.
+        ") "R   2     B      
+         !      Default: 0"  "R   2     B         "  "R   2     B          [NO]NAMES"  
+       "R   2     B               The NAMES option tells DBCHECK to display an entry's"
+       : "R   2     B               location as an "entry name" in the following format
+       :": "R   2     B                    block# / number-in-block "# "R   2     B    
+                The numeric base used to report these two values is "9 "R   2     B    
+           X      hex if the HEX or HEXNAME option has been used, or"8 "R   2     B    
+           0      octal if the OCT or OCTNAME option has been used. "7 "R   2     B    
+                  NONAMES tells DBCHECK to not report entry names."6 "R   2     B      
+                If both NAMES and NUMBERS are requested, then an entry"< "R   2     B  
+                    location will be displayed as:"$ "R   2     B                  numb
+       er (block# / number-in-block)", "R   2     B      ! x      For example, if a dat
+       aset has a block factor of 10, then"> "R   2     B        M      entry number 21
+        would be displayed as: 21 (2/1)."6 "R   2     B        &      Default: NUMBERS,
+        NAMES "  "R   2     B         "  "R   2     B            [NO]NUMBERS"  "R   2  
+          B             The NUMBERS option tells DBCHECK to display an entry's"< "R   2
+            B               location as a simple numeric value.  The base used to "; "R
+          2     B      !        report this value is hex if the HEX or HEXNUMBER option
+        "= "R   2     B        n      has been used, or octal if the OCT or OCTNUMBER "
+       5 "R   2     B        G      option has been used.  NONUMBERS tells DBCHECK to n
+       ot "; "R   2     B               report entry numbers. "  "R   2     B          
+          Default: NUMBERS, NAMES "  "R   2     B           "  "R   2     B          OC
+       Tal"  "R   2     B             OCTal tells DBCHECK that you want octal values. "
+       5 "R   2     B               The OCT keyword is equivalent to specifying all of 
+       the"< "R   2     B        }      following keywords: OCTDUMP, OCTNAMES, and OCTN
+       UMBERS."< "R   2     B        S      See also: DEC... and HEX... options."* "R  
+        2     B         "  "R   2     B        &   [NO]PAGING "  "R   2     B      !   
+          PAGING tells DBCHECK to suspend output to the screen after"@ "R   2     B    
+         "        about 22 lines.  PAGING is only available when DBCHECK is "? "R   2  
+          B               run in a session. "  "R   2     B             Default: PAGING
+        if interactive, "% "R   2     B                        NOPAGING if batch"  "R  
+        2     B         "  "R   2     B        ^   PRINTER"
+         "R   2     B             Tells DBCHECK that you want output sent to a file who
+       se "= "R   2     B        #      formal name is PRINTER as WELL as to $STDLIST."
+       4 "R   2     B       
+               Note: PRINTER should not be specified for JOB runs of "; "R   2     B   
+           
+               DBCHECK."  "R   2     B         "  "R   2     B       
+            PRIORITY <CS | DS | ES>"  "R   2     B             Sets DBCHECK's priority 
+       to the specified value. "5 "R   2     B       
+        u  "  "R   2     B          NOPROGRESS "  "R   2     B      
+           PROGRESS [=] # "  "R   2     B       
+        B      PROGRESS tells DBCHECK that you want periodic progress"< "R   2     B   
+           
+               messages sent every # records seen. ") "R   2     B             NOPROGRE
+       SS tells DBCHECK not to report progress."6 "R   2     B               See also: 
+       INTERVALMINS"  "R   2     B         "  "R   2     B            [NO]QUIET"  "R   
+       2     B             NOQUIET tells DBCHECK to report at the start of each": "R   
+       2     B        q      dataset."  "R   2     B             QUIET tells DBCHECK to
+        not report at the start of each"< "R   2     B        5      dataset."  "R   2 
+           B             Default: NOQUIET"  "R   2     B           "  "R   2     B     
+            [NO]QUIETOP"  "R   2     B             NOQUIETOP tells DBCHECK to inform th
+       e system console of "= "R   2     B      
+                progress. "  "R   2     B      !      QUIETOP tells DBCHECK not to info
+       rm the system console of "? "R   2     B      
+                progress. "  "R   2     B             Default: NOQUIETOP"  "R   2     B
+               Y  "  "R   2     B          [NO]SKIP <BITMAP | FREEchain | PATHS | PATH 
+       # | NONE | ALL>"> "R   2     B        "      The SKIP option allows various test
+       s to be skipped. "9 "R   2     B           "  "R   2     B             SKIP BITM
+       AP tells DBCHECK to skip checking the validity "= "R   2     B      !        of 
+       the bitmap for each media record in a detail dataset."> "R   2     B           "
+         "R   2     B             SKIP FREE tells DBCHECK to skip checking the free cha
+       in "= "R   2     B        `      validity for detail datasets. "# "R   2     B  
+             B  "  "R   2     B             SKIP PATHS tells DBCHECK to skip checking t
+       he various "; "R   2     B               pointers to/from a detail dataset for a
+       ll paths."6 "R   2     B           "  "R   2     B             SKIP PATH # tells
+        DBCHECK to skip checking the various"< "R   2     B      "        pointers to/f
+       rom a detail dataset for the specified path. "? "R   2     B           "  "R   2
+            B             SKIP ALL tells DBCHECK to skip all tests.  This would "; "R  
+        2     B        M      typically be used as:  SKIP ALL NOSKIP FREE "1 "R   2    
+        B        (  "  "R   2     B             SKIP NONE tells DBCHECK to not skip any
+        tests."4 "R   2     B           "  "R   2     B             NOSKIP tells DBCHEC
+       K to not skip the specified test.": "R   2     B           "  "R   2     B      
+           [NO]STOP "  "R   2     B             STOP tells DBCHECK to stop examining a 
+       database when it "= "R   2     B        y      finds the first error."  "R   2  
+          B             NOSTOP tells DBCHECK to find all of the errors it can."< "R   2
+            B        6      STOP is equivalent to saying: MAXERROR 1". "R   2     B    
+                Default: NOSTOP "  "R   2     B           "  "R   2     B          [NO]
+       TIMEs"  "R   2     B             TIMES tells DBCHECK to report CPU and Elapsed t
+       imes at"< "R   2     B               the end of every dataset and database exami
+       ned. "5 "R   2     B               NOTIMES tells DBCHECK to not report these tim
+       es."6 "R   2     B        h      Default: TIMES"  "R   2     B         "  "R   2
+            B       In addition to specifying the above options via the INFO"8 "R   2  
+          B      "  string, they can also be specified whenever DBCHECK is prompting"@ 
+       "R   2     B         for a database name by entering a slash (/) followed by the
+        "; "R   2     B      
+          desired options."  "R   2     B       Example:"  "R   2     B            Ente
+       r base name [<cr> = exit]: /SKIP FREE", "R   2     B         "  "R   2     B    
+         ! xAfter entering the name of a valid database (in your account),"> "R   2    
+        B        MDBCHECK will ask f
+endfile
+there were 8 data blocks with 82,624 bytes, and 3 tapemarks
+no blocks had errors

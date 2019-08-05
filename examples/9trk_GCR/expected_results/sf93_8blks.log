@@ -1,0 +1,52 @@
+this is readtape version 3.7, compiled on Aug  4 2019 22:08:28, running on Sun Aug  4 22:13:01 2019
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: readtape -v -m -gcr -ips=50 -zeros -correct -tap -ascii -linefeed -outp=results\ sf93_8blks 
+  current directory: C:\data\projects\magtape_reader\readtape\examples\9trk_GCR
+  this is a little-endian computer
+  For more information, see, https://github.com/LenShustek/readtape
+reading file sf93_8blks.tbin
+the output files will be results\sf93_8blks.xxx
+.tbin file header
+   converted on: Sun Aug  4 16:25:02 2019
+   max voltage: 3.2V
+   time between samples: 0.160 usec
+   using .tbin ntrks = 9
+   using .tbin mode = GCR
+reading parmsets from file GCR.parms
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak,  pulse_adj,pkww_bitfrac,  pkww_rise,       z1pt,       z2pt,  id
+  {            1,          0,      0.015,          0,      0.500,      0.200,      0.300,      1.500,      0.200,      1.450,      2.350,   PRM}
+  {            1,         10,      0.000,          0,      0.500,      0.100,      0.600,      1.500,      0.140,      1.400,      2.300,   PRM}
+  {            1,          0,      0.020,          0,      0.500,      0.100,      0.300,      1.500,      0.140,      1.450,      2.370,   PRM}
+  {            1,          0,      0.020,          0,      0.500,      0.100,      0.300,      1.500,      0.140,      1.450,      2.400,   PRM}
+compile-time decoding constants
+  minimum excursion before considering a zero crossing: 0.200V
+  maximum time in bits for the required excursion to be attained: 1.5 bit times
+  AGC maximum: 20
+  GCR idle threshold: 6.00 bits
+BPI was reset to 9042 for GCR 6250
+configuration
+  9 track GCR, odd parity, 9042 BPI at 50 IPS (2.21 usec/bit)
+  sampling rate is 6,250,000 Hz (0.16 usec)
+  track ordering: 0(msb)1234567(lsb)p
+creating file "results\sf93_8blks.tap"
+creating file "results\sf93_8blks.ASCII.txt"
+wrote block   1,   80 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.04 IPS at time 1.4267742
+*** tapemark after block 1 at file position 886,396, time 1.4335955
+wrote block   2, 8184 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 49.79 IPS at time 1.4670602
+wrote block   3, 7032 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 49.77 IPS at time 1.4962254
+*** tapemark after block 3 at file position 8,661,298, time 1.5027058
+wrote block   4, 16384 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 49.74 IPS at time 1.5623685
+wrote block   5, 1792 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 49.78 IPS at time 1.5746579
+*** tapemark after block 5 at file position 17,475,844, time 1.5810573
+wrote block   6, 16384 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 49.80 IPS at time 1.6406429
+wrote block   7, 16384 bytes, 2 tries, parmset 1, max AGC 1.00, ok, avg speed 49.81 IPS at time 1.7001346
+wrote block   8, 16384 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 49.76 IPS at time 1.7593682
+output file was closed at time 1.7603658 with 82,624 data bytes extracted from 8 blocks
+2,090,299 samples were processed in 1 seconds, or 0.125 seconds/block
+detected 3 tape marks
+created 1 output files with 8 blocks and 82,712 total bytes
+0 blocks had errors, 0 had mismatched tracks, 0 had bits corrected
+1 good blocks had to try more than one parmset
+parmset 0 was tried   12 times and used   10 times, or  83.3%
+parmset 1 was tried    1 times and used    1 times, or 100.0%
+created statistics file "results\sf93_8blks.peakstats.csv" from 762,411 measurements of flux transition positions

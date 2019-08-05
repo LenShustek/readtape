@@ -1,0 +1,513 @@
+file: results\LJS009_part1_39blks.EBCDIC.txt
+options:   -EBCDIC  -LINESIZE=137
+   80: VOL1LJS0090                              L SHUSTEK                              
+   80: HDR1.BLP.TRACE.LINSY2LJS00900010001       78021 000000000000IBM OS/VS 370       
+   80: HDR2V019180013730LJSCG332/TPCPY     M B   00188                                 
+tape mark
+ 1785:  9   i   ISV40 JOB ORIGIN FROM GROUP=LOCAL   , DSP=IJP, DEVICE=SYA     , 9F8            a                                                
+            i   //BLPLINSY JOB BLP$CG,888,TIME=10,CLASS=N                                  1.                                                   
+            i   //*MAIN LINES=20,TYPE=VS2                                                  2.                                                   
+            i   //*MAIN HOLD=OUTPUT                                                                                                             
+            i   //TRAN  EXEC  LINK,                                                        3.                                                   
+            i   //  LKEDLB1='WYL.CG.LJS.LOADMODS'                                          4.                                                   
+            i   //LKED.SYSLMOD  DD  DSN=&TRAN(TRACE)                                       5.                                                   
+            i   //LKED.INTMOD  DD  DSN=WYL.CG.LJS.INTMOD,DISP=SHR                          6.                                                   
+            i   //LKED.ANAMOD  DD  DSN=WYL.CG.LJS.ANAMOD,DISP=SHR                          7.                                                   
+            i   //LKED.SYSIN  DD  *                                                        8.                                                   
+            i   //*                                                                       13.                                                   
+            i   //*      TRACE LINSY2 BENCHMARK.                                          14.                                                   
+            i   //*                                                                       15.                                                   
+           
+ 1785:  9   i   //*                                                                       16.                                                   
+            i   //TRACE  EXEC  PGM=*.TRAN.LKED.SYSLMOD,PARM='LINSY2',                     17.                                                   
+            i   //  REGION=600K                                                           18.                                                   
+            i   //STEPLIB  DD  DSN=WYL.CG.LJS.LMOD,DISP=SHR                               19.                                                   
+            i   //FT06F001  DD  SYSOUT=A,DCB=(RECFM=VBA,LRECL=137,BLKSIZE=2000)           20.                                                   
+            i   //FT07F001  DD  DUMMY                                                     21.                                                   
+            i   //AT04F001  DD  DUMMY,DCB=BLKSIZE=80  (USED FOR 'ETIME')                  22.                                                   
+            i   //AT05F001  DD  DUMMY,DCB=BLKSIZE=80  (USED FOR 'MAXREC')                 23.                                                   
+            i   //AT06F001  DD  SYSOUT=A,DCB=(RECFM=VBA,LRECL=137,BLKSIZE=2000)           24.                                                   
+            i   //AT08F001  DD  UNIT=SYSDA,SPACE=(TRK,(50,10))                            25.                                                   
+            i   //AT09F001  DD  SYSOUT=A,DCB=(RECFM=FB,LRECL=80,BLKSIZE=1600)             26.                                                   
+            i   //LOG  DD  SYSOUT=A                                                       27.                                                   
+            i   //SYSUDUMP  DD  SYSOUT=A                                                  28.                                                   
+           
+ 1785:  9   i                                                                                                                                   
+            i                                                                                                                                   
+            i    LOCATE' 0520WYL.CG.LJS.LOADMODS                         '                                                                      
+            i    AL05200E001/WYL0050004                                                                                                         
+            i    LOCATE' 0520WYL.CG.LJS.INTMOD                           '                                                                      
+            i    AL05200E001/WYL00D0004                                                                                                         
+            i    LOCATE' 0520WYL.CG.LJS.ANAMOD                           '                                                                      
+            i    AL05200E001/WYL00D0004                                                                                                         
+            i    LOCATE' 0520WYL.CG.LJS.LMOD                             '                                                                      
+            i    AL05200E001/WORK020003                                                                                                         
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i   AMDS01 JOB 0520 (BLPLINSY) IN SETUP ON MAIN=SYB      TIME 18:01:20                                                              
+           
+ 1785:  9   i   AMDS02 SYSLIB   N        USING D  WYL005 ON 533                                                                                 
+            i   AMDS02 INTMOD   N        USING D  WYL00D ON 540                                                                                 
+            i   AMDS02 STEPLIB  N        USING D  WORK02 ON 861                                                                                 
+            i    BLPLINSY IEF403I BLPLINSY STARTED    TIME=18.01.35                                                                             
+            i    BLPLINSY IEF234E D 912,ASP912                                                                                                  
+            i    BLPLINSY IEF234E D 913,ASP913                                                                                                  
+            i   *BLPLINSY*21 IECASP0 912 IS BLPLINSY A LKED    TRAN    SYSPRINT                                                                 
+            i   *BLPLINSY*22 IECASP0 914 IS BLPLINSY   LKED    TRAN    ASPI0001                                                                 
+            i    BLPLINSY IEC202E K 914,010520,NL,BLPLINSY,LKED                                                                                 
+            i    BLPLINSY IEF234E D 90B,ASP90B                                                                                                  
+            i    BLPLINSY IEF234E D 912,ASP912                                                                                                  
+            i   *BLPLINSY*25 IECASP0 911 IS BLPLINSY A         TRACE   LOG                                                                      
+            i   *BLPLINSY*26 IECASP0 90D IS BLPLINSY A         TRACE   AT06F001                                                                 
+           
+ 1785:  9   i   *BLPLINSY*27 IECASP0 90B IS BLPLINSY A         TRACE   FT06F001                                                                 
+            i    BLPLINSY IEC130I ADDRTAPE DD STATEMENT MISSING                                                                                 
+            i   *BLPLINSY*50 IECASP0 90E IS BLPLINSY A         TRACE   AT09F001                                                                 
+            i    BLPLINSY IEF404I BLPLINSY ENDED      TIME=18.18.37                                                                             
+            i   //BLPLINSY JOB BLP$CG,888,TIME=10,CLASS=N                                  1.                                                   
+            i   //TRAN  EXEC  LINK,                                                        3.                                                   
+            i   //  LKEDLB1='WYL.CG.LJS.LOADMODS'                                          4.                                                   
+            i   //LKED.SYSLMOD  DD  DSN=&TRAN(TRACE)                                       5.                                                   
+            i   //LKED.INTMOD  DD  DSN=WYL.CG.LJS.INTMOD,DISP=SHR                          6.                                                   
+            i   //LKED.ANAMOD  DD  DSN=WYL.CG.LJS.ANAMOD,DISP=SHR                          7.                                                   
+            i   //LKED.SYSIN DD DSN=&&ASPI0001,UNIT=(CTC,,DEFER),VOL=SER=010520,           8.                                                   
+            i   // DISP=(OLD,DELETE),DCB=(RECFM=FB,LRECL=80,BLKSIZE=2000,BUFNO=02)                                                              
+            i   ***                                                                       13.                                                   
+           
+ 1785:  9   i   ***      TRACE LINSY2 BENCHMARK.                                          14.                                                   
+            i   ***                                                                       15.                                                   
+            i   ***                                                                       16.                                                   
+            i   IEF236I ALLOC. FOR BLPLINSY LKED     TRAN                                                                                       
+            i   IEF237I 6C0   ALLOCATED TO STEPLIB                                                                                              
+            i   IEF237I 6C0   ALLOCATED TO                                                                                                      
+            i   IEF237I 533   ALLOCATED TO SYSLIB                                                                                               
+            i   IEF237I 6C0   ALLOCATED TO                                                                                                      
+            i   IEF237I 6C0   ALLOCATED TO                                                                                                      
+            i   IEF237I 6C0   ALLOCATED TO                                                                                                      
+            i   IEF237I 6C0   ALLOCATED TO                                                                                                      
+            i   IEF237I 750   ALLOCATED TO                                                                                                      
+            i   IEF237I 750   ALLOCATED TO                                                                                                      
+           
+ 1785:  9   i   IEF237I 861   ALLOCATED TO SYSLIN                                                                                               
+            i   IEF237I 914   ALLOCATED TO                                                                                                      
+            i   IEF237I 860   ALLOCATED TO SYSLMOD                                                                                              
+            i   IEF237I 912   ALLOCATED TO SYSPRINT                                                                                             
+            i   IEF237I 913   ALLOCATED TO SYSTERM                                                                                              
+            i   IEF237I 861   ALLOCATED TO SYSUT1                                                                                               
+            i   IEF237I 540   ALLOCATED TO INTMOD                                                                                               
+            i   IEF237I 540   ALLOCATED TO ANAMOD                                                                                               
+            i   IEF142I - STEP WAS EXECUTED - COND CODE 0000                                                                                    
+            i   IEF285I   SYS1.DUMMYL                                  KEPT                                                                     
+            i   IEF285I   VOL SER NOS= DRUM2 .                                                                                                  
+            i   IEF285I   SYS1.LINK                                    KEPT                                                                     
+            i   IEF285I   VOL SER NOS= DRUM2 .                                                                                                  
+           
+ 1785:  9   i   IEF285I   WYL.CG.LJS.LOADMODS                          KEPT                                                                     
+            i   IEF285I   VOL SER NOS= WYL005.                                                                                                  
+            i   IEF285I   SYS1.DUMMYL                                  KEPT                                                                     
+            i   IEF285I   VOL SER NOS= DRUM2 .                                                                                                  
+            i   IEF285I   SYS1.DUMMYL                                  KEPT                                                                     
+            i   IEF285I   VOL SER NOS= DRUM2 .                                                                                                  
+            i   IEF285I   SYS1.DUMMYL                                  KEPT                                                                     
+            i   IEF285I   VOL SER NOS= DRUM2 .                                                                                                  
+            i   IEF285I   SYS1.FORT                                    KEPT                                                                     
+            i   IEF285I   VOL SER NOS= DRUM2 .                                                                                                  
+            i   IEF285I   SYS1.FORTLIB                                 KEPT                                                                     
+            i   IEF285I   VOL SER NOS= SYS16B.                                                                                                  
+            i   IEF285I   SYS3.FORTLIB                                 KEPT                                                                     
+           
+ 1785:  9   i   IEF285I   VOL SER NOS= SYS16B.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.LOADSET      DELETED                                                                  
+            i   IEF285I   VOL SER NOS= WORK02.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.ASPI0001     DELETED                                                                  
+            i   IEF285I   VOL SER NOS= 010520.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.TRAN         PASSED                                                                   
+            i   IEF285I   VOL SER NOS= WORK01.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.ASPOA001     DELETED                                                                  
+            i   IEF285I   VOL SER NOS= ASP912.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.R0001197     DELETED                                                                  
+            i   IEF285I   VOL SER NOS= WORK02.                                                                                                  
+            i   IEF285I   WYL.CG.LJS.INTMOD                            KEPT                                                                     
+            i   IEF285I   VOL SER NOS= WYL00D.                                                                                                  
+           
+ 1785:  9   i   IEF285I   WYL.CG.LJS.ANAMOD                            KEPT                                                                     
+            i   IEF285I   VOL SER NOS= WYL00D.                                                                                                  
+            i   IEF373I STEP /LKED    / START 76228.1801                                                                                        
+            i   IEF374I STEP /LKED    / STOP  76228.1802 CPU   0MIN 00.59SEC STOR VIRT 192K                                                     
+            i   SMF001I   STEP  LKED        STEP NUMBER=     1                                             RETURN=      0 DEC                   
+            i   SMF002I   DATE= 08/15/76    STRT=  18:01:35.77   STOP=  18:02:13.52   E.T.=      0:37.75   CPU=       0:00.59                   
+            i   SMF003I   CPU ID=  168-B    SYSTEM=   VS2 01.6   MEM REQ=      150K   MEM USED=     192K   MEMRY FUNC=   0.79                   
+            i   SMF004I   CORE=  VIRTUAL    PAGE INS=        0   PGE OUTS=        0   WAIT=      0:23.01   PAGE DEACT=      0                   
+            i   SMF005I   I/O COUNTS        2301/6C0=        2   2301/6C0=        0   2314/533=       17   2301/6C0=        0                   
+            i   SMF005I   I/O COUNTS        2301/6C0=        0   2301/6C0=        0   2301/6C0=        0   3330/750=        0                   
+            i   SMF005I   I/O COUNTS        3330/750=        0   3330/861=        0   CTC./914=        2   3330/860=       63                   
+            i   SMF005I   I/O COUNTS        CTC./912=        8   CTC./913=        0   3330/861=      106   2314/540=       10                   
+            i   SMF005I   I/O COUNTS        2314/540=       53                                                                                  
+           
+ 1785:  9   i   SMF006I   I/O TOTALS        OTHER=          10   7 TRK=           0   9 TRK=           0   DASD=          251                   
+            i   SMF007I   STEP CHARGES      OTHER=        0.05   7 TRK=        0.00   9 TRK=        0.00   DASD=        10.04                   
+            i   SMF008I   STEP CHARGES                           MEM=          0.47   CPU=          0.59   TOTAL=       11.10                   
+            i   //TRACE  EXEC  PGM=*.TRAN.LKED.SYSLMOD,PARM='LINSY2',                     17.                                                   
+            i   //  REGION=600K                                                           18.                                                   
+            i   //STEPLIB  DD  DSN=WYL.CG.LJS.LMOD,DISP=SHR                               19.                                                   
+            i   //FT06F001  DD  SYSOUT=A,DCB=(RECFM=VBA,LRECL=137,BLKSIZE=2000)           20.                                                   
+            i   //FT07F001  DD  DUMMY                                                     21.                                                   
+            i   //AT04F001  DD  DUMMY,DCB=BLKSIZE=80  (USED FOR 'ETIME')                  22.                                                   
+            i   //AT05F001  DD  DUMMY,DCB=BLKSIZE=80  (USED FOR 'MAXREC')                 23.                                                   
+            i   //AT06F001  DD  SYSOUT=A,DCB=(RECFM=VBA,LRECL=137,BLKSIZE=2000)           24.                                                   
+            i   //AT08F001  DD  UNIT=SYSDA,SPACE=(TRK,(50,10))                            25.                                                   
+            i   //AT09F001  DD  SYSOUT=A,DCB=(RECFM=FB,LRECL=80,BLKSIZE=1600)             26.                                                   
+           
+ 1785:  9   i   //LOG  DD  SYSOUT=A                                                       27.                                                   
+            i   //SYSUDUMP  DD  SYSOUT=A                                                  28.                                                   
+            i   IEF236I ALLOC. FOR BLPLINSY TRACE                                                                                               
+            i   IEF237I 860   ALLOCATED TO PGM=*.DD                                                                                             
+            i   IEF237I 861   ALLOCATED TO STEPLIB                                                                                              
+            i   IEF237I 90B   ALLOCATED TO FT06F001                                                                                             
+            i   IEF237I 90D   ALLOCATED TO AT06F001                                                                                             
+            i   IEF237I 237   ALLOCATED TO AT08F001                                                                                             
+            i   IEF237I 90E   ALLOCATED TO AT09F001                                                                                             
+            i   IEF237I 911   ALLOCATED TO LOG                                                                                                  
+            i   IEF237I 912   ALLOCATED TO SYSUDUMP                                                                                             
+            i   IEC130I ADDRTAPE DD STATEMENT MISSING                                                                                           
+            i   IEF142I - STEP WAS EXECUTED - COND CODE 0000                                                                                    
+           
+ 1785:  9   i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.TRAN         PASSED                                                                   
+            i   IEF285I   VOL SER NOS= WORK01.                                                                                                  
+            i   IEF285I   WYL.CG.LJS.LMOD                              KEPT                                                                     
+            i   IEF285I   VOL SER NOS= WORK02.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.ASPOA003     DELETED                                                                  
+            i   IEF285I   VOL SER NOS= ASP90B.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.ASPOA004     DELETED                                                                  
+            i   IEF285I   VOL SER NOS= ASP90D.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.R0001198     DELETED                                                                  
+            i   IEF285I   VOL SER NOS= SCFEV4.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.ASPOA005     DELETED                                                                  
+            i   IEF285I   VOL SER NOS= ASP90E.                                                                                                  
+            i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.ASPOA006     DELETED                                                                  
+           
+ 1785:  9   i   IEF285I   VOL SER NOS= ASP911.                                                                                                  
+            i   IEF373I STEP /TRACE   / START 76228.1802                                                                                        
+            i   IEF374I STEP /TRACE   / STOP  76228.1818 CPU   7MIN 16.68SEC STOR VIRT 448K                                                     
+            i   SMF001I   STEP  TRACE       STEP NUMBER=     2                                             RETURN=      0 DEC                   
+            i   SMF002I   DATE= 08/15/76    STRT=  18:02:14.72   STOP=  18:18:37.56   E.T.=     16:22.84   CPU=       7:16.68                   
+            i   SMF003I   CPU ID=  168-B    SYSTEM=   VS2 01.6   MEM REQ=      600K   MEM USED=     448K   MEMRY FUNC=   0.90                   
+            i   SMF004I   CORE=  VIRTUAL    PAGE INS=        4   PGE OUTS=        0   WAIT=      3:29.62   PAGE DEACT=      0                   
+            i   SMF005I   I/O COUNTS        3330/860=        1   3330/861=       13   CTC./90B=        0   OTHR/000=        0                   
+            i   SMF005I   I/O COUNTS        OTHR/000=        0   OTHR/000=        0   CTC./90D=       96   2314/237=    2,177                   
+            i   SMF005I   I/O COUNTS        CTC./90E=       12   CTC./911=        1   CTC./912=        0                                        
+            i   SMF006I   I/O TOTALS        OTHER=         109   7 TRK=           0   9 TRK=           0   DASD=        2,191                   
+            i   SMF007I   STEP CHARGES      OTHER=        0.54   7 TRK=        0.00   9 TRK=        0.00   DASD=        87.64                   
+            i   SMF008I   STEP CHARGES                           MEM=        393.01   CPU=        436.68   TOTAL=      917.83                   
+           
+ 1785:  9   i   IEF285I   SYS76228.T180112.RV001.BLPLINSY.TRAN         DELETED                                                                  
+            i   IEF285I   VOL SER NOS= WORK01.                                                                                                  
+            i   IEF375I  JOB /BLPLINSY/ START 76228.1801                                                                                        
+            i   IEF376I  JOB /BLPLINSY/ STOP  76228.1818 CPU   7MIN 17.27SEC                                                                    
+            i   AMDS09 JOB 0520 (BLPLINSY) IN BREAKDOWN                                                                                         
+            i  1                                                                                                                                
+            i    F64-LEVEL LINKAGE EDITOR OPTIONS SPECIFIED LET,LIST,MAP                                                                        
+            i             DEFAULT OPTION(S) USED -  SIZE=(307200,61440)                                                                         
+            i   IEW0000      INCLUDE INTMOD(TRACE)                                                    9.                                        
+            i   IEW0000      INCLUDE ANAMOD(ANA)                                                     10.                                        
+            i   IEW0000      INCLUDE SYSLIB(APREADCR)                                                11.                                        
+            i   IEW0000      ENTRY TRACE                                                             12.                                        
+            i  0                                                                                                                                
+           
+ 1785:  9   i  0                                                      MODULE MAP                                                                
+            i                                                                                                                                   
+            i  0  CONTROL SECTION                       ENTRY                                                                                   
+            i  0    NAME    ORIGIN  LENGTH                NAME   LOCATION     NAME   LOCATION     NAME   LOCATION     NAME   LOCATION           
+            i     TRACE         00    2E8C                                                                                                      
+            i                                           TRCOFF       9D6    TRCON       1B8E                                                    
+            i     OPCODS      2E90     404                                                                                                      
+            i     TMLEFT      3298     1A4                                                                                                      
+            i     ANALYZ      3440   347B8                                                                                                      
+            i     SETCLA     37BF8     B9E                                                                                                      
+            i     DOSPRM     38798    1834                                                                                                      
+            i                                           DOSPR1     39F74                                                                        
+            i     PRMAVG     39FD0     352                                                                                                      
+           
+ 1785:  9   i     PUTDAT     3A328     13E                                                                                                      
+            i     DUMPRM     3A468     976                                                                                                      
+            i     PRSSLD     3ADE0     312                                                                                                      
+            i     PRNTLD     3B0F8     488                                                                                                      
+            i     PRREGD     3B580     96A                                                                                                      
+            i     PRQUAD     3BEF0     284                                                                                                      
+            i     ERR        3C178     128                                                                                                      
+            i     TIME       3C2A0     22C                                                                                                      
+            i     MATPRN     3C4D0     476                                                                                                      
+            i     ASMFCTS    3C948    149A                                                                                                      
+            i                                           OPREFR     3C948    OPREFW     3C9F8    INSREF     3CA9A    UBRNCH     3CCA0            
+            i                                           CLRSTK     3D314    INITTP     3D39E    ENDTP      3D40E    WORD       3DD9C            
+            i                                           DWORD      3DDAC    WORD3      3DDBC    LOC        3DDDC                                
+           
+ 1785:  9   i     TIMER      3DDE8      A4                                                                                                      
+            i     ASMDAT     3DE90      10                                                                                                      
+            i     COROUTNS   3DEA0     2F7                                                                                                      
+            i                                           BUFOPN     3DEA0    PUT        3DF0A    BUFCLS     3DFF0    APREAD     3E06C            
+            i     IHOLSQRT*  3E198     168                                                                                                      
+            i                                           DSQRT      3E198    IH$DSQRT   3E198                                                    
+            i     IHOEFIOS*  3E300    1178                                                                                                      
+            i                                           FIOCS#     3E300    FIOCSBEP   3E306                                                    
+            i     IHOFIOS2*  3F478     5DA                                                                                                      
+            i     IHOFIXPI*  3FA58     14F                                                                                                      
+            i                                           FIXPI#     3FA58                                                                        
+            i     IHOFQTEN*  3FBA8     110                                                                                                      
+            i                                           FQTEN#     3FBA8                                                                        
+           
+ 1785:  9   i     IHONAMEL*  3FCB8     C83                                                                                                      
+            i                                           FRDNL#     3FCB8    FWRNL#     403A0                                                    
+            i     IHOECOMH*  40940     E90                                                                                                      
+            i                                           IBCOM#     4096C    IB081971   4096C    FDIOCS#    40A28    INTSWTCH   41710            
+            i     FIOAP#  *  417D0     6F4                                                                                                      
+            i  1                                                                                                                                
+            i  0    NAME    ORIGIN  LENGTH                NAME   LOCATION     NAME   LOCATION     NAME   LOCATION     NAME   LOCATION           
+            i                                           AP081971   41C44                                                                        
+            i     IHOCOMH2*  41EC8     9BD                                                                                                      
+            i                                           SEQDASD    4227A                                                                        
+            i     IHOSLOG *  42888     1D4                                                                                                      
+            i                                           LOG10      42888    ALOG10     42888    IH$ALOG0   42888    IH$ALOG    428A0            
+            i                                           LOG        428A0    ALOG       428A0                                                    
+           
+ 1785:  9   i     IHOLLOG *  42A60     224                                                                                                      
+            i                                           DLOG10     42A60    IH$DLOG0   42A60    IH$DLOG    42A78    DLOG       42A78            
+            i     NOTRPS  *  42C88      9C                                                                                                      
+            i     SORT    *  42D28     5AC                                                                                                      
+            i     IHOFCVTH*  432D8     A0F                                                                                                      
+            i                                           ADCON#     432D8    FCVAOUTP   43382    FCVLOUTP   43412    FCVZOUTP   4356E            
+            i                                           FCVIOUTP   4391C    FCVEOUTP   43A0E    FCVCOUTP   43A0E    INT6SWCH   43C68            
+            i     IHOEFNTH*  43CE8     800                                                                                                      
+            i                                           ARITH#     43CE8    ADJSWTCH   44280                                                    
+            i     IHOERRM *  444E8     624                                                                                                      
+            i                                           ERRMON     444E8    IHOERRE    44500                                                    
+            i     IHOQCONI*  44B10      A0                                                                                                      
+            i                                           QCONVI#    44B10                                                                        
+           
+ 1785:  9   i     IHOQCONO*  44BB0      9E                                                                                                      
+            i                                           QSCALE#    44BB0                                                                        
+            i     IHOUATBL*  44C50     638                                                                                                      
+            i     IHOUOPT *  45288     3D8                                                                                                      
+            i     IHOFCONI*  45660     2FD                                                                                                      
+            i                                           FQCONI#    45660                                                                        
+            i     IHOFCONO*  45960     4CA                                                                                                      
+            i                                           FQCONO#    45960                                                                        
+            i     IHOETRCH*  45E30     2A6                                                                                                      
+            i                                           IHOTRCH    45E30    ERRTRA     45E38                                                    
+            i     IHOFTEN *  460D8     198                                                                                                      
+            i                                           FTEN#      460D8                                                                        
+            i     BLOCK1     46270   108A4                                                                                                      
+           
+ 1785:  9   i                                                                                                                                   
+            i                                                                                                                                   
+            i    ENTRY ADDRESS       00                                                                                                         
+            i  0 TOTAL LENGTH     56B18                                                                                                         
+            i   ****TRACE     DOES NOT EXIST BUT HAS BEEN ADDED TO DATA SET                                                                     
+            i   AUTHORIZATION CODE IS         0.                                                                                                
+            i                                                                                                                                   
+            i  1**** 370 INSTRUCTION INTERPRETER ****  (INTRACER VERSION V5.3 - 76AUG15)                                                        
+            i  -MODULE LOADED FOR TRACE: LINSY2   AT 4C79D0 LENGTH 011630  ON  76.228 18.02.19                                                  
+            i                                                                                                                                   
+            i  0PROGRAM TERMINATED WITH RETURN CODE 000000                                                                                      
+            i  -      6,416,950 INSTRUCTIONS TRACED,       1,389 LOGICAL RECORDS OF LENGTH 13028 BYTES WERE WRITTEN.                            
+            i  -     75.027 SECONDS USED BY INTERPRETER SUBTASK.                                                                                
+           
+ 1785:  9   i  1*** INSTRUCTION TRACE ANALYSIS PROGRAM ***  (ANALYSIS VERSION V4.2  23 JULY 76)                                                 
+            i  0                                            (ASSEMBLED ON 08/15/76 AT 17.50   )                                                 
+            i  -TRACE INTERPRETER USED WAS VERSION NUMBER V5.3    76AUG15                                                                       
+            i  0THE INSTRUCTION TRACE ENTRIES CONTAIN ONLY OPCODES AND ADDRESSES                                                                
+            i  0PROGRAM TRACED: LINSY2                                                                                                          
+            i  0TRACING BEGAN IMMEDIATELY                                                                                                       
+            i  0SAMPLING PARAMETERS:  (-1 IS INFINITY)     SAMPSKIP =         0                                                                 
+            i                                              SAMPON   =        -1                                                                 
+            i                                              SAMPOFF  =         0                                                                 
+            i                                              SAMPCNT  =        -1                                                                 
+            i  -TRACE OF LINSY2   ON  76.228  AT 18.02.19                                                                                       
+            i                                                                                                                                   
+            i                      PGM START = 4C79D0,  LENGTH = 011630,   END OF MEASURED BLOCK = 4D9000                                       
+           
+ 1785:  9   i  -REFERENCE HISTOGRAM BUCKET SIZE IS    8 BYTES                                                                                   
+            i  0                                                                                                                                
+            i  -***    2.79 SEC FOR OPCODE FREQUENCY LOOK-AHEAD.                                                                                
+            i  0***    2.79 SEC SINCE BEGINNING OF PROCESSING                                                                                   
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i  1INSTRUCTION CLASS ASSIGNMENTS                                                                                                   
+            i                                                                                                                                   
+            i  0CLASS  1 CONTAINS 2-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS   2.0000                                      
+            i                                                                                                                                   
+            i            LPR     LNR     LTR     LCR     NR      CLR     OR      XR      LR      CR                                             
+            i            AR      SR      ALR     SLR     LPDR    LNDR    LTDR    LCDR    LDR     LPER                                           
+            i            LNER    LTER    LCER    LER                                                                                            
+           
+ 1785:  9   i  0CLASS  2 CONTAINS 2-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS   3.6000                                      
+            i                                                                                                                                   
+            i            BCTR    CDR     HER     LRER    CER                                                                                    
+            i  0CLASS  3 CONTAINS 2-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS   5.5000                                      
+            i                                                                                                                                   
+            i            SPM     BCR     HDR                                                                                                    
+            i  0CLASS  4 CONTAINS 2-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS  35.4119                                      
+            i                                                                                                                                   
+            i            BALR    SSK     ISK     SVC     MVCL    CLCL    MR      DR      LRDR    MXR                                            
+            i            MXDR    ADR     SDR     MDR     DDR     AWR     SWR     AXR     SXR     AER                                            
+            i            SER     MER     DER     AUR     SUR                                                                                    
+            i  0CLASS  5 CONTAINS 4-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS   2.0000                                      
+            i                                                                                                                                   
+           
+ 1785:  9   i            STH     LA      STC     IC      LH      CH      AH      SH      ST      N                                              
+            i            CL      O       X       L       C       A       S       AL      SL      LD                                             
+            i            STE     LE      SRL     SLL     SRA     SLA     SRDL    TM      MVI     CLI                                            
+            i            STCT    CLM                                                                                                            
+            i  0CLASS  6 CONTAINS 4-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS   3.6273                                      
+            i                                                                                                                                   
+            i            BC      STD     CD      CE      SLDL    SRDA    SLDA    NI      OI      XI                                             
+            i            STCM                                                                                                                   
+            i  0CLASS  7 CONTAINS 4-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS   6.0000                                      
+            i                                                                                                                                   
+            i            MC                                                                                                                     
+            i  0CLASS  8 CONTAINS 4-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS  46.8500                                      
+            i                                                                                                                                   
+           
+ 1785:  9   i            EX      BAL     BCT     MH      CVD     CVB     M       D       MXD     AD                                             
+            i            SD      MD      DD      AW      SW      AE      SE      ME      DE      AU                                             
+            i            SU      SSM     LPSW    WRD     RDD     BXH     BXLE    STM     TS      LM                                             
+            i            SIO     TIO     HIO     TCH     STNS    STOS    LRA     STCK    LCTL    CS                                             
+            i            CDS     ICM                                                                                                            
+            i  0CLASS  9 CONTAINS 6-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS   6.0000                                      
+            i                                                                                                                                   
+            i            MVN                                                                                                                    
+            i  0CLASS 10 CONTAINS 6-BYTE INSTRUCTIONS.  THE AVERAGE NUMBER OF EXECUTION CYCLES IS  49.0500                                      
+            i                                                                                                                                   
+            i            MVC     MVZ     NC      CLC     OC      XC      TR      TRT     ED      EDMK                                           
+            i            SRP     MVO     PACK    UNPK    ZAP     CP      AP      SP      MP      DP                                             
+            i                                                                                                                                   
+           
+ 1785:  9   i  -ADDRESS TRACE GENERATION IS SUPPRESSED                                                                                          
+            i                                                                                                                                   
+            i  -        0. PACK INSTRUCTIONS, OF WHICH 0.0    % HAD OVERLAPPED OPERANDS                                                         
+            i  1****** REGISTER USE IN EFFECTIVE ADDRESS CALCULATIONS ******                                                                    
+            i                                                                                                                                   
+            i      REG          SS/SI BASE-REGISTER       RX BASE REGISTER      RX INDEX REGISTER                                               
+            i                                                                                                                                   
+            i       0         131947  18.8196%         129802   4.3412%        1366948  45.7176%                                                
+            i       1             48   0.0068%            180   0.0060%          25504   0.8530%                                                
+            i       2            115   0.0164%            130   0.0043%         418503  13.9968%                                                
+            i       3              0   0.0   %             32   0.0011%          38150   1.2759%                                                
+            i       4              6   0.0009%             70   0.0023%          99995   3.3443%                                                
+            i       5              3   0.0004%          27300   0.9130%          25003   0.8362%                                                
+           
+ 1785:  9   i       6             51   0.0073%        1313275  43.9225%          25500   0.8528%                                                
+            i       7             16   0.0023%          25507   0.8531%         821740  27.4831%                                                
+            i       8            101   0.0144%            692   0.0231%              0   0.0   %                                                
+            i       9             18   0.0026%          12742   0.4262%          12257   0.4099%                                                
+            i      10              0   0.0   %              1   0.0000%            493   0.0165%                                                
+            i      11              0   0.0   %          12751   0.4265%            990   0.0331%                                                
+            i      12            155   0.0221%         329648  11.0251%              0   0.0   %                                                
+            i      13         517611  73.8269%         726761  24.3065%          25501   0.8529%                                                
+            i      14              3   0.0004%         101013   3.3784%         129380   4.3271%                                                
+            i      15          51040   7.2798%         310080  10.3706%             20   0.0007%                                                
+            i  -RX EFFECTIVE ADDRESS CALCULATIONS:       1366948  45.7176%   X-REGISTER WAS ZERO                                                
+            i                                             129802   4.3412%   B-REGISTER WAS ZERO                                                
+            i                                              27777   0.9290%   BOTH X- AND B-REGISTERS WERE ZERO                                  
+           
+ 1785:  9   i                                                                                                                                   
+            i                                              27777   0.9290%   USED NO REGISTERS                                                  
+            i                                            1441196  48.2008%   USED ONE REGISTER                                                  
+            i                                            1521011  50.8702%   USED TWO REGISTERS                                                 
+            i                                                                                                                                   
+            i  -DISTRIBUTION OF BASE AND INDEX REGISTERS FOR RX ADDRESS CALCULATIONS                                                            
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i                                                         INDEX                                                                     
+            i                                                                                                                                   
+            i   BASE       0       1       2       3       4       5       6       7       8       9      10      11      12      13      14    
+         15 i                                                                                                                                   
+            i    0    0.9290  0.8530  0.0003  0.0     0.0001  0.0001  0.0     0.0     0.0     0.0002  0.0     0.0     0.0     0.8529  1.7057  0.
+       0   
+ 1785:  9   i    1    0.0060  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i    2    0.0043  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i    3    0.0011  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i    4    0.0023  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i    5    0.0016  0.0     0.0     0.0294  0.8362  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0458  0.
+       0    i    6    0.0018  0.0    13.5529  0.8194  2.4917  0.0     0.0    27.0403  0.0     0.0     0.0     0.0164  0.0     0.0     0.0     0.
+       0    i    7    0.0006  0.0     0.0     0.0     0.0     0.8358  0.0167  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i    8    0.0054  0.0     0.0007  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0167  0.0     0.0     0.0003  0.
+       0    i    9    0.0000  0.0     0.0000  0.4261  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i   10    0.0000  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i   11    0.0002  0.0     0.0001  0.0     0.0     0.0000  0.0     0.4261  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i   12   11.0250  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0001  0.0     0.0     0.0     0.0     0.
+       0    i   13   23.0269  0.0     0.4261  0.0     0.0     0.0     0.8361  0.0167  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0007
+ 1785:  9   i   14    3.3784  0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.
+       0    i   15    7.3348  0.0     0.0167  0.0010  0.0164  0.0003  0.0     0.0     0.0     0.4097  0.0164  0.0     0.0     0.0     2.5753  0.
+       0    i  0                                                                                                                                
+            i  -***  358.12 SEC FOR PROCESSING THE ENTIRE FILE.                                                                                 
+            i  0***  360.91 SEC SINCE BEGINNING OF PROCESSING                                                                                   
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i  0      1389 LOGICAL RECORDS OF LENGTH 13028 WERE READ                                                                            
+            i                                                                                                                                   
+            i  1TOTAL # OF INSTRUCTIONS ANALYZED:   6416950                                                                                     
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i   INSTRUCTIONS ANALYZED, BY TYPE                                                                                                  
+           
+ 1785:  9   i                                                                                                                                   
+            i               2725871 RR,  42.479%                                                                                                
+            i               3015495 RX,  46.993%                                                                                                
+            i                     0  S,   0.0  %                                                                                                
+            i                 25869 SI,   0.403%                                                                                                
+            i                624185 RS,   9.727%                                                                                                
+            i                 25530 SS,   0.398%                                                                                                
+            i                                                                                                                                   
+            i  -INSTRUCTIONS ANALYZED, BY LENGTH                                                                                                
+            i                                                                                                                                   
+            i               2725871 2-BYTE,  42.479%                                                                                            
+            i               3665549 4-BYTE,  57.123%                                                                                            
+            i                 25530 6-BYTE,   0.398%                                                                                            
+           
+ 1785:  9   i                                                                                                                                   
+            i  0AVERAGE INSTRUCTION LENGTH IS 3.158 BYTES                                                                                       
+            i                                                                                                                                   
+            i  -MEMORY REQUESTS AND MEMORY ACCESS COUNTS                                                                                        
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i    IBM ACCESSES ARE TO A DOUBLEWORD AND ARE DOUBLEWORD ALIGNED.                                                                   
+            i                                                                                                                                   
+            i    AMDAHL ACCESSES ARE TO A FULLWORD AND ARE NOT ALIGNED.                                                                         
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i                                         READ          WRITE      INST. FETCH         ALL     RD/INST    WR/INST                   
+            i  0NO. OF MEMORY REQUESTS             1904140.        877846.       6416950.       9198936.     0.2967     0.1368                  
+           
+ 1785:  9   i  0NO. OF BYTES REQUESTED            11763954.       5558227.      20267118.      37589299.                                        
+            i  0AVG. BYTES/REQUEST                    6.178          6.332          3.158          4.086                                        
+            i  0NO. OF IBM ACCESSES                1904696.        903889.       3711426.       6520011.                                        
+            i  0NO. OF AMDAHL ACCESSES             2960482.       1427876.       6846317.      11234675.                                        
+            i  0NO. OF AMDAHL LINE CROSSINGS            82.            21.        561054.        561157.                                        
+            i  -   IBM HAD         64515. CACHE MISSES OUT OF       6520011. REFERENCES, FOR A HIT RATIO OF   0.9901, OR  99.464 INSTR/MISS     
+            i  0AMDAHL HAD         70636. CACHE MISSES OUT OF      11234675. REFERENCES, FOR A HIT RATIO OF   0.9937, OR  90.845 INSTR/MISS     
+            i  0MISS PENALTY:    0.0310 FOR IBM,     0.0530 FOR AMDAHL.                                                                         
+            i  0CROSSING PENALTY:    0.0365 FOR AMDAHL.                                                                                         
+            i  1                    ***** PARAMETER VALUES *****                                                                                
+            i                                                                                                                                   
+            i                                                                                                                                   
+            i                           C_NC0           =           0                                                                           
+           
+ 1785:  9   i                           C_NC1           =           0                                                                           
+            i                           C_NC2           =           0                                                                           
+            i                           C_DP0           =           0                                                                           
+            i                           C_DP1           =           0                                                                           
+            i                           C_XC0           =           1                                                                           
+            i                           C_XC1           =           0                                                                           
+            i                           C_XC2           =           0                                                                           
+            i                           C_XC3           =           0                                                                           
+            i                           C_MVC0          =       25516                                                                           
+            i                           C_MVC1          =           0                                                                           
+            i                           C_MVC2          =           0                                                                           
+            i                           C_MVC3          =           0                                                                           
+            i                           C_MVC4          =          11                                                                           
+           
+endfile
+there were 39 data blocks with 64,500 bytes, and 1 tapemarks
+no blocks had errors

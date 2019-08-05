@@ -1,0 +1,90 @@
+this is readtape version 3.7, compiled on Aug  4 2019 22:08:28, running on Sun Aug  4 22:12:59 2019
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: readtape -v -m -ntrks=9 -pe -bpi=1600 -ips=50 -tap -ebcdic -linesize=137 -outp=results\ LJS009_part1_39blks 
+  current directory: C:\data\projects\magtape_reader\readtape\examples\9trk_PE
+  this is a little-endian computer
+  For more information, see, https://github.com/LenShustek/readtape
+reading file LJS009_part1_39blks.tbin
+the output files will be results\LJS009_part1_39blks.xxx
+.tbin file header
+   description: IBM 360 instruction set utilization data
+   created on:   Sun Jan 21 00:00:00 1978
+   converted on: Sun Aug  4 17:08:44 2019
+   max voltage: 3.7V
+   time between samples: 0.640 usec
+   using .tbin ntrks = 9
+no .parms file was found, so we're using these internal defaults for the PE parameter sets:
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak, clk_factor,  pulse_adj,pkww_bitfrac,  pkww_rise,  id
+  {            1,          0,      0.200,          5,      0.000,      0.000,      1.500,      0.400,      0.700,      0.100,   PRM}
+  {            1,          0,      0.200,          5,      0.000,      0.100,      1.500,      0.400,      0.700,      0.100,   PRM}
+  {            1,          3,      0.000,          5,      0.000,      0.000,      1.400,      0.000,      0.700,      0.100,   PRM}
+  {            1,          3,      0.000,          5,      0.000,      0.000,      1.400,      0.200,      0.700,      0.100,   PRM}
+  {            1,          5,      0.000,          5,      0.000,      0.000,      1.400,      0.000,      0.700,      0.100,   PRM}
+  {            1,          5,      0.000,          5,      0.000,      0.000,      1.500,      0.200,      0.700,      0.100,   PRM}
+  {            1,          5,      0.000,          5,      0.000,      0.000,      1.400,      0.400,      0.700,      0.100,   PRM}
+  {            1,          3,      0.000,          5,      0.000,      0.000,      1.400,      0.200,      0.700,      0.100,   PRM}
+compile-time decoding constants
+  peak height closeness threshold: 0.005
+  nominal peak height for rise calculation: 2.0V
+  AGC maximum: 20
+  PE idle treshold: 2.50 bits
+configuration
+  9 track PE, odd parity, 1600 BPI at 50 IPS (12.50 usec/bit)
+  sampling rate is 1,562,500 Hz (0.64 usec)
+  starting peak window is 13 samples (8.32 usec)
+  track ordering: 0(msb)1234567(lsb)p
+*** tape label VOL1, serno "LJS009", owner "L SHUSTEK"
+creating file "results\LJS009_part1_39blks.tap"
+creating file "results\LJS009_part1_39blks.EBCDIC.txt"
+wrote block   1,   80 bytes, 1 tries, parmset 0, max AGC 1.27, ok, avg speed 51.42 IPS at time 9.7585210
+*** tape label HDR1, dsid ".BLP.TRACE.LINSY2", serno "LJS009", created 78021
+    volume 0001, dataset 0001
+wrote block   2,   80 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 50.14 IPS at time 9.7736563
+*** tape label HDR2, RECFM=VB, BLKSIZE=01918, LRECL=00137
+    job: "LJSCG332/TPCPY"
+wrote block   3,   80 bytes, 1 tries, parmset 0, max AGC 1.40, ok, avg speed 50.09 IPS at time 9.7890906
+*** tapemark after block 3 at file position 3,125,632, time 9.8629862
+wrote block   4, 1785 bytes, 1 tries, parmset 0, max AGC 7.44, ok, avg speed 50.78 IPS at time 9.9654445
+wrote block   5, 1785 bytes, 1 tries, parmset 0, max AGC 1.43, ok, avg speed 50.85 IPS at time 10.0017510
+wrote block   6, 1785 bytes, 1 tries, parmset 0, max AGC 1.67, ok, avg speed 49.35 IPS at time 10.0383987
+wrote block   7, 1785 bytes, 1 tries, parmset 0, max AGC 2.00, ok, avg speed 50.58 IPS at time 10.0745805
+wrote block   8, 1785 bytes, 1 tries, parmset 0, max AGC 2.82, ok, avg speed 50.97 IPS at time 10.1106099
+wrote block   9, 1785 bytes, 1 tries, parmset 0, max AGC 20.00, ok, avg speed 49.96 IPS at time 10.1472262
+wrote block  10, 1785 bytes, 1 tries, parmset 0, max AGC 5.55, ok, avg speed 49.46 IPS at time 10.1842048
+wrote block  11, 1785 bytes, 1 tries, parmset 0, max AGC 1.42, ok, avg speed 50.32 IPS at time 10.2207718
+wrote block  12, 1785 bytes, 1 tries, parmset 0, max AGC 1.88, ok, avg speed 51.29 IPS at time 10.2570618
+wrote block  13, 1785 bytes, 1 tries, parmset 0, max AGC 2.63, ok, avg speed 51.00 IPS at time 10.2933741
+wrote block  14, 1785 bytes, 1 tries, parmset 0, max AGC 1.45, ok, avg speed 50.08 IPS at time 10.3300608
+wrote block  15, 1785 bytes, 1 tries, parmset 0, max AGC 1.57, ok, avg speed 50.02 IPS at time 10.3668179
+wrote block  16, 1785 bytes, 1 tries, parmset 0, max AGC 20.00, ok, avg speed 50.52 IPS at time 10.4031603
+wrote block  17, 1785 bytes, 1 tries, parmset 0, max AGC 1.35, ok, avg speed 50.56 IPS at time 10.4395149
+wrote block  18, 1785 bytes, 1 tries, parmset 0, max AGC 1.64, ok, avg speed 49.80 IPS at time 10.4763053
+wrote block  19, 1785 bytes, 1 tries, parmset 0, max AGC 2.09, ok, avg speed 49.67 IPS at time 10.5129504
+wrote block  20, 1785 bytes, 1 tries, parmset 0, max AGC 2.91, ok, avg speed 50.07 IPS at time 10.5494298
+wrote block  21, 1785 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 50.65 IPS at time 10.5857971
+wrote block  22, 1785 bytes, 1 tries, parmset 0, max AGC 2.30, ok, avg speed 50.32 IPS at time 10.6224166
+wrote block  23, 1785 bytes, 1 tries, parmset 0, max AGC 1.58, ok, avg speed 50.25 IPS at time 10.6589498
+wrote block  24, 1785 bytes, 1 tries, parmset 0, max AGC 1.39, ok, avg speed 50.43 IPS at time 10.6955021
+wrote block  25, 1785 bytes, 1 tries, parmset 0, max AGC 1.51, ok, avg speed 50.97 IPS at time 10.7316768
+wrote block  26, 1785 bytes, 1 tries, parmset 0, max AGC 1.37, ok, avg speed 50.64 IPS at time 10.7682432
+wrote block  27, 1785 bytes, 1 tries, parmset 0, max AGC 1.27, ok, avg speed 50.28 IPS at time 10.8049510
+wrote block  28, 1785 bytes, 1 tries, parmset 0, max AGC 1.35, ok, avg speed 49.86 IPS at time 10.8416051
+wrote block  29, 1785 bytes, 1 tries, parmset 0, max AGC 2.13, ok, avg speed 50.17 IPS at time 10.8779949
+wrote block  30, 1785 bytes, 1 tries, parmset 0, max AGC 1.50, ok, avg speed 50.10 IPS at time 10.9146214
+wrote block  31, 1785 bytes, 1 tries, parmset 0, max AGC 1.31, ok, avg speed 50.07 IPS at time 10.9512595
+wrote block  32, 1785 bytes, 1 tries, parmset 0, max AGC 1.67, ok, avg speed 49.87 IPS at time 10.9880934
+wrote block  33, 1785 bytes, 1 tries, parmset 0, max AGC 3.87, ok, avg speed 50.26 IPS at time 11.0245075
+wrote block  34, 1785 bytes, 1 tries, parmset 0, max AGC 1.65, ok, avg speed 50.40 IPS at time 11.0611994
+wrote block  35, 1785 bytes, 1 tries, parmset 0, max AGC 1.67, ok, avg speed 50.24 IPS at time 11.0980115
+wrote block  36, 1785 bytes, 1 tries, parmset 0, max AGC 1.76, ok, avg speed 51.36 IPS at time 11.1340186
+wrote block  37, 1785 bytes, 1 tries, parmset 0, max AGC 1.38, ok, avg speed 50.85 IPS at time 11.1704083
+wrote block  38, 1785 bytes, 1 tries, parmset 0, max AGC 2.02, ok, avg speed 50.04 IPS at time 11.2073485
+wrote block  39, 1785 bytes, 1 tries, parmset 0, max AGC 1.40, ok, avg speed 49.72 IPS at time 11.2441792
+output file was closed at time 11.2442003 with 64,500 data bytes extracted from 39 blocks
+2,331,780 samples were processed in 2 seconds, or 0.051 seconds/block
+detected 1 tape marks
+created 1 output files with 39 blocks and 64,859 total bytes
+0 blocks had errors, 0 had mismatched tracks, 0 had bits corrected
+0 good blocks had to try more than one parmset
+parmset 0 was tried   41 times and used   40 times, or  97.6%
+created statistics file "results\LJS009_part1_39blks.peakstats.csv" from 1,125,742 measurements of flux transition positions

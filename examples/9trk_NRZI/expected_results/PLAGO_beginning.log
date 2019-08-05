@@ -1,0 +1,257 @@
+this is readtape version 3.7, compiled on Aug  4 2019 22:08:28, running on Sun Aug  4 22:12:55 2019
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: readtape -v -m -nrzi -ips=50 -deskew -ebcdic -linefeed -outp=results\ PLAGO_beginning 
+  current directory: C:\data\projects\magtape_reader\readtape\examples\9trk_NRZI
+  this is a little-endian computer
+  For more information, see, https://github.com/LenShustek/readtape
+reading file PLAGO_beginning.tbin
+the output files will be results\PLAGO_beginning.xxx
+.tbin file header
+   description: PLAGO first 3 files
+   created on:   Sun Jun 30 00:00:00 1970
+   converted on: Thu Aug  1 20:08:43 2019
+   max voltage: 4.6V
+   time between samples: 1.280 usec
+   using .tbin ntrks = 9
+   using .tbin mode = NRZI
+no .parms file was found, so we're using these internal defaults for the NRZI parameter sets:
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak,  pulse_adj,pkww_bitfrac,  pkww_rise,     midbit,  id
+  {            1,          0,      0.200,          0,      0.300,      1.000,      0.300,      0.700,      0.200,      0.500,   PRM}
+  {            1,          0,      0.300,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM}
+  {            1,          2,      0.000,          0,      0.300,      1.000,      0.400,      0.700,      0.200,      0.500,   PRM}
+  {            1,          0,      0.600,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM}
+  {            1,          2,      0.000,          1,      0.000,      0.500,      0.500,      0.900,      0.050,      0.500,   PRM}
+  {            1,          0,      0.200,          1,      0.000,      1.000,      0.500,      0.700,      0.050,      0.500,   PRM}
+  {            1,          2,      0.000,          1,      0.000,      0.500,      0.500,      0.700,      0.050,      0.500,   PRM}
+  {            1,          0,      0.600,          1,      0.000,      0.500,      0.500,      0.600,      0.050,      0.500,   PRM}
+compile-time decoding constants
+  peak height closeness threshold: 0.005
+  nominal peak height for rise calculation: 2.0V
+  AGC maximum: 20
+configuration
+  9 track NRZI, odd parity, 0 BPI at 50 IPS
+  sampling rate is 781,250 Hz (1.28 usec)
+  starting peak window is 8 samples (10.24 usec)
+  track ordering: 0(msb)1234567(lsb)p
+  density set to 800 BPI (25.00 usec/bit) after reading 1 blocks and seeing 9,999 transitions in 69 bins that imply 860 BPI
+preprocessing to determine head skew...
+skew compensation after reading 10 blocks:
+  track 0 delayed by 1 clocks (1.28 usec) based on 1271 observed flux transitions
+  track 1 delayed by 2 clocks (2.56 usec) based on 5013 observed flux transitions
+  track 2 delayed by 2 clocks (2.56 usec) based on 524 observed flux transitions
+  track 3 delayed by 3 clocks (3.84 usec) based on 1057 observed flux transitions
+  track 4 delayed by 0 clocks (0.00 usec) based on 852 observed flux transitions
+  track 5 delayed by 3 clocks (3.84 usec) based on 1077 observed flux transitions
+  track 6 delayed by 0 clocks (0.00 usec) based on 748 observed flux transitions
+  track 7 delayed by 3 clocks (3.84 usec) based on 879 observed flux transitions
+  track 8 delayed by 2 clocks (2.56 usec) based on 1236 observed flux transitions
+*** tape label VOL1, serno "PLAGOS", owner " P.I.B."
+*** tape label HDR1, dsid "DOCUMENT", serno "PLAGOS", created 70181
+    volume 0001, dataset 0001
+creating file "results\PLAGO_beginning-001-DOCUMENT.bin"
+*** tape label HDR2, RECFM=FB, BLKSIZE=00800, LRECL=00080
+    job: "LENNY   /STEP1"
+*** tapemark after block 0 at file position 1,576,552, time 3.4757133
+creating file "results\PLAGO_beginning.EBCDIC.txt"
+wrote block   1,  800 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 50.10 IPS at time 3.5081267
+wrote block   2,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 49.69 IPS at time 3.5401216
+wrote block   3,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 49.52 IPS at time 3.5724557
+wrote block   4,  800 bytes, 1 tries, parmset 0, max AGC 1.17, ok, avg speed 50.14 IPS at time 3.6041331
+wrote block   5,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 50.20 IPS at time 3.6363738
+wrote block   6,  800 bytes, 1 tries, parmset 0, max AGC 1.08, ok, avg speed 50.01 IPS at time 3.6685939
+wrote block   7,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 49.50 IPS at time 3.7010266
+wrote block   8,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 49.72 IPS at time 3.7330035
+wrote block   9,  800 bytes, 1 tries, parmset 0, max AGC 1.24, ok, avg speed 50.01 IPS at time 3.7652698
+wrote block  10,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 50.34 IPS at time 3.7973286
+wrote block  11,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 50.00 IPS at time 3.8295206
+wrote block  12,  800 bytes, 1 tries, parmset 0, max AGC 1.08, ok, avg speed 49.65 IPS at time 3.8617101
+wrote block  13,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.66 IPS at time 3.8937357
+wrote block  14,  800 bytes, 1 tries, parmset 0, max AGC 1.11, ok, avg speed 50.13 IPS at time 3.9257958
+wrote block  15,  800 bytes, 1 tries, parmset 0, max AGC 1.31, ok, avg speed 50.24 IPS at time 3.9577446
+wrote block  16,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 50.11 IPS at time 3.9898931
+wrote block  17,  800 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 49.53 IPS at time 4.0219226
+wrote block  18,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 49.64 IPS at time 4.0539558
+wrote block  19,  800 bytes, 1 tries, parmset 0, max AGC 1.11, ok, avg speed 49.99 IPS at time 4.0862733
+wrote block  20,  800 bytes, 1 tries, parmset 0, max AGC 1.11, ok, avg speed 50.41 IPS at time 4.1184230
+wrote block  21,  800 bytes, 1 tries, parmset 0, max AGC 1.11, ok, avg speed 50.14 IPS at time 4.1507610
+wrote block  22,  800 bytes, 1 tries, parmset 0, max AGC 1.08, ok, avg speed 49.67 IPS at time 4.1831206
+wrote block  23,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 49.51 IPS at time 4.2157248
+wrote block  24,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 49.97 IPS at time 4.2478810
+wrote block  25,  800 bytes, 1 tries, parmset 0, max AGC 1.09, ok, avg speed 50.43 IPS at time 4.2801651
+wrote block  26,  800 bytes, 1 tries, parmset 0, max AGC 1.09, ok, avg speed 50.38 IPS at time 4.3120960
+wrote block  27,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 49.64 IPS at time 4.3445517
+wrote block  28,  800 bytes, 1 tries, parmset 0, max AGC 1.22, ok, avg speed 49.59 IPS at time 4.3768358
+wrote block  29,  800 bytes, 1 tries, parmset 0, max AGC 1.11, ok, avg speed 49.86 IPS at time 4.4090368
+wrote block  30,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 50.41 IPS at time 4.4409382
+wrote block  31,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 50.24 IPS at time 4.4732032
+wrote block  32,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 49.96 IPS at time 4.5051597
+wrote block  33,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 49.62 IPS at time 4.5373824
+wrote block  34,  800 bytes, 1 tries, parmset 0, max AGC 1.29, ok, avg speed 49.94 IPS at time 4.5693171
+wrote block  35,  800 bytes, 1 tries, parmset 0, max AGC 1.27, ok, avg speed 50.32 IPS at time 4.6015693
+wrote block  36,  800 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 50.24 IPS at time 4.6335680
+wrote block  37,  800 bytes, 1 tries, parmset 0, max AGC 1.19, ok, avg speed 49.75 IPS at time 4.6655501
+wrote block  38,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.70 IPS at time 4.6978586
+wrote block  39,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 50.04 IPS at time 4.7302374
+wrote block  40,  800 bytes, 1 tries, parmset 0, max AGC 1.22, ok, avg speed 50.45 IPS at time 4.7623117
+wrote block  41,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 50.18 IPS at time 4.7946278
+wrote block  42,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 49.93 IPS at time 4.8271219
+wrote block  43,  800 bytes, 1 tries, parmset 0, max AGC 1.25, ok, avg speed 49.62 IPS at time 4.8590118
+wrote block  44,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 49.94 IPS at time 4.8911936
+wrote block  45,  800 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 50.27 IPS at time 4.9233587
+wrote block  46,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 50.36 IPS at time 4.9554586
+wrote block  47,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 49.87 IPS at time 4.9873843
+wrote block  48,  800 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 49.73 IPS at time 5.0195238
+wrote block  49,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.88 IPS at time 5.0518784
+wrote block  50,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 50.31 IPS at time 5.0839910
+wrote block  51,  800 bytes, 1 tries, parmset 0, max AGC 1.30, ok, avg speed 50.45 IPS at time 5.1158054
+wrote block  52,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 49.98 IPS at time 5.1479693
+wrote block  53,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 49.52 IPS at time 5.1800486
+wrote block  54,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 49.97 IPS at time 5.2117939
+wrote block  55,  800 bytes, 1 tries, parmset 0, max AGC 1.27, ok, avg speed 50.31 IPS at time 5.2441318
+wrote block  56,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 50.54 IPS at time 5.2760461
+wrote block  57,  800 bytes, 1 tries, parmset 0, max AGC 1.19, ok, avg speed 49.93 IPS at time 5.3082406
+wrote block  58,  800 bytes, 1 tries, parmset 0, max AGC 1.17, ok, avg speed 49.76 IPS at time 5.3402752
+wrote block  59,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 49.95 IPS at time 5.3721485
+wrote block  60,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 50.41 IPS at time 5.4039872
+wrote block  61,  800 bytes, 1 tries, parmset 0, max AGC 1.19, ok, avg speed 50.46 IPS at time 5.4359910
+wrote block  62,  800 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 50.14 IPS at time 5.4681971
+wrote block  63,  800 bytes, 1 tries, parmset 0, max AGC 1.69, ok, avg speed 49.75 IPS at time 5.5004954
+wrote block  64,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 49.98 IPS at time 5.5323379
+wrote block  65,  800 bytes, 1 tries, parmset 0, max AGC 1.26, ok, avg speed 50.29 IPS at time 5.5642854
+wrote block  66,  800 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 50.49 IPS at time 5.5962778
+wrote block  67,  800 bytes, 1 tries, parmset 0, max AGC 1.06, ok, avg speed 49.98 IPS at time 5.6287437
+wrote block  68,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 49.64 IPS at time 5.6608230
+wrote block  69,  800 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 49.98 IPS at time 5.6928192
+wrote block  70,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 50.32 IPS at time 5.7246797
+wrote block  71,  800 bytes, 1 tries, parmset 0, max AGC 1.25, ok, avg speed 50.49 IPS at time 5.7570406
+wrote block  72,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 50.03 IPS at time 5.7895718
+wrote block  73,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 49.71 IPS at time 5.8217293
+wrote block  74,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 49.97 IPS at time 5.8535718
+wrote block  75,  800 bytes, 1 tries, parmset 0, max AGC 1.19, ok, avg speed 50.37 IPS at time 5.8853414
+wrote block  76,  800 bytes, 1 tries, parmset 0, max AGC 1.26, ok, avg speed 50.54 IPS at time 5.9172582
+wrote block  77,  800 bytes, 1 tries, parmset 0, max AGC 1.06, ok, avg speed 50.17 IPS at time 5.9494490
+wrote block  78,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 49.65 IPS at time 5.9817600
+wrote block  79,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 49.87 IPS at time 6.0140429
+wrote block  80,  800 bytes, 1 tries, parmset 0, max AGC 1.40, ok, avg speed 50.21 IPS at time 6.0463590
+wrote block  81,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 50.66 IPS at time 6.0782797
+wrote block  82,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 50.17 IPS at time 6.1105498
+wrote block  83,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.85 IPS at time 6.1427187
+wrote block  84,  800 bytes, 1 tries, parmset 0, max AGC 1.09, ok, avg speed 49.78 IPS at time 6.1745459
+wrote block  85,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 50.25 IPS at time 6.2067123
+wrote block  86,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 50.57 IPS at time 6.2386534
+wrote block  87,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 50.47 IPS at time 6.2705331
+wrote block  88,  800 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 49.85 IPS at time 6.3029043
+wrote block  89,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 49.93 IPS at time 6.3347571
+wrote block  90,  800 bytes, 1 tries, parmset 0, max AGC 1.34, ok, avg speed 50.22 IPS at time 6.3666419
+wrote block  91,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 50.59 IPS at time 6.3987149
+wrote block  92,  800 bytes, 1 tries, parmset 0, max AGC 1.30, ok, avg speed 50.32 IPS at time 6.4307430
+wrote block  93,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 49.96 IPS at time 6.4625587
+wrote block  94,  800 bytes, 1 tries, parmset 0, max AGC 1.08, ok, avg speed 49.80 IPS at time 6.4944205
+wrote block  95,  800 bytes, 1 tries, parmset 0, max AGC 1.19, ok, avg speed 50.33 IPS at time 6.5261440
+wrote block  96,  800 bytes, 1 tries, parmset 0, max AGC 1.31, ok, avg speed 50.37 IPS at time 6.5581133
+wrote block  97,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 50.26 IPS at time 6.5902899
+wrote block  98,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 49.89 IPS at time 6.6223834
+wrote block  99,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 49.84 IPS at time 6.6545011
+wrote block 100,  800 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 50.16 IPS at time 6.6864909
+wrote block 101,  800 bytes, 1 tries, parmset 0, max AGC 1.26, ok, avg speed 50.54 IPS at time 6.7187418
+wrote block 102,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 50.26 IPS at time 6.7504896
+wrote block 103,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 50.03 IPS at time 6.7824448
+wrote block 104,  800 bytes, 1 tries, parmset 0, max AGC 1.17, ok, avg speed 49.82 IPS at time 6.8147994
+wrote block 105,  800 bytes, 1 tries, parmset 0, max AGC 1.32, ok, avg speed 50.25 IPS at time 6.8469914
+wrote block 106,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 50.47 IPS at time 6.8790054
+wrote block 107,  800 bytes, 5 tries, parmset 4, max AGC 1.27, ok, avg speed 50.49 IPS at time 6.9107904
+wrote block 108,  800 bytes, 1 tries, parmset 0, max AGC 1.19, ok, avg speed 49.84 IPS at time 6.9428762
+wrote block 109,  800 bytes, 1 tries, parmset 0, max AGC 1.17, ok, avg speed 49.75 IPS at time 6.9750080
+wrote block 110,  320 bytes, 1 tries, parmset 0, max AGC 1.11, ok, avg speed 50.61 IPS at time 6.9948813
+*** tapemark after block 110 at file position 52,013,596, time 7.0623475
+output file was closed at time 7.0623475 with 87,520 data bytes extracted from 110 blocks
+*** tape label EOF1, dsid "DOCUMENT", serno "PLAGOS", created 70181
+    volume 0001, dataset 0001
+    block count 000110, system 
+*** tape label EOF2, RECFM=FB, BLKSIZE=00800, LRECL=00080
+    job: "LENNY   /STEP1"
+*** tapemark after block 110 at file position 53,358,268, time 7.1579686
+*** tape label HDR1, dsid "PLAGO", serno "PLAGOS", created 70181
+    volume 0001, dataset 0002
+creating file "results\PLAGO_beginning-002-PLAGO.bin"
+*** tape label HDR2, RECFM=FB, BLKSIZE=00800, LRECL=00080
+    job: "LENNY   /STEP2"
+*** tapemark after block 0 at file position 54,707,872, time 7.2539405
+wrote block 111,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 50.09 IPS at time 7.2862029
+wrote block 112,  800 bytes, 1 tries, parmset 0, max AGC 1.29, ok, avg speed 50.51 IPS at time 7.3181466
+wrote block 113,  160 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.52 IPS at time 7.3345958
+*** tapemark after block 3 at file position 56,788,618, time 7.4019046
+output file was closed at time 7.4019046 with 1,760 data bytes extracted from 3 blocks
+*** tape label EOF1, dsid "PLAGO", serno "PLAGOS", created 70181
+    volume 0001, dataset 0002
+    block count 000003, system 
+*** tape label EOF2, RECFM=FB, BLKSIZE=00800, LRECL=00080
+    job: "LENNY   /STEP2"
+*** tapemark after block 3 at file position 58,139,320, time 7.4979546
+*** tape label HDR1, dsid "IDOSEM", serno "PLAGOS", created 70181
+    volume 0001, dataset 0003
+creating file "results\PLAGO_beginning-003-IDOSEM.bin"
+*** tape label HDR2, RECFM=FB, BLKSIZE=00800, LRECL=00080
+    job: "LENNY   /STEP3"
+*** tapemark after block 0 at file position 59,484,712, time 7.5936269
+wrote block 114,  800 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 50.27 IPS at time 7.6256730
+wrote block 115,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.90 IPS at time 7.6575411
+wrote block 116,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 49.89 IPS at time 7.6899149
+wrote block 117,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 50.43 IPS at time 7.7216435
+wrote block 118,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 50.55 IPS at time 7.7539059
+wrote block 119,  800 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 50.23 IPS at time 7.7859994
+wrote block 120,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 49.83 IPS at time 7.8182362
+wrote block 121,  800 bytes, 5 tries, parmset 4, max AGC 1.99, ok, avg speed 49.89 IPS at time 7.8504422
+wrote block 122,  800 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 50.38 IPS at time 7.8825216
+wrote block 123,  800 bytes, 1 tries, parmset 0, max AGC 1.51, ok, avg speed 50.46 IPS at time 7.9143078
+wrote block 124,  800 bytes, 1 tries, parmset 0, max AGC 1.13, ok, avg speed 50.17 IPS at time 7.9462464
+wrote block 125,  800 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 49.91 IPS at time 7.9785971
+wrote block 126,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 49.79 IPS at time 8.0107443
+wrote block 127,  800 bytes, 1 tries, parmset 0, max AGC 1.38, ok, avg speed 50.48 IPS at time 8.0423885
+wrote block 128,  800 bytes, 1 tries, parmset 0, max AGC 1.17, ok, avg speed 50.34 IPS at time 8.0747443
+wrote block 129,  800 bytes, 1 tries, parmset 0, max AGC 1.29, ok, avg speed 50.21 IPS at time 8.1068672
+wrote block 130,  800 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.78 IPS at time 8.1388288
+wrote block 131,  800 bytes, 1 tries, parmset 0, max AGC 1.42, ok, avg speed 49.85 IPS at time 8.1708173
+wrote block 132,  800 bytes, 1 tries, parmset 0, max AGC 1.37, ok, avg speed 50.25 IPS at time 8.2030554
+wrote block 133,  800 bytes, 1 tries, parmset 0, max AGC 1.27, ok, avg speed 50.60 IPS at time 8.2352883
+wrote block 134,  800 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 50.43 IPS at time 8.2673357
+wrote block 135,  800 bytes, 1 tries, parmset 0, max AGC 1.25, ok, avg speed 49.94 IPS at time 8.2996058
+wrote block 136,  800 bytes, 1 tries, parmset 0, max AGC 1.21, ok, avg speed 49.64 IPS at time 8.3315034
+wrote block 137,  800 bytes, 1 tries, parmset 0, max AGC 1.24, ok, avg speed 50.22 IPS at time 8.3635098
+wrote block 138,  800 bytes, 1 tries, parmset 0, max AGC 1.28, ok, avg speed 50.56 IPS at time 8.3954163
+wrote block 139,  800 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 50.53 IPS at time 8.4275149
+wrote block 140,  800 bytes, 1 tries, parmset 0, max AGC 1.14, ok, avg speed 49.86 IPS at time 8.4598643
+wrote block 141,  800 bytes, 1 tries, parmset 0, max AGC 1.24, ok, avg speed 49.74 IPS at time 8.4919821
+wrote block 142,  800 bytes, 1 tries, parmset 0, max AGC 1.24, ok, avg speed 50.09 IPS at time 8.5238861
+wrote block 143,  800 bytes, 1 tries, parmset 0, max AGC 1.24, ok, avg speed 50.59 IPS at time 8.5556992
+wrote block 144,  800 bytes, 1 tries, parmset 0, max AGC 1.31, ok, avg speed 50.42 IPS at time 8.5875789
+wrote block 145,  800 bytes, 1 tries, parmset 0, max AGC 1.12, ok, avg speed 50.01 IPS at time 8.6198182
+wrote block 146,  800 bytes, 1 tries, parmset 0, max AGC 1.17, ok, avg speed 49.79 IPS at time 8.6521690
+wrote block 147,  800 bytes, 1 tries, parmset 0, max AGC 1.40, ok, avg speed 50.30 IPS at time 8.6840781
+wrote block 148,  800 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 50.41 IPS at time 8.7164595
+wrote block 149,  800 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 50.41 IPS at time 8.7484595
+wrote block 150,  800 bytes, 1 tries, parmset 0, max AGC 1.11, ok, avg speed 50.00 IPS at time 8.7805888
+wrote block 151,  800 bytes, 1 tries, parmset 0, max AGC 1.09, ok, avg speed 49.87 IPS at time 8.8128602
+wrote block 152,  800 bytes, 1 tries, parmset 0, max AGC 1.72, ok, avg speed 50.09 IPS at time 8.8446387
+wrote block 153,  800 bytes, 5 tries, parmset 4, max AGC 2.96, ok, avg speed 50.60 IPS at time 8.8765568
+wrote block 154,  800 bytes, 1 tries, parmset 0, max AGC 1.39, ok, avg speed 50.26 IPS at time 8.9087027
+wrote block 155,  800 bytes, 1 tries, parmset 0, max AGC 1.25, ok, avg speed 50.02 IPS at time 8.9408154
+wrote block 156,   80 bytes, 1 tries, parmset 0, max AGC 1.01, ok, avg speed 48.35 IPS at time 8.9548403
+*** tapemark after block 43 at file position 79,577,518, time 9.0224486
+output file was closed at time 9.0224486 with 33,680 data bytes extracted from 43 blocks
+*** tape label EOF1, dsid "IDOSEM", serno "PLAGOS", created 70181
+    volume 0001, dataset 0003
+    block count 000043, system 
+*** tape label EOF2, RECFM=FB, BLKSIZE=00800, LRECL=00080
+    job: "LENNY   /STEP3"
+4,481,584 samples were processed in 3 seconds, or 0.019 seconds/block
+detected 8 tape marks
+created 3 output files with 156 blocks and 122,960 total bytes
+0 blocks had errors, 0 had mismatched tracks, 0 had bits corrected, 0 had midbit timing errors
+3 good blocks had to try more than one parmset
+parmset 0 was tried  178 times and used  174 times, or  97.8%
+parmset 1 was tried    3 times and used    0 times, or   0.0%
+parmset 2 was tried    3 times and used    0 times, or   0.0%
+parmset 3 was tried    3 times and used    0 times, or   0.0%
+parmset 4 was tried    3 times and used    3 times, or 100.0%
+created statistics file "results\PLAGO_beginning.peakstats.csv" from 309,164 measurements of flux transition positions

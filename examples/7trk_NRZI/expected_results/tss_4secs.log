@@ -1,0 +1,74 @@
+this is readtape version 3.7, compiled on Aug  4 2019 22:08:28, running on Sun Aug  4 22:12:53 2019
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: readtape -v -m -nrzi -ntrks=7 -tap -outp=results\ tss_4secs 
+  current directory: C:\data\projects\magtape_reader\readtape\examples\7trk_NRZI
+  this is a little-endian computer
+  For more information, see, https://github.com/LenShustek/readtape
+reading file tss_4secs.tbin
+the output files will be results\tss_4secs.xxx
+.tbin file header
+   converted on: Sun Aug  4 15:51:38 2019
+   max voltage: 8.0V
+   time between samples: 1.280 usec
+   using .tbin ntrks = 7
+   using .tbin mode = NRZI
+no .parms file was found, so we're using these internal defaults for the NRZI parameter sets:
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak,  pulse_adj,pkww_bitfrac,  pkww_rise,     midbit,  id
+  {            1,          0,      0.200,          0,      0.300,      1.000,      0.300,      0.700,      0.200,      0.500,   PRM}
+  {            1,          0,      0.300,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM}
+  {            1,          2,      0.000,          0,      0.300,      1.000,      0.400,      0.700,      0.200,      0.500,   PRM}
+  {            1,          0,      0.600,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM}
+  {            1,          2,      0.000,          1,      0.000,      0.500,      0.500,      0.900,      0.050,      0.500,   PRM}
+  {            1,          0,      0.200,          1,      0.000,      1.000,      0.500,      0.700,      0.050,      0.500,   PRM}
+  {            1,          2,      0.000,          1,      0.000,      0.500,      0.500,      0.700,      0.050,      0.500,   PRM}
+  {            1,          0,      0.600,          1,      0.000,      0.500,      0.500,      0.600,      0.050,      0.500,   PRM}
+compile-time decoding constants
+  peak height closeness threshold: 0.005
+  nominal peak height for rise calculation: 2.0V
+  AGC maximum: 20
+configuration
+  7 track NRZI, odd parity, 0 BPI at 50 IPS
+  sampling rate is 781,250 Hz (1.28 usec)
+  starting peak window is 8 samples (10.24 usec)
+  track ordering: 0(msb)12345(lsb)p
+  density set to 556 BPI (35.97 usec/bit) after reading 1 blocks and seeing 9,999 transitions in 44 bins that imply 559 BPI
+creating file "results\tss_4secs.tap"
+wrote block   1, 5120 bytes, 1 tries, parmset 0, max AGC 2.04, ok, avg speed 49.69 IPS at time 3.7832486
+wrote block   2, 5120 bytes, 1 tries, parmset 0, max AGC 1.72, ok, avg speed 49.66 IPS at time 3.9860454
+wrote block   3, 5120 bytes, 1 tries, parmset 0, max AGC 1.44, ok, avg speed 49.68 IPS at time 4.1887616
+wrote block   4, 5120 bytes, 1 tries, parmset 0, max AGC 1.38, ok, avg speed 49.66 IPS at time 4.3911501
+wrote block   5, 5120 bytes, 1 tries, parmset 0, max AGC 1.38, ok, avg speed 49.65 IPS at time 4.5939891
+wrote block   6, 5120 bytes, 1 tries, parmset 0, max AGC 1.44, ok, avg speed 49.68 IPS at time 4.7964941
+wrote block   7, 5120 bytes, 1 tries, parmset 0, max AGC 1.37, ok, avg speed 49.66 IPS at time 4.9992934
+wrote block   8, 5120 bytes, 1 tries, parmset 0, max AGC 1.45, ok, avg speed 49.63 IPS at time 5.2019866
+wrote block   9, 5120 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 49.69 IPS at time 5.4046515
+wrote block  10, 5120 bytes, 1 tries, parmset 0, max AGC 1.41, ok, avg speed 49.63 IPS at time 5.6071680
+wrote block  11, 5120 bytes, 1 tries, parmset 0, max AGC 1.28, ok, avg speed 49.74 IPS at time 5.8096589
+wrote block  12, 5120 bytes, 1 tries, parmset 0, max AGC 1.23, ok, avg speed 49.71 IPS at time 6.0121651
+wrote block  13, 5120 bytes, 1 tries, parmset 0, max AGC 1.24, ok, avg speed 49.70 IPS at time 6.2147738
+wrote block  14, 5120 bytes, 1 tries, parmset 0, max AGC 1.31, ok, avg speed 49.76 IPS at time 6.4171354
+wrote block  15, 5120 bytes, 1 tries, parmset 0, max AGC 1.29, ok, avg speed 49.69 IPS at time 6.6193344
+wrote block  16, 5120 bytes, 1 tries, parmset 0, max AGC 1.16, ok, avg speed 49.74 IPS at time 6.8217946
+wrote block  17, 2560 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 49.85 IPS at time 6.9310592
+wrote block  18, 4337 bytes, 8 tries, parmset 0, max AGC 1.36, 1 errs: 1 parity, avg speed 49.75 IPS at time 7.1050394
+wrote block  19,  850 bytes, 1 tries, parmset 0, max AGC 1.15, ok, avg speed 49.82 IPS at time 7.3149363
+wrote block  20, 2150 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 49.90 IPS at time 7.4088550
+wrote block  21, 2700 bytes, 1 tries, parmset 0, max AGC 1.10, ok, avg speed 49.98 IPS at time 7.5224934
+wrote block  22, 1030 bytes, 1 tries, parmset 0, max AGC 1.20, ok, avg speed 49.57 IPS at time 7.5765542
+wrote block  23, 5120 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 49.87 IPS at time 7.7776870
+wrote block  24, 1110 bytes, 1 tries, parmset 0, max AGC 1.18, ok, avg speed 49.68 IPS at time 7.8344858
+output file was closed at time 7.8345011 with 101,777 data bytes extracted from 24 blocks
+3,318,253 samples were processed in 2 seconds, or 0.083 seconds/block
+detected 0 tape marks
+created 1 output files with 24 blocks and 101,997 total bytes
+1 blocks had errors, 0 had mismatched tracks, 0 had bits corrected, 0 had midbit timing errors
+0 good blocks had to try more than one parmset
+parmset 0 was tried   25 times and used   24 times, or  96.0%
+parmset 1 was tried    1 times and used    0 times, or   0.0%
+parmset 2 was tried    1 times and used    0 times, or   0.0%
+parmset 3 was tried    1 times and used    0 times, or   0.0%
+parmset 4 was tried    1 times and used    0 times, or   0.0%
+parmset 5 was tried    1 times and used    0 times, or   0.0%
+parmset 6 was tried    1 times and used    0 times, or   0.0%
+parmset 7 was tried    1 times and used    0 times, or   0.0%
+created statistics file "results\tss_4secs.peakstats.csv" from 271,803 measurements of flux transition positions

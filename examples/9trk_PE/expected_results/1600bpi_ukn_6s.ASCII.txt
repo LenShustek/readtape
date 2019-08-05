@@ -1,0 +1,1141 @@
+file: results\1600bpi_ukn_6s.ASCII.txt
+options:   -ASCII -NEWLINE -LINESIZE=80
+   80: VOL1JUNK                                                                       3
+   80: HDR1                 JUNK  00010000000100 89346 89346 000000DECFILE11A          
+   80: HDR2F0000000000                                   00                            
+tape mark
+tape mark
+   80: EOF1                 JUNK  00010000000100 89346 89346 000000DECFILE11A          
+   80: EOF2F0000000000                                   00                            
+tape mark
+tape mark
+  512: & 
+           !   10%  KEYBOARD AND COMMAND FILE INPUT CHANNEL & 
+         400 ! & 
+         & 
+         & 
+         ! V A R I A B L E    D E F I N I T I O N S & 
+         & 
+         & 
+         & 
+           ! VARIABLE NAME  USED FOR & 
+           ! & 
+           ! C0  COUNT OF LINES READ FROM KB & 
+           ! C0$  STRING CONTAINING NAME OF COMMAND FILE FOR AUTOED & 
+           ! C0%  CHANNEL NO. OF INPUT FOR FILE COPIES & 
+           ! CPCNT%  COUNT OF FILES COPIED & 
+           ! CR$  CARRAIGE RETURN LINE FEED & 
+           ! CRC$  CHR$(13%) & 
+           ! CURRNT$  DEVICE/PPN FOR CURRENT ACCOUNT & 
+           ! D0%  FLAGS INDICATING A DISK D
+  512: EVICE IN STATUS FLAG & 
+           ! DEVBITS% AS ABOVE BUT INCLUDES UNDEFINED LOGICAL NAME FLAG & 
+           ! DEVSTAT% WORK VARIABLE CONTAINING DEVICE STATUS AS RETURNED & 
+           !   BY FILE NAME STRING SCAN & 
+           ! DISPRM$  PROMPT TO REQUEST DISTRIBUTION DEVICE/PPN & 
+           ! E%  VARIABLE SET TO ERROR TYPE CODE & 
+           ! E0%  CHAIN ENTRY FLAG & 
+           ! EXTBITS% BITS IN STRING SCAN STATUS WORD CONCERNING THE & 
+           !   FILENAME EXTENSION & 
+           ! F0%  UTILITY VARIABLE & 
+           ! FLNBITS% BITS IN STRING SCAN STATUS WORD CONCERNING THE &
+  512:  
+           !   FILENAME & 
+           ! I$  VERSION/EDIT NUMBER & 
+           ! I%  UTILITY VARIABLE & 
+           ! IDX%  INDEX INTO DIRECTORY BEING SEARCHED & 
+           ! J%  UTILITY VARIABLE & 
+           ! K0$  STRING CONTAINING "KB:TAPCPY.CMD" & 
+           ! L0%  CHANNEL NUMBER OF OUTPUT FILE IN FILE COPIES & 
+           ! LFC$  CHR$(10%) & 
+           ! LIBPPN$  DEFAULT PPN FOR DISTRIBUTION MEDIA & 
+           ! LOOKUP$  STRING OF WILD CARD SPECIFICATIONS CORRESPONDING & 
+           !   TO ALL FILES REQUESTED IN USER DIALOGUE & 
+           ! M0%(30),M1%(30) UTILITY ARRAY USED IN STRING SCAN
+  512: S & 
+           ! MRG1%  UTILITY VARIABLE & 
+           ! MTFLG%  SET IF DISTRO IS MAGTAPE UNIT & 
+           ! N0%  UTILITY VARIABLE & 
+           ! NL$  A NULL STRING CONSTANT & 
+           ! NPG%  PROJECT NUMBER OF CURRENT USER & 
+           ! NPJ%  PROGRAMMER NUMBER OF CURRENT USER & 
+           ! ODEV$  DEVICE/PPN IN WHICH TO PLACE FILES COPIED FROM & 
+           !   MAGTAPE & 
+           ! OUTPRM$  PROMPT TO REQUEST ABOVE DEV/PPN & 
+           ! P0%  UTILITY VARIABLE & 
+           ! PATCMD$  UTILITY VARIABLE FOR USER COMMAND INPUT & 
+           ! PATDST$  DEV/PPN OF DISTRIBUTION MEDIA AS INPUT B
+  512: Y USER & 
+           ! PATOPT$  DEV/PPN OF OUTPUT ACCOUNT FOR COPY AS INPUT BY USER & 
+           ! PCMD$  UTILITY VARIABLE & 
+           ! PPNBITS% FLAG BITS IN FILE NAME SCAN STATUS WORD & 
+           !   PERTAINING TO PROJECT PROGRAMMER NUMBER & 
+           ! PRTBITS% FLAG BITS IN FILE NAME SCAN STATUS WORD & 
+           !   PERTAINING TO PROTECTION CODE & 
+           ! S0$  FILE NAME STRING SCAN FIP CALL & 
+           ! S0%,S1%  UTILITY VARIABLES & 
+           ! T0-Tn(% OR $) TEMPORARY (SCRATCH) VARIABLES & 
+           ! TOKNXT%  POINTER TO NEXT TOKEN IN STRINGS BEING SCANNED & 
+          
+  512:  ! TST0%  UTILTY VARIABLE & 
+           ! TZERO$  CONSTANT "0" & 
+           ! W%  UTILITY VARIABLE & 
+         800 ! & 
+         & 
+         & 
+         ! F U N C T I O N / S U B R O U T I N E    D E S C . & 
+         & 
+         & 
+         & 
+         ! & 
+         & 
+         & 
+         & 
+         ! S U B R O U T I N E S & 
+         & 
+         & 
+         ! SUBROUTINE LINES  USED FOR & 
+         ! & 
+         ! INIT  10000-10020 INITIALIZE PROGRAM VARIABLES & 
+         ! & 
+         ! CREATE 10100-10120 CREATE SYS CALL TO GET NEXT FILENAME & 
+         !    IN DIRECTORY BEING SEARCED & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N S & 
+         & 
+         & 
+         & 
+         ! FNFLNMCK$(P$,F%,DFLT$) & 
+         !  15000-1
+  512: 5090 RETURN FILE NAME P$ WITH ALL MISSING & 
+         !    PARTS OF NAME (EXTENSION ETC.) & 
+         !    FROM STRING DFLT$.  CHECK STRING & 
+         !    FOR VALIDITY ACCORDING TO FLAG F% & 
+         ! & 
+         ! FNGNXT$(IDX%) 15100-15120 GET IDX%'TH FILE IN DISK BASED & 
+         !    ACCOUNT.  GET NEXT FILENAME IN MAGTAPE & 
+         !    (FIRST REWIND TAPE IF IDX%=0%) & 
+         ! & 
+         ! FNF$(P0$,D0$,F1%,MRG$) & 
+         !  15200-15220 INPUT FILE NAME. P0$ IS USED AS A & 
+         !    PROMPT, DEFAULT RESPONSE IS D0$. & 
+         !    DEFAULTS FOR ANY FIELDS OF RESPONSE & 
+         !    WHIC
+  512: H ARE ABSENT (EXTENSION, ETC.) & 
+         !    ARE TAKEN FROM MRG$ AND THE RESULTING & 
+         !    STRING IS CHECKED FOR VALIDITY USING & 
+         !    FNFLNMCK$ AND FLAG F1% & 
+         ! & 
+         ! FNLKUP$(LKUP0$) & 
+         !  15300-15330 RETURN STRING OF ALL WILD CARD FILE & 
+         !    SPECIFICATIONS WHICH CORRESPOND TO & 
+         !    PACKAGE NAMED BY STRING LKUP0$ & 
+         ! & 
+         ! FNXTOK$(S0$,PNT%) & 
+         !  15400-15410 RETURN NEXT TOKEN IN STRING S0$ & 
+         !    STARTING AT CHARACTER PNT% & 
+         ! & 
+         ! FNWC%(A0$,WC$) & 
+         !  15500-15510 COMPARE WILDCARD STRING WC
+  512: $ WITH A0$ & 
+         ! & 
+         ! FNFLMRG$(A0$,A1$,FLG%) & 
+         !  17300-17395 MERGE FILE NAME STRING A0$ INTO A1$ & 
+         !    BY INSERTING INTO A1$ ALL PARTS OF A0$ & 
+         !    WHICH ARE BOTH MISSING FROM A1$ AND & 
+         !    SELECTED BY BITS IN FLG% & 
+         ! & 
+         ! FNERPRT%(A$) 17400-17410 PRINT ERROR MESSAGE A$ AT KB% & 
+         ! & 
+         ! FNFILCPY%(A0$,A1$) & 
+         !  17500-17530 COPY FILE A0$ INTO FILE A1$ & 
+         ! & 
+         900 ! & 
+         & 
+         & 
+         ! D I M E N S I O N    S T A T E M E N T S & 
+         & 
+         & 
+         
+        920 DIM M0%(30%),M1%(30%) & 
+         1000 ! & 
+         & 
+         & 
+         ! M A 
+  512: I N    C O D I N G    A R E A & 
+         & 
+         & 
+         
+        1010 ON ERROR GOTO 19000 & 
+         \ I$="V8.0-06" & 
+         \ PRINT IF CCPOS(0%) <> 0% & 
+          ! SET UP STANDARD ERROR TRAP & 
+          ! RETURN KB TO LEFT MARGIN & 
+          ! SET UP VERSION/EDIT NUMBER & 
+         
+        1020 PRINT "PATCPY ";I$;CHR$(9%); & 
+         CVT$$(RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(0%)),3%),4%); & 
+         CHR$(13%);CHR$(10%) & 
+           IF E0%=0% & 
+         \ PRIV.OFF$=SYS(CHR$(6%)+CHR$(-21%)) & 
+          ! PRINT THE SYSTEM HEADER FOR A RUN ENTRY & 
+         
+        1025 CHANGE SYS(CHR$(12%)) TO M0% & 
+         \ PKG.DEV$="SY:" & 
+         \ PKG.
+  512: DEV$=CHR$(M0%(23%))+CHR$(M0%(24%)) & 
+          +NUM1$(M0%(25%))+":"+PKG.LOC$ & 
+           IF M0%(26%) AND 1% & 
+          ! SET UP DEVICE OF THE FILE LAST OPENED. & 
+         
+        1030 GOSUB 10000 & 
+         \ OPEN K0$ AS FILE 10% & 
+         & 
+         1039 ! & 
+         & 
+         & 
+         ! I N P U T   F I L E S   T O   C O P Y & 
+         & 
+         
+        1040 PATDST$=FNF$(DISPRM$,PKG.DEV$+LIBPPN$,44%,PKG.DEV$+LIBPPN$) & 
+         \ MTFLG%=DEVSTAT% AND 255% & 
+         \ DSK%=MTFLG%=0% & 
+         \ DES.PPN%=M1%(5%)+SWAP%(M1%(6%)) & 
+         \ GOSUB 10100 & 
+         \ GOTO 1040 IF PATDST$=NL$ & 
+         \ DSK$=FNFLMRG$(PATDST$,"",1%) & 
+         \ I
+  512: F DSK%=0% THEN & 
+          GOTO 1045 & 
+         ELSE & 
+          DSK%=0% & 
+         \  ON ERROR GOTO 1043 & 
+         \ OPEN DSK$+"[0,1]BADB.SYS" FOR INPUT AS FILE 1% & 
+         \ ON ERROR GOTO 19000 & 
+         \ CHANGE SYS(CHR$(12%)) TO M0% & 
+         \ DSK%=M0%(26%) AND 1% & 
+         \ CLOSE 1% & 
+         \ GOTO 1045 & 
+         
+        1043 PRINT RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(ERR)),3%) & 
+         \ RESUME 1040 & 
+         & 
+         
+        1045 CURRNT$="" IF CURRNT$="SY:[1,2]" & 
+         \ PATOPT$=FNF$(OUTPRM$,CURRNT$,60%,CURRNT$) & 
+         \ GOTO 1045 IF FNACCT%(PATOPT$) & 
+         & 
+         
+        1050 PRINT "Packages to patch"; & 
+         \ INPUT L
+  512: INE PATCMD$ & 
+         \ PATCMD$=CVT$$(PATCMD$,39%) & 
+         \ IF PATCMD$ ="?" THEN & 
+          T0$=FNHLPER$ & 
+         \ GOTO 1050 & 
+         & 
+         
+        1053 LOOKUP$=NL$ & 
+         \ TOKNXT%=1% & 
+         \ WHILE TOKNXT% <= LEN(PATCMD$) & 
+         \ PCMD$=FNXTOK$(PATCMD$,TOKNXT%) & 
+         \ T0$=FNLKUP$(PCMD$) & 
+         \ PRINT "?No package named ";PCMD$;" - type ? for help" & 
+           IF T0$=NL$ & 
+         \ GO TO 1050 IF T0$=NL$ & 
+         \ LOOKUP$=LOOKUP$+"," IF (LOOKUP$ <> NL$) & 
+         \ LOOKUP$=LOOKUP$+T0$ & 
+         \ NEXT & 
+         \ GO TO 1060 IF INSTR(1%,LOOKUP$,"*.*") & 
+          ! BUILD THE STRING OF ALL WI
+  512: LDCARD STRINGS WHICH & 
+          ! MAY MATCH THE NEXT FILE FOR IT TO BE ACCEPTED. & 
+          ! IF "ALL" WAS SPECIFIED, SKIP NEXT QUESTION. & 
+         
+        1055 PRINT "Other wild card strings"; & 
+         \ INPUT LINE PATCMD$ & 
+         \ PATCMD$=CVT$$(PATCMD$,39%) & 
+         \ TOKNXT%=1% & 
+         \ WHILE TOKNXT% <= LEN(PATCMD$) & 
+         \ T0$=FNXTOK$(PATCMD$,TOKNXT%) & 
+         \ T0$=FNFLNMCK$(T0$,2%,"*.*") & 
+         \ GO TO 1055 IF T0$=NL$ & 
+         \ LOOKUP$=LOOKUP$+"," IF LOOKUP$ <> NL$ & 
+         \ LOOKUP$=LOOKUP$+T0$ & 
+         \ NEXT & 
+         \ IF LOOKUP$=NL$ & 
+          THEN GO TO 1100 & 
+          ! INPUT
+  512:  OTHER WILD CARD STRINGS OF FILES TO & 
+          ! COPY.  IF NO FILES ARE SPECIFIED, THEN EXIT & 
+         & 
+         1059 ! & 
+         & 
+         & 
+         ! P E R F O R M   C O P Y & 
+         & 
+         
+        1060 IDX%=0% & 
+         \ CPCNT%=0% & 
+         \ WHILE -1% & 
+         \ PATCMD$=FNGNXT$(IDX%) & 
+         \ GO TO 1100 IF PATCMD$=NL$ & 
+         \ IDX%=IDX%+1% & 
+         \ FOUND.PPN%=M0%(5%+(16% AND MTFLG%<>0%))+ & 
+           SWAP%(M0%(6%+(16% AND MTFLG%<>0%))) & 
+         \ PATCMD$=FNFLMRG$(PATCMD$,PATDST$,15%) & 
+          ! GET NEXT STRING TO MATCH & 
+         
+        1070  TOKNXT%=1% & 
+          \ WHILE TOKNXT% <= LEN(LOOKUP$) & 
+          \ T0$=FNX
+  512: TOK$(LOOKUP$,TOKNXT%) & 
+          \ GO TO 1080 IF T0$=NL$ OR DES.PPN%<>FOUND.PPN% & 
+          \ T0$=FNFLMRG$(T0$,PATDST$,15%) & 
+          \ T0%=FNWC%(PATCMD$,T0$) & 
+          \ GO TO 1080 IF T0%=0% & 
+          \ T0$=FNFLMRG$(PATCMD$,PATOPT$,15%) & 
+          \ CPCNT%=CPCNT%+1% & 
+          \ T1$="["+NUM1$(SWAP%(FOUND.PPN%) AND 255%)+ & 
+            ","+NUM1$(FOUND.PPN% AND 255%)+"]" & 
+          \ PATCMD$=FNFLMRG$(PATCMD$,T1$,15%) & 
+          \ PATCMD$=FNFLMRG$(PATDST$,PATCMD$,15%) & 
+          \ PRINT "Copying ";PATCMD$;" to ";T0$ & 
+          \ T0%=FNFILCPY%(PATCMD$,T0$) & 
+          \ GO TO 1200 IF T
+  512: 0% <> 0% & 
+          \ GO TO 1090 & 
+          ! GET NEXT WILD CARD STRING FROM LOOKUP TABLE & 
+          ! AND SEE IF FILE NAME MATCHES IT.  IF SO & 
+          ! COPY THE FILE, IF NOT, THEN GET NEXT WILD CARD. & 
+         
+        1080  NEXT & 
+          \ T0$="["+NUM1$(SWAP%(FOUND.PPN%) AND 255%)+ & 
+           ","+NUM1$(FOUND.PPN% AND 255%)+"]" & 
+          \ PATCMD$=FNFLMRG$(PATCMD$,T0$,15%) & 
+          \ OPEN PATCMD$ AS FILE 1% IF MTFLG% & 
+          \ CLOSE 1% & 
+          ! FILE NOT TO BE COPIED SO SKIP IT. DO NOTHING & 
+          ! IF NOT MAGTAPE & 
+         
+        1090 NEXT & 
+          ! GET NEXT FILE TO CHECK & 
+         & 
+         
+  512: 1099 ! & 
+         & 
+         & 
+         ! D O N E & 
+         & 
+         
+        1100 T0$=SYS(CHR$(0%)) & 
+         \ PRINT CPCNT%;"files copied" IF CPCNT% > 1% & 
+         \ PRINT " 1 File copied" IF CPCNT%=1% & 
+         \ PRINT "No files copied" IF CPCNT%=0% & 
+         \ PRINT "Copy operation complete" & 
+         \ GO TO 32700 & 
+         
+        1199 ! & 
+         & 
+         & 
+         ! F A T A L & 
+         & 
+         
+        1200 PRINT "?Copy operation terminated" & 
+         \ GO TO 32700 & 
+         10000 ! & 
+         & 
+         & 
+         & 
+         ! I N I T I A L I Z E   V A R I A B L E S & 
+         & 
+         & 
+         
+        10020 K0$="KB:PATCPY.CMD" & 
+         \ LFC$=CHR$(10%) & 
+         \ CRC$=CHR$(13%) & 
+         \ N
+  512: L$="" & 
+         \ T0$=SYS(CHR$(6%)+CHR$(14%)+STRING$(6%,0%)+CHR$(1%)) & 
+         \ CHANGE T0$ TO M0% & 
+         \ NPJ%=M0%(7%) & 
+         \ NPG%=M0%(8%) & 
+         \ CURRNT$="SY:["+NUM1$(NPG%)+","+NUM1$(NPJ%)+"]" & 
+         \ CURRNT$="SY:[200,200]" & 
+         \ LIBPPN$="[1,2]" & 
+         \ DISPRM$="Enter distribution device/PPN" & 
+         \ OUTPRM$="Enter output device/PPN " & 
+         \ CR$=CRC$+LFC$ & 
+         \ C0%=1% & 
+         \ L0%=2% & 
+         \ S0$=CHR$(6%)+CHR$(-10%) & 
+         \ RETURN & 
+         & 
+         10099 ! & 
+         & 
+         & 
+         & 
+         ! C R E A T E   C A L L S & 
+         & 
+         & 
+         
+        10100 PATDST$=FNFLNMCK$(PATDST$,44%
+  512: ,NL$) & 
+         \ CHANGE SYS(S0$+PATDST$) TO M0% & 
+         \ IF PATDST$=NL$ & 
+          THEN PRINT "?Invalid device for distribution media" & 
+          \    RETURN & 
+         
+        10110 IF MTFLG% & 
+          THEN M0%(1%)=6% & 
+          \    M0%(2%)=15% & 
+          \    M0%(3%)=1% & 
+          \    M0%(4%)=0% & 
+          \    M0%(5%),M0%(6%)=255% & 
+          \    CHANGE M0% TO MTCAL$ & 
+          \    RETURN & 
+          ! IF A MAGTAPE UNIT THEN SET SPECIAL MAGTAPE LOOKUP. & 
+         
+        10120 M0%(1%)=6% & 
+         \ M0%(2%)=15% & 
+         \ M0%(3%),M0%(4%)=0% & 
+         \ CHANGE M0% TO MTCAL$ & 
+         \ RETURN & 
+          ! SET UP DISK LOOKUP 
+  512: BY INDEX CALL & 
+         14999 ! & 
+         & 
+         & 
+         ! F U N C T I O N S & 
+         & 
+         & 
+         & 
+         ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N F L N M C K $ & 
+         & 
+         & 
+         & 
+         ! FUNCTION: FNFLNMCK$(P$,F%,DFLT$) & 
+         ! & 
+         ! THE STRING P$ IS USED AS A FILE NAME. IF NO & 
+         ! EXTENSION IS PROVIDED ON P$ THEN DFLT$ IS USED & 
+         ! FOR THE EXTENSION.  THE RESULTING STRING IS & 
+         ! CHECKED ACCORDING TO THE SPECIFICATION IN F%. & 
+         ! F% IS INTERPRETTED AS FOLLOWS: & 
+         ! & 
+         ! BIT  MEANING & 
+         ! & 
+         ! 0  IF SET, THEN LOOKUP FILE AS & 
+         !   CHECK F
+  512: OR CORRECTNESS. & 
+         ! & 
+         ! 1  SET MEANS THAT WILD CARD & 
+         !   CHARACTERS ARE PERMITTED & 
+         ! & 
+         ! 2  SET INDICATES THAT A DEVICE MAY & 
+         !   BE SPECIFIED.  IF CLEAR, NONE IS & 
+         !   PERMITTED AND SY: IS ASSUMED. & 
+         ! & 
+         ! 3  IF SET, THEN A PPN IS PERMITTED IN & 
+         !   THE FILE SPECIFICATION. & 
+         ! & 
+         ! 4  IF SET, DEV AND/OR PPN SHOULD & 
+         !   BE EXPANDED TO SY: AND CURRENT ACCOUNT & 
+         !   IF THEY ARE MISSING FROM THE & 
+         !   RESULTING FILE NAME & 
+         ! & 
+         ! 5  IF SET, A FILENAME IS NOT PERMITTED. & 
+         ! 
+  512:   I.E. A DEVICE SPECIFIER IS EXPECTED & 
+         ! & 
+         ! IF THE FILE NAME IS VALID, THEN THE STRING IS RETURNED & 
+         ! AS THE FUNCTION VALUE. IF INVALID FOR ANY REASON, & 
+         ! THE NULL STRING IS RETURNED. & 
+         & 
+         15000 DEF* FNFLNMCK$(P$,F%,DFLT$) & 
+         \ W%=2%+4%+32%+64%+256%+512% & 
+         \ D0%=4096%+8192%+16384% & 
+         \ N0%=1%+8%+16% & 
+         \ P0%=128% & 
+         \ MRG1%=31% & 
+         \ MRG1%=63% IF (F% AND 16%) <> 0% & 
+         \ F0%=0% & 
+         \ F0%=W% IF (F% AND 2%)=0% & 
+         \ F0%=F0%+D0% IF (F% AND 4%)=0% & 
+         \ F0%=F0%+P0% IF (F% AND 8%)=0% & 
+         \ F
+  512: 0%=F0%+N0% IF (F% AND 32%) <> 0% & 
+          ! INIT FLAGS FOR STRING CHECK. & 
+         
+        15010 T0$=CVT$$(P$,6%) & 
+         \ IF T0$=NL$ & 
+          THEN FNFLNMCK$=NL$ & 
+          \    GO TO 15060 & 
+         
+        15020 T0$=FNFLMRG$(DFLT$,T0$,MRG1%) & 
+         \ ON ERROR GO TO 15090 & 
+         \ IF S1%=0% & 
+          THEN T0%=FNERPRT%("?Bad file name: "+T0$+CR$) & 
+          \    FNFLNMCK$=NL$ & 
+          \    GO TO 15060 & 
+          ! SCAN STRING AND INSERT DEFAULT EXTENSION. & 
+          ! IF A BAD NAME IS GIVEN, THEN RETURN NULL LINE. & 
+         
+        15030 GO TO 15040 IF ((S1% AND F0%)=0%) & 
+          AND (S1% >= 0%) & 
+  512: 
+         \ T0%=FNERPRT%(T0$+" not permitted"+CR$) & 
+         \ FNFLNMCK$=NL$ & 
+         \ GO TO 15060 & 
+          ! IF FILENAME CONTAINS ITEMS WHICH ARE & 
+          ! NOT PERMITTED BY THE VALUE OF F%, THEN & 
+          ! RETURN NULL STRING. & 
+         
+        15040 GO TO 15050 IF ((F% AND 1%) <> 0%) & 
+             AND (((DEVSTAT% AND 256%)=0%) & 
+           OR ((DEVSTAT% AND 512%) <> 0%) & 
+           OR (DEVSTAT% < 0%)) & 
+             AND ((DEVSTAT% AND 255%) <> 14%) & 
+         \ FNFLNMCK$=T0$ & 
+         \ GO TO 15060 & 
+          ! IF FILENAME DOES NOT HAVE TO BE & 
+          ! LOOKED UP, THEN RETURN IT. & 
+         
+        15050 M1%(
+  512: 1%)=6% & 
+         \ M1%(2%)=17% & 
+         \ M1%(3%),M1%(4%)=255% & 
+         \ CHANGE M1% TO T1$ & 
+         \ T1$=SYS(T1$) & 
+         \ FNFLNMCK$=T0$ & 
+          ! LOOKUP FILE NAME.  IF FOUND (I.E. IF NO & 
+          ! ERROR TRAP OCCURS) THEN RETURN IT. & 
+         
+        15060 ON ERROR GO TO 19000 & 
+          ! RESET ERROR HANDLER & 
+         
+        15070 FNEND & 
+         & 
+         15080 ! & 
+         & 
+         & 
+         & 
+         ! E R R O R   H A N D L E R :   F N F L N M C K $ & 
+         & 
+         & 
+         
+        15090 E%=ERR & 
+         \ T2$="?"+T0$+CR$+RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(E%)),3%) & 
+         \ T2$="File not found: "+T0$ IF E%=5% & 
+         \ T0%=FNERPRT%
+  512: (T2$+CR$) & 
+         \ FNFLNMCK$=NL$ & 
+         \ RESUME 15060 & 
+          ! PRINT ERROR MESSAGE AND PROMPT & 
+          ! AND GET INPUT AGAIN. & 
+         & 
+         15099 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N G N X T $ & 
+         & 
+         & 
+         & 
+         ! FUNCTION: FNGNXT$(IDX%) & 
+         ! & 
+         ! FUNCTION TO INPUT THE NEXT FILE NAME ON MAGTAPE. & 
+         ! RETURNS NL$ IF EOT. IF DISK AND NOT MAG TAPE & 
+         ! RETURNS THE IDX%'TH FILE IN THE ACCOUNT & 
+         
+        15100 DEF* FNGNXT$(IDX%) & 
+         \ ON ERROR GO TO 15120 & 
+         \ CHANGE MTCAL$ TO M0% & 
+         \ M0%(3%)=IDX% AND 255% & 
+         \ M0%(4%)=SWAP%
+  512: (IDX%) AND 255% & 
+         \ CHANGE M0% TO MTCAL$ & 
+         \ CHANGE SYS(MTCAL$) TO M0% & 
+         \ T0$=RAD$(M0%(7%)+SWAP%(M0%(8%)))+ & 
+          RAD$(M0%(9%)+SWAP%(M0%(10%)))+"."+ & 
+          RAD$(M0%(11%)+SWAP%(M0%(12%))) & 
+         \ FNGNXT$=CVT$$(T0$,6%) & 
+          ! GET NEXT FILE NAME AND EXPAND IT TO FULL & 
+          ! TEXT NAME & 
+         
+        15110 FNEND & 
+         
+        15120 FNGNXT$=NL$ & 
+         \ E0%=ERR & 
+         \ PRINT RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(E0%)),3%) IF E0% <> 5% & 
+         \ RESUME 15110 & 
+         & 
+         15199 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N F $ & 
+         & 
+         & 
+         & 
+         ! FUNCTION:
+  512:  FNF$(P0$,D0$,F1%,MRG$) & 
+         ! & 
+         ! FUNCTION TO INPUT A FILE NAME.  STRING P0$ IS ISSUED & 
+         ! AS A PROMPT.  THE STRING D0$ IS THE DEFAULT ONLY IF & 
+         ! A NULL STRING IS ENTERED.  IF A STRING IS ENTERED & 
+         ! MRG$ IS MERGED INTO THE STRING AND THE RESULTANT STRING & 
+         ! IS CHECKED WITH FNFLNMCK$ ACCORDING TO FLAG F1% & 
+         
+        15200 DEF* FNF$(P0$,D0$,F1%,MRG$) & 
+         
+        15210 PRINT P0$; & 
+         \ PRINT "<";D0$;">"; IF D0$ <> NL$ & 
+         \ PRINT ": "; & 
+         \ INPUT LINE #10%,T0$ & 
+         \ T0$=CVT$$(T0$,6%) & 
+         \ IF (T0$=NL$) AND (D
+  512: 0$ <> NL$) & 
+          THEN FNF$=FNFLMRG$(NL$,D0$,0%) & 
+          ELSE IF T0$=NL$ & 
+           THEN GO TO 15210 & 
+           ELSE T0$=FNFLNMCK$(T0$,F1%,MRG$) & 
+           \    GO TO 15210 IF T0$=NL$ & 
+           \    FNF$=T0$ & 
+          ! PRINT PROMPT FOR FILE NAME INPUT AND GET & 
+          ! A NAME.  CHECK IF NULL, AND USE D0$ IF SO. & 
+          ! ELSE CHECK FILE NAME. RETURN IF OKAY ELSE & 
+          ! ASK FOR ANOTHER ONE. & 
+         
+        15220 FNEND & 
+         & 
+         15299 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N L K U P $ & 
+         & 
+         & 
+         & 
+         ! FUNCTION: FNLKUP$(LKUP0$) & 
+         ! & 
+         ! FUNCTION WHICH
+  512:  LOOKS UP STRING LKUP0$ IN LOOKUP TABLE AND & 
+         ! RETURNS A LIST OF ALL WILD CARD STRINGS ASSOCIATED WITH & 
+         ! THAT STRING. & 
+         
+        15300 DEF* FNLKUP$(LKUP0$) & 
+         \ RESTORE & 
+         \ T0$=NL$ & 
+         \ LKUP0$="<"+LKUP0$+">" & 
+         \ WHILE -1% & 
+         \ READ T1$ & 
+         \ GO TO 15320 IF T1$="<<END>>" & 
+         \ GO TO 15310 IF T1$=LKUP0$ & 
+         \ NEXT & 
+          ! FIND THE STRING IN THE TABLE WHICH MATCHES LKUP0$ & 
+         
+        15310 WHILE -1% & 
+         \ READ T1$ & 
+         \ GO TO 15320 IF INSTR(1%,T1$,"<")=1% & 
+         \ T0$=T0$+"," IF (T0$ <> NL$) & 
+         \ T0$=T0$+T1$ & 
+        
+  512:  \ NEXT & 
+          ! BUILD LIST OF WILD CARD STRINGS & 
+         
+        15320 FNLKUP$=T0$ & 
+         \ FNEND & 
+          ! RETURN STRING & 
+         & 
+         15329 ! & 
+         & 
+         & 
+         ! T A B L E   O F   P A C K A G E   N A M E S & 
+         & 
+         
+        15330 DATA <ALL>,*.*, & 
+          <INIT>,INIT.CMD,PA01??.*, & 
+          <SYSGEN>,SYSGEN.CMD,PA02??.*, & 
+          <MONITR>,MONITR.CMD,PA03??.*, & 
+          <BASIC>,BASIC.CMD,PA04??.*, & 
+          <RJ2780>,??2780.CMD,PA05??.*,PA25??.*, & 
+          <DECNET>,DECNET.CMD,DECNTC.CMD,PA07??.*,PA31??.*, & 
+          <TECO>,TECO.CMD,PA09??.*, & 
+          <EXEC>, EXEC.CMD, & 
+           INIT.CMD,PA
+  512: 0???.*, & 
+           SYSGEN.CMD, & 
+           MONITR.CMD, & 
+           BASIC.CMD, & 
+           RJ2780.CMD, & 
+           DECNET.CMD,DECNTC.CMD,PA07??.*,PA31??.*, & 
+          <BUILD>,BUILD.CMD,PA10??.*,PA11??.*, & 
+           PA12??.*,PA17??.*, & 
+          <BIGPRG>,BIGPRG.CMD,PA10??.*,PA11??.*, & 
+          <BACKUP>,BACKUP.CMD,PA13??.*, & 
+          <SPLER>,SPLER.CMD,PA14??.*, & 
+          <SPL>,SPL.CMD,PA15??.*, & 
+          <DEVTST>,DEVTST.CMD,PA18??.*, & 
+          <DCL>,DCL.*,PA20??.*, & 
+          <RSX>,RSX.CMD,RSXRTS.CMD,PA21??.*, & 
+          <RT11>,RT11.CMD,PA22??.*,PA1706.*, & 
+          <RMS>,RMS.*,PA48??.*, & 
+          <SOR
+  512: T>,SORT.CMD,SRT???.CMD,PA44??.*, & 
+          <*STANDARD*>,EXEC.CMD, & 
+           INIT.CMD,PA0???.*, & 
+           SYSGEN.CMD, & 
+           MONITR.CMD, & 
+           BASIC.CMD, & 
+           ??2780.CMD,PA25??.*, & 
+           DECNET.CMD,DECNTC.CMD,PA07??.*,PA31??.*, & 
+           TECO.CMD, & 
+           BUILD.CMD,PA1???.*, & 
+           BIGPRG.CMD, & 
+           SPLER.CMD, & 
+           SPL.CMD, & 
+           BACKUP.CMD, & 
+           DEVTST.CMD, & 
+           UNSUPP.CMD, & 
+           DCL.*,PA20??.*, & 
+           RSX.CMD,RSXRTS.CMD,PA21??.*, & 
+           RT11.CMD,PA22??.*,PA1706.*, & 
+           RMS.*,PA48??.*, & 
+           SORT.CMD,SRT???.CMD,PA44??.*, & 
+         
+  512:  <BP2>,BP2???.*,PA46??.*, & 
+          <COBOLV4.4>,COBOL.*,PA70??.*, & 
+          <DMS500V2.1>,PA71??.*, & 
+          <DECAL>,DECAL.*,PA37??.*, & 
+          <DECMAIL>,MAIL??.*,PA82??.*, & 
+          <DIBOL>,???DBL.CMD,DECFM.*,DECFMR.*,PA26??.*, & 
+          <DTRV2.4>,DTR.V24,DTRSTS.TKB,PA68??.*, & 
+          <FORTRAN>,FORTRA.*,??63??.*, & 
+          <F77V4.1>,F77.*,F77CMP.*,F4P???.*,PA74??.*,RMS11M.ODL, & 
+          <INDENT>,INDENT.*,PA28??.*, & 
+          <3271V2.1>,3271.CMD,D3270.NEW, & 
+          <<END>> & 
+         15399 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N X T O K $ & 
+         & 
+         & 
+         & 
+         ! FUNCTIO
+  512: N: FNXTOK$(S0$,PNT%) & 
+         ! & 
+         ! FUNCTION TO RETURN NEXT TOKEN IN STRING S0$ STARTING AT & 
+         ! CHARACTER PNT%.  VARIABLE TOKNXT% IS SET TO POINT TO FIRST & 
+         ! CHARACTER OF NEXT TOKEN AFTER ONE RETURNED & 
+         
+        15400 DEF* FNXTOK$(S0$,PNT%) & 
+         \ T0%=INSTR(PNT%,S0$,",") & 
+         \ IF T0%=0% & 
+          THEN T1%=LEN(S0$)+2% & 
+          ELSE T1%=T0%+1% & 
+          ! POINT T1% TO END OF TOKEN & 
+         
+        15410 FNXTOK$=MID(S0$,PNT%,(T1%-1%)-PNT%) & 
+         \ TOKNXT%=T1% & 
+         \ FNEND & 
+         15499 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N W C % & 
+         & 
+         & 
+         & 
+  512: 
+         ! FUNCTION: FNWC%(A0$,WC$) & 
+         ! & 
+         ! FUNCTION TO SEE IF STRING A0$ MATCHES WILD & 
+         ! CARD STRING WC$ & 
+         
+        15500 DEF* FNWC%(A0$,WC$) & 
+         \ FNWC%=0% & 
+         \ GO TO 15510 IF LEN(A0$) > LEN(WC$) & 
+         \ J%=1% & 
+         \ FOR I%=1% TO LEN(WC$) & 
+         \ T0%=0% & 
+         \ T0$=MID(A0$,J%,1%) & 
+         \ T1$=MID(WC$,I%,1%) & 
+         \ T0%=-1% IF (T0$=T1$) OR (T1$="?") & 
+         \ GO TO 15510 IF T0%=0% & 
+         \ J%=J%+1% UNLESS (T1$="?") AND (T0$=".") & 
+         \ NEXT I% & 
+         \ FNWC%=-1% & 
+          ! DO COMPARISON OF CHARACTERS IN WILD CARD STRING & 
+         
+        15510 FNEND 
+  512: & 
+         15550 DEF* FNHLPER$ & 
+         \ FNHLPER$=NL$ & 
+         \ RESTORE & 
+         \ PKG1$="" & 
+         \ PRINT & 
+         \ PRINT "Valid Package names are:" & 
+         \ PRINT & 
+         \ WHILE PKG1$<>"<END>" & 
+         \ READ PKG$ & 
+         \ PKG1$=PKG$ & 
+         \ PKG1$=MID(PKG$,2%,LEN(PKG$)-2%) IF ASCII(PKG$)=ASCII("<") & 
+         \ PRINT PKG1$, UNLESS PKG1$="<END>" IF LEN(PKG1$)<>LEN(PKG$) & 
+         \ PRINT IF CCPOS(0%)>70% & 
+         \ NEXT & 
+         \ PRINT FOR I%=0% TO 1% & 
+         \ FNEND & 
+         & 
+         16000 DEF* FNACCT%(ACC$) & 
+         \ FNACCT%=-1% & 
+         \ M1%(1%)=6% & 
+         \ M1%(2%)=25% & 
+         \ M1%(3%),M1%(4%)=
+  512: 0% & 
+         \ CHANGE M1% TO A1$ & 
+         \ ONERROR GOTO 16010 & 
+         \ A1$=SYS(A1$) & 
+         \ ONERROR GOTO 19000 & 
+         \ FNACCT%=0% & 
+         \ GOTO 16050 & 
+         ! INPUT DEVICE FOR PATCH DISTRIBUTION & 
+          ! AND DEVICE/PPN FOR FILES TO BE COPIED & 
+         
+        16010 PRINT & 
+         \ PRINT "%"+RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(ERR)),4%)+" - "+ACC$ & 
+         \ RESUME 16050 UNLESS ERR=5% & 
+         \ PRINT "Attempt to create account "+ACC$+" <No>"; & 
+         \ INPUT RSP$ & 
+         \ RESUME 16050 UNLESS ASCII(CVT$$(RSP$,-1%))=89% & 
+         \ RESUME 16020 & 
+         
+        16020 M0%(I%)=0% FOR I%=1%
+  512:  TO 29% & 
+         \ M0%(1%)=6% & 
+         \ M0%(2%)=14% & 
+         \ CHANGE M0% TO A1$ & 
+         \ CHANGE SYS(A1$) TO M0% & 
+         \ M1%(1%)=6% & 
+         \ M1%(2%),M1%(3%),M1%(4%)=0% & 
+         \ M1%(7%)=M1%(5%) & 
+         \ M1%(8%)=M1%(6%) & 
+         \ M1%(5%),M1%(6%)=0% & 
+         \ M1%(I%)=M0%(I%) FOR I%=9% TO 12% & 
+         \ M1%(13%)=5000% & 
+         \ M1%(14%)=SWAP%(5000%) & 
+         \ M1%(27%)=16% & 
+         \ M1%(28%)=0% & 
+         \ CHANGE M1% TO A1$ & 
+         \ ONERROR GOTO 16030 & 
+         \ A1$=SYS(A1$) & 
+         \ ONERROR GOTO 19000 & 
+         \ PRINT "Account "+ACC$+" created with your password" & 
+         \ FNACCT%=0% & 
+         
+  512: \ GOTO 16050 & 
+         
+        16030 PRINT "%"+RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(ERR)),4%)+" - "+ACC$ & 
+         \ PRINT "Account not created" & 
+         \ RESUME 16050 & 
+         
+        16050 FNEND & 
+         & 
+         
+        17299 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N F L M R G $ & 
+         & 
+         & 
+         & 
+         ! FUNCTION: FNFLMRG$(A0$,A1$,FLG%) & 
+         ! & 
+         ! FUNCTION TO MERGE FILE NAME A0$ INTO A1$. & 
+         ! STRING A1$ IS THE TARGET STRING.  A0$ IS & 
+         ! MERGED INTO A1$ FILLING IN ALL COMPONENTS & 
+         ! MISSING FROM A1$ AS SELECTED BY THE FLAG & 
+         ! WORD FLG%.  THE MEANING OF THE B
+  512: ITS ARE: & 
+         ! & 
+         ! BIT AND VALUE  MEANING & 
+         ! & 
+         ! 0 ((FLG% AND 1%) <> 0%) & 
+         ! & 
+         !  COPY DEVICE FROM A0$ IF IT & 
+         !  IS MISSING FROM A1$ & 
+         ! & 
+         ! 1 ((FLG% AND 2%) <> 0%) & 
+         ! & 
+         !  COPY PPN SPECIFICATION FROM A0$ & 
+         !  IF MISSING FROM A1$ & 
+         ! & 
+         ! 2 ((FLG% AND 4%) <> 0%) & 
+         ! & 
+         !  COPY FILE NAME IF MISSING & 
+         ! & 
+         ! 3 ((FLG% AND 8%) <> 0%) & 
+         ! & 
+         !  COPY EXTENSION IF MISSING & 
+         ! & 
+         ! 4 ((FLG% AND 16%) <> 0%) & 
+         ! & 
+         !  COPY PROTECTION CODE IF MISSING & 
+         ! & 
+         ! 5 ((FLG% AND 
+  512: 32%) <> 0%) & 
+         ! & 
+         !  FILL IN "SY:" FOR DEVICE IF NO & 
+         !  DEVICE IN EITHER STRING, AND & 
+         !  CURRENT ACCOUNT FOR PPN IF NO & 
+         !  PPN IN EITHER STRING. & 
+         ! & 
+         ! IN ALL CASES, M1% CONTAINS STRING SCAN OF RESULTING & 
+         ! STRING "CHANGE"D TO INTEGER ARRAY.  S1% CONTAINS & 
+         ! THE FLAG WORD AND DEVSTAT% CONTAINS STATUS.  IF & 
+         ! EITHER A0$ OR A1$ IS A BAD STRING, THAT STRING & 
+         ! IS RETURNED AS THE FUNCTIONS VALUE AND S1%=0% & 
+         & 
+         17300 DEF* FNFLMRG$(A0$,A1$,FLG%) & 
+         \ ON ERROR GO TO 17395 & 
+         \ D
+  512: EVBITS%=4096%+8192%+16384%+32767%+1% & 
+         \ PRTBITS%=1024%+2048% & 
+         \ PPNBITS%=128%+256%+512% & 
+         \ EXTBITS%=8%+16%+32%+64% & 
+         \ FLNBITS%=1%+2%+4% & 
+         \ T0%=0% & 
+         \ A0$=SYS(S0$+A0$) & 
+         \ CHANGE A0$ TO M0% & 
+         \ S0%=M0%(29%)+SWAP%(M0%(30%)) & 
+         \ TST0%=STATUS & 
+         \ TST0%=0% IF (S0% < 0%) OR (S0% AND 4096%)=0% & 
+         \ T0%=1% & 
+         \ A1$=SYS(S0$+A1$) & 
+         \ CHANGE A1$ TO M1% & 
+         \ S1%=M1%(29%)+SWAP%(M1%(30%)) & 
+         \ DEVSTAT%=STATUS & 
+         \ DEVSTAT%=0% IF (S1% < 0%) OR (S1% AND 4096%)=0% & 
+          ! SCAN THE 2 FILE NAMES
+  512:  & 
+         
+        17310 IF (FLG% AND 1%) <> 0% AND (S1% AND 4096%)=0% & 
+          THEN M1%(I%)=M0%(I%) FOR I%=23% TO 26% & 
+          \    S1%=S1% OR (S0% AND DEVBITS%) & 
+          \    DEVSTAT%=TST0% & 
+          \    IF (S1% AND 4096%)=0% AND (FLG% AND 32%) <> 0% & 
+           THEN M1%(23%)=ASCII("S") & 
+           \    M1%(24%)=ASCII("Y") & 
+           \    M1%(25%),M1%(26%)=0% & 
+           \    S1%=S1% OR (4096%+8192%) & 
+          ! FILL IN DEVICE FIELD IF LEFT OUT OF TARGET & 
+          ! STRING.  FORCE DEFAULT "SY:" IF NO DEVICE & 
+          ! IN EITHER STRING AND FORCE DEFAULT BIT IS SET. & 
+         
+        
+  512: 17320 IF (FLG% AND 2%) <> 0% AND (S1% AND 128%)=0% & 
+          THEN M1%(I%)=M0%(I%) FOR I%=5% TO 6% & 
+          \    S1%=S1% OR (S0% AND PPNBITS%) & 
+          \    IF (S1% AND 128%)=0% AND (FLG% AND 32%) <> 0% & 
+           THEN M1%(5%)=NPJ% & 
+           \    M1%(6%)=NPG% & 
+           \    S1%=S1% OR 128% & 
+          ! FILL IN PPN.  SET TO CURRENT ACCOUNT IF NONE & 
+          ! IN TARGET STRING. & 
+         
+        17330 IF (FLG% AND 4%) <> 0% AND (S1% AND 1%)=0% & 
+          THEN M1%(I%)=M0%(I%) FOR I%=7% TO 10% & 
+          \    S1%=S1% OR (S0% AND FLNBITS%) & 
+          ! COPY FILE NAME IF SELECTED.
+  512:  & 
+         
+        17340 IF (FLG% AND 8%) <> 0% AND (S1% AND 8%)=0% & 
+          THEN M1%(I%)=M0%(I%) FOR I%=11% TO 12% & 
+          \    S1%=S1% OR (S0% AND EXTBITS%) & 
+          ! FILL IN EXTENSION BITS. & 
+         
+        17350 IF (FLG% AND 16%) <> 0% AND (S1% AND 1024%)=0% & 
+          THEN M1%(I%)=M0%(I%) FOR I%=21% TO 22% & 
+          \    S1%=S1% OR (S0% AND PRTBITS%) & 
+          ! PROTECTION CODE & 
+         
+        17360 A0$=NL$ & 
+         \ IF (S1% AND 4096%) <> 0% & 
+          THEN A0$=CHR$(M1%(23%))+CHR$(M1%(24%)) & 
+          \    A0$=A0$+NUM1$(M1%(25%)) IF M1%(26%)=255% & 
+          \    A0$=A0$+":" & 
+          \    
+  512: IF S1% < 0% & 
+           THEN A0$=NL$ & 
+           \    FOR I%=23% STEP 2% UNTIL I%=27% & 
+           \ A0$=A0$+ & 
+            RAD$(M1%(I%)+SWAP%(M1%(I%+1%))) & 
+           \    NEXT I% & 
+           \    A0$=A0$+":" & 
+          ! IF COMPOSITE NAME CONTAINS A DEVICE SPEC, & 
+          ! THEN BUILD DEVICE SPEC INTO FILE NAME. & 
+         
+        17370 IF (M1%(5%)+M1%(6%)) <> 0% & 
+          THEN A0$=A0$+"["+NUM1$(M1%(6%))+","+ & 
+               NUM1$(M1%(5%))+"]" & 
+          ! BUILD ON PPN & 
+         
+        17380 T0%=11% & 
+         \ T0%=13% IF (S1% AND 8%) <> 0% & 
+         \ FOR I%=7% STEP 2% UNTIL I%=T0% & 
+         \ A0$=A0$+"." IF I%=
+  512: 11% & 
+         \ A0$=A0$+RAD$(M1%(I%)+SWAP%(M1%(I%+1%))) & 
+         \ NEXT I% & 
+          ! CONVERT RAD 50 FILE NAME TO ACTUAL FILE NAME & 
+         
+        17385 A0$=CVT$$(A0$,6%) & 
+         \ IF (S1% AND 1024%)=0% & 
+          THEN FNFLMRG$=A0$ & 
+          ELSE FNFLMRG$=A0$+"<"+NUM1$(M1%(22%))+">" & 
+          ! FILL IN PROTECTION CODE IF ONE WAS & 
+          ! INCLUDED. & 
+         
+        17390 ON ERROR GO TO 19000 & 
+         \ M1%(29%)=S1% AND 255% & 
+         \ M1%(30%)=SWAP%(S1%) AND 255% & 
+         \ FNEND & 
+         
+        17395 FNFLMRG$=A0$ IF T0%=0% & 
+         \ FNFLMRG$=A1$ IF T0% <> 0% & 
+         \ S1%=0% & 
+         \ RESUME 17390 & 
+         &
+  512:  
+         17399 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N E R P R T % & 
+         & 
+         & 
+         & 
+         ! FUNCTION: FNERPRT%(A$) & 
+         ! & 
+         ! FUNCTION TO PRINT ALL IMPORTANT ERROR MESSAGES & 
+         
+        17400 DEF* FNERPRT%(A$) & 
+         \ PRINT A$; & 
+         \ FNEND & 
+         & 
+         17499 ! & 
+         & 
+         & 
+         & 
+         ! F U N C T I O N   F N F I L C P Y % & 
+         & 
+         & 
+         & 
+         ! FUNCTION: FNFILCPY%(A0$,A1$) & 
+         ! & 
+         ! FUNCTION TO COPY MAGTAPE FILE A0$ TO A1$ & 
+         
+        17500 DEF* FNFILCPY%(A0$,A1$) & 
+         \ ON ERROR GO TO 17510 & 
+         \ CLOSE L0%,C0% & 
+         \ OPEN A0$ FOR INPUT AS FILE C0% & 
+        
+  512:  \ OPEN A1$ AS FILE L0%, RECORDSIZE 2% & 
+         \ WHILE -1% & 
+         \ GET #C0% & 
+         \ PUT #L0%+SWAP%(C0%) & 
+         \ NEXT & 
+          ! OPEN THE FILES AND COPY IN BLOCK MODE. & 
+         
+        17510 IF ERR=11% & 
+          THEN FNFILCPY%=0% & 
+          ELSE T0%=FNERPRT%("Can't copy "+A0$+ & 
+           " to "+A1$+CR$+ & 
+           RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(ERR)),3%)+CR$) & 
+          \    FNFILCPY%=-1% & 
+         
+        17520 RESUME 17530 & 
+         
+        17530 CLOSE C0%,L0% & 
+         \ ON ERROR GO TO 19000 & 
+         \ FNEND & 
+         & 
+         19000 ! & 
+         & 
+         & 
+         ! E R R O R    H A N D L I N G & 
+         & 
+         & 
+         
+        19010 GO TO 
+  512: 32700 IF ERR=11% & 
+         \ T0%=FNERPRT%("Fatal error no."+NUM$(ERR)+ & 
+          "on line "+NUM$(ERL)+CR$+ & 
+          "Leaving program"+CR$) & 
+         \ RESUME 32700 & 
+          ! TEMPORARY DUMMY ERROR HANDLER & 
+         & 
+         32699 ! & 
+         & 
+         & 
+         & 
+         ! E X I T & 
+         & 
+         & 
+         & 
+         ! NORMAL EXIT & 
+         
+        32700 CLOSE 12% & 
+          ! NORMAL EXIT ON CONTROL Z FOR & 
+          ! LOG OR COMMAND FILE NAME. 
+        32710 IF DSK%=0% THEN & 
+          CLOSE 10% & 
+         ELSE & 
+           PRINT #10%,"Logically Dismount "+DSK$+" <Yes>: "; & 
+         \ INPUT #10%,T$ & 
+         \ T$="YES" UNLESS LEN(CVT$$(T$,-1%)) & 
+         \ 
+  512: CLOSE 10% & 
+         \ DSK%=ASCII(CVT$$(T$,-1%))=89% & 
+         \ IF NOT DSK% THEN & 
+           GOTO 32767 & 
+          ELSE & 
+           CHANGE SYS(CHR$(6%)+CHR$(-10%)+ DSK$) TO M0% & 
+         \  M0%(1%)=6% & 
+         \  M0%(2%)=3% & 
+         \  M0%(3%)=2% & 
+         \  CHANGE M0% TO T$ & 
+         \  ON ERROR GOTO 32720 & 
+         \  Z$=SYS(T$) & 
+         \  PRINT DSK$;" Logically Dismounted" & 
+         \  GOTO 32767 
+        32720 GOTO 32767 UNLESS DSK% & 
+         \ RESUME 32730 
+        32730 ON ERROR GOTO 32740 & 
+         \ Z$=SYS(T$) & 
+         \ PRINT DSK$;" Logically Dismounted" & 
+         \ GOTO 32767 
+        32740 IF ERR =21% THEN & 
+          PR
+  512: INT DSK$;" Logically Dismounted" & 
+         ELSE & 
+          PRINT "?Dismount failed on ";DSK$ & 
+         \ PRINT RIGHT(SYS(CHR$(6%)+CHR$(9%)+CHR$(ERR)),3%) & 
+         
+        32767 END 
+                                                                                       
+                                                                                       
+                                                                                       
+                                                                                       
+                                                
+endfile
+there were 59 data blocks with 28,048 bytes, and 4 tapemarks
+no blocks had errors

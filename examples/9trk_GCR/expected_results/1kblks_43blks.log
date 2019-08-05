@@ -1,0 +1,88 @@
+this is readtape version 3.7, compiled on Aug  4 2019 22:08:28, running on Sun Aug  4 22:13:01 2019
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: readtape -v -m -gcr -ips=50 -order=76543210p -zeros -correct -tap -ascii -linefeed -outp=results\ 1kblks_43blks 
+  current directory: C:\data\projects\magtape_reader\readtape\examples\9trk_GCR
+  this is a little-endian computer
+  For more information, see, https://github.com/LenShustek/readtape
+reading file 1kblks_43blks.tbin
+the output files will be results\1kblks_43blks.xxx
+.tbin file header
+   converted on: Sun Aug  4 16:35:47 2019
+   max voltage: 3.3V
+   time between samples: 0.160 usec
+   using .tbin mode = GCR
+reading parmsets from file GCR.parms
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak,  pulse_adj,pkww_bitfrac,  pkww_rise,       z1pt,       z2pt,  id
+  {            1,          0,      0.015,          0,      0.500,      0.200,      0.300,      1.500,      0.200,      1.450,      2.350,   PRM}
+  {            1,         10,      0.000,          0,      0.500,      0.100,      0.600,      1.500,      0.140,      1.400,      2.300,   PRM}
+  {            1,          0,      0.020,          0,      0.500,      0.100,      0.300,      1.500,      0.140,      1.450,      2.370,   PRM}
+  {            1,          0,      0.020,          0,      0.500,      0.100,      0.300,      1.500,      0.140,      1.450,      2.400,   PRM}
+compile-time decoding constants
+  minimum excursion before considering a zero crossing: 0.200V
+  maximum time in bits for the required excursion to be attained: 1.5 bit times
+  AGC maximum: 20
+  GCR idle threshold: 6.00 bits
+set ntrks=9 as implied by the -order string
+BPI was reset to 9042 for GCR 6250
+configuration
+  9 track GCR, odd parity, 9042 BPI at 50 IPS (2.21 usec/bit)
+  sampling rate is 6,250,000 Hz (0.16 usec)
+  track ordering: 7(lsb)6543210(msb)p
+creating file "results\1kblks_43blks.tap"
+creating file "results\1kblks_43blks.ASCII.txt"
+wrote block   1, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.03 IPS at time 1.4105133
+wrote block   2, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.33 IPS at time 1.4200125
+wrote block   3, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.33 IPS at time 1.4295251
+wrote block   4, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.31 IPS at time 1.4390390
+wrote block   5, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.26 IPS at time 1.4485538
+wrote block   6, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.19 IPS at time 1.4580674
+wrote block   7, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.32 IPS at time 1.4675666
+wrote block   8, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.26 IPS at time 1.4770894
+wrote block   9, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.15 IPS at time 1.4866181
+wrote block  10, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.27 IPS at time 1.4961291
+wrote block  11, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.27 IPS at time 1.5056334
+wrote block  12, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.21 IPS at time 1.5151466
+wrote block  13, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.33 IPS at time 1.5246422
+wrote block  14, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.38 IPS at time 1.5341459
+wrote block  15, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.20 IPS at time 1.5436717
+wrote block  16, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.25 IPS at time 1.5531898
+wrote block  17, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.33 IPS at time 1.5626989
+wrote block  18, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.08 IPS at time 1.5722242
+wrote block  19,  431 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.47 IPS at time 1.5798526
+*** tapemark after block 19 at file position 20,377,174, time 1.5865787
+wrote block  20, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.22 IPS at time 1.5963680
+wrote block  21, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.18 IPS at time 1.6058861
+wrote block  22, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.30 IPS at time 1.6153936
+wrote block  23, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.36 IPS at time 1.6249021
+wrote block  24, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.10 IPS at time 1.6344166
+wrote block  25, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.28 IPS at time 1.6439154
+wrote block  26,  996 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.24 IPS at time 1.6533318
+*** tapemark after block 26 at file position 28,654,114, time 1.6601515
+wrote block  27, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.21 IPS at time 1.6699565
+wrote block  28, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.15 IPS at time 1.6794771
+wrote block  29,  883 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.26 IPS at time 1.6885368
+*** tapemark after block 29 at file position 32,613,268, time 1.6953440
+wrote block  30, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.40 IPS at time 1.7051259
+wrote block  31, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.16 IPS at time 1.7146400
+wrote block  32, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.12 IPS at time 1.7241483
+wrote block  33,  376 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.20 IPS at time 1.7316251
+*** tapemark after block 33 at file position 37,458,058, time 1.7384088
+wrote block  34, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.23 IPS at time 1.7481990
+wrote block  35, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.21 IPS at time 1.7577050
+wrote block  36, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.28 IPS at time 1.7672038
+wrote block  37, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.14 IPS at time 1.7767250
+wrote block  38, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.20 IPS at time 1.7862248
+wrote block  39, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.33 IPS at time 1.7957434
+wrote block  40, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.10 IPS at time 1.8052733
+wrote block  41,  209 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.17 IPS at time 1.8121979
+*** tapemark after block 41 at file position 46,524,478, time 1.8189992
+wrote block  42, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.15 IPS at time 1.8287931
+wrote block  43, 1024 bytes, 1 tries, parmset 0, max AGC 1.00, ok, avg speed 50.18 IPS at time 1.8383000
+output file was closed at time 1.8384000 with 41,807 data bytes extracted from 43 blocks
+2,705,935 samples were processed in 0 seconds, or 0.000 seconds/block
+detected 5 tape marks
+created 1 output files with 43 blocks and 42,218 total bytes
+0 blocks had errors, 0 had mismatched tracks, 0 had bits corrected
+0 good blocks had to try more than one parmset
+parmset 0 was tried   49 times and used   48 times, or  98.0%
+created statistics file "results\1kblks_43blks.peakstats.csv" from 403,291 measurements of flux transition positions

@@ -1,0 +1,2 @@
+readtape -v -m -gcr -ips=50 -order=76543210p -zeros -correct -tap -ascii -linefeed -outp=results\ %1 %2 %3 1kblks_43blks
+readtape -v -m -gcr -ips=50 -zeros -correct -tap -ascii -linefeed %1 %2 %3 -outp=results\ sf93_8blks

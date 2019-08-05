@@ -13,12 +13,15 @@ a +-2V or larger analog signal for reasonable tapes. We ignore the
 drive's subsequent thresholding circuitry that tries to recreate the 
 data bits on the tape.
 
-I had first designed and prototyped a custom 9-channel A-to-D converter
+We have also used other tape drives, in particular for 9-track GCR tapes
+recorded at 6250 BPI.
+
+(I had first designed and prototyped a custom 9-channel A-to-D converter
 using the amazing Cirrus/Wolfson WM8235 9-channel analog front end, 
 http://www.mouser.com/ds/2/76/WM8235_v4.2-532446.pdf. But I was unable
 to find the right setting for their 300 configuration registers that made
 it work as a normal A-to-D converter, and their tech support would not
-respond to inquiries. It is on hold, but I may someday get back to it.
+respond to inquiries. It is on hold, but I may someday get back to it.)
 
 The data exported by the logic analyzer is a comma-separated-value (CSV) 
 file whose lines contains a timestamp and the voltages for all the read 
@@ -32,8 +35,7 @@ between CSV and TBIN. The "readtape" decoding program can read either
 format. The compression is about 10:1, and it speeds up decoding by 
 about 2x. 
 
-We so far support 7-track or 9-track tapes with NRZI or PE encodings. 
-The 9-track 6250 BPI GCR format is partially implemented. 
+We so far support 7-track NRZI, and 9-track NRZI, PE, and GCR formats. 
 
 *** The files in this repository
 
@@ -45,7 +47,6 @@ The 9-track 6250 BPI GCR format is partially implemented.
 
  A_documentation.txt    A narrative about usage and internal operation
  A_experiences.txt      Some anecdotes about what we have done with this
- nrzi.parms             An example parameter set file
  AtoD_attachment.jpg    A photo showing how the analyzer connects to the drive
  example_01.pdf         An example of a really bad block we can decode
  flux_transition_dispersion.jpg  A graph showing the effect of head skew
@@ -53,23 +54,29 @@ The 9-track 6250 BPI GCR format is partially implemented.
  
 ---READTAPE source code
 
- readtape.c             main program: options, file handling, and block processing
- decoder.h              compile-time options, and common declarations
- csvtbin.h              the format of the .tbin compressed binary data file
- decoder.c              common routines for analog sample analysis and decoding
- decode_pe.c            PE (phase encoded) decoding routines
- decode_nrzi.c          NRZI (non-return-to-zero-inverted) decoding routines 
- decode_gcr.can         GCR (group coded recording) decoding routines
- parmsets.c             parameter set processing, and their defaults
- textfile.c             interpreted text dump of the data
- ibmlabels.c            IBM 9-track standard label (SL) interpretation
+ src\readtape.c          main program: options, file handling, and block processing
+ src\decoder.h           compile-time options, and common declarations
+ src\csvtbin.h           the format of the .tbin compressed binary data file
+ src\decoder.c           common routines for analog sample analysis and decoding
+ src\decode_pe.c         PE (phase encoded) decoding routines
+ src\decode_nrzi.c       NRZI (non-return-to-zero-inverted) decoding routines 
+ src\decode_gcr.c        GCR (group coded recording) decoding routines
+ src\parmsets.c          parameter set processing, and their defaults
+ src\textfile.c          interpreted text dump of the data
+ src\ibmlabels.c         IBM 9-track standard label (SL) interpretation
+ src\trace.c             create debugging output and spreadsheet graphs
  
 ---UTILITY PROGRAMS
 
- csvtbin.c              a program for converting between CSV and TBIN files
- dumptap.c              a program for dumping SIMH .tap files, one of the output formats
+ src\csvtbin.c           a program for converting between CSV and TBIN files
+ src\dumptap.c           a program for dumping SIMH .tap files, one of the output formats
                         (but this functionality is now an option in readtape)
-
+---BINARIES
+ bin\readtape.exe        Windows 64-bit executable
+ bin\csvtbin.exe         Windows 64-bit executable
+ 
+---TEST DATA
+ examples\README.txt     a directory with test magnetic tape data and decodes
  
 *** Thanks to: 
  - Paul Pierce for the original inspiration of his similar work 10+ years ago.
@@ -79,4 +86,4 @@ The 9-track 6250 BPI GCR format is partially implemented.
 
 Len Shustek
 6 Feb 2018
-17 May 2018, 27 May 2018, 8 Oct 2018
+17 May 2018, 27 May 2018, 8 Oct 2018, 4 Aug 2019

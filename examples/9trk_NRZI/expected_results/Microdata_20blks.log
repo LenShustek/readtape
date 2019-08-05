@@ -1,0 +1,64 @@
+this is readtape version 3.7, compiled on Aug  4 2019 22:08:28, running on Sun Aug  4 22:12:58 2019
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: readtape -v -m -nrzi -hex -ascii -outp=results\ Microdata_20blks 
+  current directory: C:\data\projects\magtape_reader\readtape\examples\9trk_NRZI
+  this is a little-endian computer
+  For more information, see, https://github.com/LenShustek/readtape
+reading file Microdata_20blks.tbin
+the output files will be results\Microdata_20blks.xxx
+.tbin file header
+   description: Microdata Reality tape dump
+   converted on: Sun Aug  4 17:58:17 2019
+   max voltage: 4.4V
+   time between samples: 1.280 usec
+   using .tbin ntrks = 9
+no .parms file was found, so we're using these internal defaults for the NRZI parameter sets:
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak,  pulse_adj,pkww_bitfrac,  pkww_rise,     midbit,  id
+  {            1,          0,      0.200,          0,      0.300,      1.000,      0.300,      0.700,      0.200,      0.500,   PRM}
+  {            1,          0,      0.300,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM}
+  {            1,          2,      0.000,          0,      0.300,      1.000,      0.400,      0.700,      0.200,      0.500,   PRM}
+  {            1,          0,      0.600,          0,      0.300,      1.000,      0.400,      0.600,      0.200,      0.500,   PRM}
+  {            1,          2,      0.000,          1,      0.000,      0.500,      0.500,      0.900,      0.050,      0.500,   PRM}
+  {            1,          0,      0.200,          1,      0.000,      1.000,      0.500,      0.700,      0.050,      0.500,   PRM}
+  {            1,          2,      0.000,          1,      0.000,      0.500,      0.500,      0.700,      0.050,      0.500,   PRM}
+  {            1,          0,      0.600,          1,      0.000,      0.500,      0.500,      0.600,      0.050,      0.500,   PRM}
+compile-time decoding constants
+  peak height closeness threshold: 0.005
+  nominal peak height for rise calculation: 2.0V
+  AGC maximum: 20
+configuration
+  9 track NRZI, odd parity, 0 BPI at 50 IPS
+  sampling rate is 781,250 Hz (1.28 usec)
+  starting peak window is 8 samples (10.24 usec)
+  track ordering: 0(msb)1234567(lsb)p
+  density set to 800 BPI (25.00 usec/bit) after reading 1 blocks and seeing 9,999 transitions in 62 bins that imply 825 BPI
+creating file "results\Microdata_20blks.001.bin"
+creating file "results\Microdata_20blks.hex.ASCII.txt"
+wrote block   1,  512 bytes, 1 tries, parmset 0, max AGC 1.09, ok, avg speed 49.09 IPS at time 7.4790771
+wrote block   2,  512 bytes, 1 tries, parmset 0, max AGC 1.06, ok, avg speed 48.58 IPS at time 7.5056384
+wrote block   3,  512 bytes, 1 tries, parmset 0, max AGC 1.09, ok, avg speed 49.03 IPS at time 7.5320576
+wrote block   4,  512 bytes, 1 tries, parmset 0, max AGC 1.06, ok, avg speed 48.58 IPS at time 7.5586829
+wrote block   5,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.93 IPS at time 7.5851622
+wrote block   6,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.64 IPS at time 7.6117107
+wrote block   7,  512 bytes, 1 tries, parmset 0, max AGC 1.06, ok, avg speed 49.02 IPS at time 7.6381427
+wrote block   8,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.35 IPS at time 7.6648294
+wrote block   9,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.91 IPS at time 7.6912589
+wrote block  10,  512 bytes, 1 tries, parmset 0, max AGC 1.08, ok, avg speed 48.64 IPS at time 7.7178624
+wrote block  11,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.70 IPS at time 7.7443443
+wrote block  12,  512 bytes, 1 tries, parmset 0, max AGC 1.06, ok, avg speed 48.55 IPS at time 7.7709491
+wrote block  13,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.89 IPS at time 7.7974029
+wrote block  14,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.65 IPS at time 7.8239616
+wrote block  15,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.72 IPS at time 7.8504243
+wrote block  16,  512 bytes, 1 tries, parmset 0, max AGC 1.08, ok, avg speed 48.73 IPS at time 7.8770150
+wrote block  17,  512 bytes, 1 tries, parmset 0, max AGC 1.08, ok, avg speed 48.70 IPS at time 7.9034995
+wrote block  18,  512 bytes, 1 tries, parmset 0, max AGC 1.05, ok, avg speed 48.82 IPS at time 7.9300096
+wrote block  19,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.68 IPS at time 7.9565517
+wrote block  20,  512 bytes, 1 tries, parmset 0, max AGC 1.07, ok, avg speed 48.70 IPS at time 7.9831475
+output file was closed at time 7.9831501 with 10,240 data bytes extracted from 20 blocks
+414,517 samples were processed in 0 seconds, or 0.000 seconds/block
+detected 0 tape marks
+created 1 output files with 20 blocks and 10,240 total bytes
+0 blocks had errors, 0 had mismatched tracks, 0 had bits corrected, 0 had midbit timing errors
+0 good blocks had to try more than one parmset
+parmset 0 was tried   21 times and used   20 times, or  95.2%
+created statistics file "results\Microdata_20blks.peakstats.csv" from 37,127 measurements of flux transition positions

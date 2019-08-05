@@ -1,0 +1,1676 @@
+file: results\1kblks_43blks.ASCII.txt
+options:   -ASCII -NEWLINE -LINESIZE=80
+ 1024: /*
+         * tumble: build a PDF file from image files
+         *
+         * bitblt routines
+         * Copyright 2001, 2002, 2003, 2017 Eric Smith <spacewar@gmail.com>
+         *
+         * This program is free software; you can redistribute it and/or modify
+         * it under the terms of the GNU General Public License version 2 as
+         * published by the Free Software Foundation.  Note that permission is
+         * not granted to redistribute this program under the terms of any
+         * other version of the General Public License.
+         *
+         * This program is distributed in the hope that it will be useful,
+         * but WITHOUT ANY WARRANTY; without even the implied warranty of
+         * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+         * GNU General Public License for more details.
+         *
+         * You should have received a copy of the GNU General Public License
+         * along with this program; if not, write to the Free Software
+         * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA
+         */
+        
+        
+        #include <stdbool.h>
+        #include <stdint.h>
+        #include <assert.h>
+        #include <stdio.h>
+        #include <stdlib
+ 1024: .h>
+        #include <string.h>
+        
+        #include "bitblt.h"
+        
+        #include "bitblt_tables.h"
+        
+        
+        #define SWAP(type,a,b) do { type temp; temp = a; a = b; b = temp; } while (0)
+        
+        #define DIV_ROUND_UP(count,pow2) (((count) - 1) / (pow2) + 1)
+        
+        
+        void reverse_bits (uint8_t *p, int byte_count)
+        {
+          while (byte_count--)
+            {
+              (*p) = bit_reverse_byte [*p];
+              p++;
+            }
+        }
+        
+        
+        static word_t bit_reverse_word (word_t d)
+        {
+          return (bit_reverse_byte [d >> 24] |
+           (bit_reverse_byte [(d >> 16) & 0xff] << 8) |
+           (bit_reverse_byte [(d >> 8) & 0xff] << 16) |
+           (bit_reverse_byte [d & 0xff] << 24));
+        }
+        
+        
+        static void reverse_range_of_bytes (uint8_t *b, uint32_t count)
+        {
+          uint8_t *b2 = b + count - 1;
+          
+          while (b < b2)
+            {
+              uint8_t t = bit_reverse_byte [*b];
+              *b = bit_reverse_byte [*b2];
+              *b2 = t;
+              b++;
+              b2--;
+            }
+        
+          if (b == b2)
+            *b = bit_reverse_byte [*b];
+        }
+        
+        
+        static word_t *temp_buffer;
+        static word_t temp_buffer_size;
+        
+        static void realloc_temp_buffer (uint32_t size)
+        {
+          if (size <= temp_buffer_size)
+            retur
+ 1024: n;
+          temp_buffer = realloc (temp_buffer, size);
+          if (! temp_buffer)
+            {
+              fprintf (stderr, "realloc failed in bitblt library\n");
+              exit (2);
+            }
+          temp_buffer_size = size;
+        }
+        
+        
+        static inline word_t pixel_mask (int x)
+        {
+        #if defined (MIXED_ENDIAN)  /* disgusting hack for mixed-endian */
+          word_t m;
+          m = 0x80 >> (x & 7);
+          m <<= (x & 24);
+          return (m);
+        #elif defined (LSB_RIGHT)
+          return (1U << ((BITS_PER_WORD - 1) - x));
+        #else
+          return (1U << x);
+        #endif
+        };
+        
+        
+        /* mask for range of bits left..right, inclusive */
+        static inline word_t pixel_range_mask (int left, int right)
+        {
+          word_t m1, m2, val;
+        
+          /* $$$ one of these cases is wrong! */
+        #if defined (LSB_RIGHT)
+          m1 = (~ 0U) >> left;
+          m2 = (~ 0U) << (BITS_PER_WORD - 1 - right);
+        #else
+          m1 = (~ 0U) << left;
+          m2 = (~ 0U) >> (BITS_PER_WORD - 1 - right);
+        #endif
+          val = m1 & m2;
+        
+          printf ("left %d, right %d, mask %08x\n", left, right, val);
+          return (val);
+        };
+        
+        
+        Bitmap *create_bitmap (Rect *rect)
+        {
+          Bitmap *bitmap;
+          uint32_t width = rect_width (rect);
+          
+ 1024: uint32_t height = rect_height (rect);
+        
+          if ((width <= 0) || (height <= 0))
+            return (NULL);
+        
+          bitmap = calloc (1, sizeof (Bitmap));
+          if (! bitmap)
+            return (NULL);
+          bitmap->rect = * rect;
+          bitmap->row_words = DIV_ROUND_UP (width, BITS_PER_WORD);
+          bitmap->bits = calloc (1, height * bitmap->row_words * sizeof (word_t));
+          if (! bitmap->bits)
+            {
+              free (bitmap);
+              return (NULL);
+            }
+          return (bitmap);
+        }
+        
+        void free_bitmap (Bitmap *bitmap)
+        {
+          free (bitmap->bits);
+          free (bitmap);
+        }
+        
+        bool get_pixel (Bitmap *bitmap, Point coord)
+        {
+          word_t *p;
+          int w,b;
+        
+          if ((coord.x < bitmap->rect.min.x) ||
+              (coord.x >= bitmap->rect.max.x) ||
+              (coord.y < bitmap->rect.min.y) ||
+              (coord.y >= bitmap->rect.max.y))
+            return (0);
+          coord.y -= bitmap->rect.min.y;
+          coord.x -= bitmap->rect.min.x;
+          w = coord.x / BITS_PER_WORD;
+          b = coord.x & (BITS_PER_WORD - 1);
+          p = bitmap->bits + coord.y * bitmap->row_words + w;
+          return (((*p) & pixel_mask (b)) != 0);
+        }
+        
+        void set_pixel (Bitmap *bitmap, Point
+ 1024:  coord, bool value)
+        {
+          word_t *p;
+          int w,b;
+        
+          if ((coord.x < bitmap->rect.min.x) ||
+              (coord.x >= bitmap->rect.max.x) ||
+              (coord.y < bitmap->rect.min.y) ||
+              (coord.y >= bitmap->rect.max.y))
+            return;
+          coord.y -= bitmap->rect.min.y;
+          coord.x -= bitmap->rect.min.x;
+          w = coord.x / BITS_PER_WORD;
+          b = coord.x & (BITS_PER_WORD - 1);
+          p = bitmap->bits + coord.y * bitmap->row_words + w;
+          if (value)
+            (*p) |= pixel_mask (b);
+          else
+            (*p) &= ~pixel_mask (b);
+        }
+        
+        
+        /* modifies rect1 to be the intersection of rect1 and rect2;
+           returns true if intersection is non-null */
+        static bool clip_rect (Rect *rect1, Rect *rect2)
+        {
+          if (rect1->min.y > rect2->max.y)
+            goto empty;
+          if (rect1->min.y < rect2->min.y)
+            {
+              if (rect1->max.y < rect2->max.y)
+         goto empty;
+              rect1->min.y = rect2->min.y;
+            }
+          if (rect1->max.y > rect2->max.y)
+            rect1->max.y = rect2->max.y;
+        
+          if (rect1->min.x > rect2->max.x)
+            goto empty;
+          if (rect1->min.x < rect2->min.x)
+            {
+              if (rect1->max.x < rect2-
+ 1024: >max.x)
+         goto empty;
+              rect1->min.x = rect2->min.x;
+            }
+          if (rect1->max.x > rect2->max.x)
+            rect1->max.x = rect2->max.x;
+        
+         empty:
+          rect1->min.x = rect1->min.y =
+            rect1->max.x = rect1->max.y = 0;
+          return (0);
+        }
+        
+        
+        static void blt_background (Bitmap *dest_bitmap,
+               Rect dest_rect)
+        {
+          uint32_t y;
+          word_t *rp;
+          uint32_t left_bit, left_word;
+          uint32_t right_bit, right_word;
+          word_t left_mask, right_mask;
+          int32_t word_count;
+        
+          /* This function requires a non-null dest rect */
+          assert (dest_rect.min.x < dest_rect.max.x);
+          assert (dest_rect.min.y < dest_rect.max.y);
+         
+          /* and that the rows of the dest rect lie entirely within the dest bitmap */
+          assert (dest_rect.min.y >= dest_bitmap->rect.min.y);
+          assert (dest_rect.max.y <= dest_bitmap->rect.max.y);
+        
+          /* clip the x axis of the dest_rect to the bounds of the dest bitmap */
+          if (dest_rect.min.x < dest_bitmap->rect.min.x)
+            dest_rect.min.x = dest_bitmap->rect.min.x;
+          if (dest_rect.max.x > dest_bitmap->rect.max.x)
+            dest_rect.max.x 
+ 1024: = dest_bitmap->rect.max.x;
+        
+          rp = dest_bitmap->bits +
+            (dest_rect.min.y - dest_bitmap->rect.min.y) * dest_bitmap->row_words +
+            (dest_rect.min.x - dest_bitmap->rect.min.x) / BITS_PER_WORD;
+        
+          left_bit = dest_rect.min.x % BITS_PER_WORD;
+          left_word = dest_rect.min.x / BITS_PER_WORD;
+        
+          right_bit = (dest_rect.max.x - 1) % BITS_PER_WORD;
+          right_word = (dest_rect.max.x - 1) / BITS_PER_WORD;
+        
+          word_count = right_word + 1 - left_word;
+        
+          /* special case if entire horizontal range fits in a single word */
+          if (word_count == 1)
+            {
+              left_mask = 0;
+              right_mask = ~ pixel_range_mask (left_bit, right_bit);
+              word_count = 0;
+            }
+          else
+            {
+              if (left_bit)
+         {
+           left_mask = ~ pixel_range_mask (left_bit, BITS_PER_WORD - 1);
+           word_count--;
+         }
+        
+              if (right_bit != (BITS_PER_WORD - 1))
+         {
+           right_mask = ~ pixel_range_mask (0, right_bit);
+           word_count--;
+         }
+            }
+        
+          for (y = 0; y < rect_height (& dest_rect); y++)
+            {
+              word_t *wp = rp;
+        
+              /* partial word at left, if any */
+             
+ 1024:  if (left_mask)
+         *(wp++) &= left_mask;
+        
+              /* use Duff's Device for the full words */
+              if (word_count)
+         {
+           int32_t i = word_count;
+           switch (i % 8)
+             {
+               while (i > 0)
+          {
+            *(wp++) = 0;
+          case 7: *(wp++) = 0;
+          case 6: *(wp++) = 0;
+          case 5: *(wp++) = 0;
+          case 4: *(wp++) = 0;
+          case 3: *(wp++) = 0;
+          case 2: *(wp++) = 0;
+          case 1: *(wp++) = 0;
+          case 0: i -= 8;
+          }
+             }
+         }
+        
+              /* partial word at right, if any */
+              if (right_mask)
+         *wp &= right_mask;
+        
+              /* advance to next row */
+              rp += dest_bitmap->row_words;
+            }
+        }
+        
+        
+        #if 0
+        static void blt (Bitmap *src_bitmap,
+           Rect *src_rect,
+           Bitmap *dest_bitmap,
+           Rect *dest_rect)
+        {
+          int32_t y;
+          word_t *rp;
+        
+          /* This function requires a non-null src rect */
+          assert (dest_rect->min.x < dest_rect->max.x);
+          assert (dest_rect->min.y < dest_rect->max.y);
+         
+          /* and a non-null dest rect */
+          assert (dest_rect->min.x < dest_rect->max.x);
+          assert (dest_rect->min.y < dest_rect->max.y);
+        
+          /* and that the widths and heights of the 
+ 1024: rects match */
+          assert (rect_width (src_rect) == rect_width (dest_rect));
+          assert (rect_height (src_rect) == rect_height (dest_rect));
+         
+          /* and that the rows of the src rect lie entirely within the src bitmap */
+          assert (dest_rect->min.y >= dest_bitmap->rect->min.y);
+          assert (dest_rect->max.y <= dest_bitmap->rect->max.y);
+        
+          /* and that the rows of the dest rect lie entirely within the dest bitmap */
+          assert (dest_rect->min.y >= dest_bitmap->rect->min.y);
+          assert (dest_rect->max.y <= dest_bitmap->rect->max.y);
+        
+          /* clip the x axis of the dest_rect to the bounds of the dest bitmap,
+             and adjust the src_rect to match */
+          if (dest_rect->min.x < dest_bitmap->rect.min.x)
+            {
+              src_rect->min.x += ???;
+              dest_rect->min.x = dest_bitmap->rect.min.x;
+            }
+          if (dest_rect->max.x > dest_bitmap->rect.max.x)
+            {
+              dest_rect->max.x = dest_bitmap->rect.max.x;
+            }
+        
+          rp = ???;
+          for (y = 0; y < rect_height (dest_rect); y++)
+            {
+          ???;
+              rp += dest_bitmap->row_words;
+            }
+        }
+        
+        
+        /*
+         * The de
+ 1024: stination rectangle is first clipped to the dest bitmap, and
+         * the source rectangle is adjusted in the corresponding manner.
+         * What's left is divided into five sections, any of which may be
+         * null.  The portion that actually corresponds to the intersection of
+         * the source rectangle and the source bitmpa is the "middle".  The
+         * other four sections will use the background color as the source
+         * operand.
+         *
+         *          
+         *   y0 ->  -------------------------------------------------
+         *          |                     top                       |
+         *          |                                               |
+         *   y1 ->  -------------------------------------------------
+         *          |   left        |    middle     |    right      |
+         *          |               |               |               |
+         *   y2 ->  -------------------------------------------------
+         *          |                     bottom                    |
+         *          |                                               |
+         *   y3 ->  ----------------------------
+ 1024: ---------------------
+         *
+         *          ^               ^               ^               ^
+         *          |               |               |               |
+         *         x0              x1              x2              x3
+         *
+         * */
+        Bitmap *bitblt (Bitmap *src_bitmap,
+          Rect   *src_rect,
+          Bitmap *dest_bitmap,
+          Point  *dest_min,
+          int tfn,
+          int background)
+        {
+          Rect sr, dr;     /* src and dest rects, clipped to visible portion of
+                dest rect */
+          uint32_t drw, drh;    /* dest rect width, height - gets adjusted */
+          Point src_point, dest_point;
+        
+          /* dest coordinates: */
+          uint32_t x0, x1, x2, x3;
+          uint32_t y0, y1, y2, y3;
+        
+          {
+            sr = * src_rect;
+        
+            uint32_t srw = rect_width (& sr);
+            uint32_t srh = rect_height (& sr);
+        
+            if ((srw < 0) || (srh < 0))
+              goto done;  /* the source rect is empty! */
+        
+            dr.min.x = dest_min->x;
+            dr.min.y = dest_min->y;
+            dr.max.x = dr.min.x + srw;
+            dr.max.y = dr.min.y + srh;
+          }
+        
+          if (! dest_bitmap)
+            {
+              dest_bitmap = create_bitmap (& dr);
+              if (! dest_bi
+ 1024: tmap)
+         return (NULL);
+            }
+        
+          if ((dr.min.x >= dest_bitmap->rect.max.x) ||
+              (dr.min.y >= dest_bitmap->rect.max.y))
+            goto done;  /* the dest rect isn't even in the dest bitmap! */
+        
+          /* crop dest rect to dest bitmap */
+          delta = dest_bitmap->rect.min.x - dr.min.x;
+          if (delta > 0)
+            {
+              sr.min.x += delta;
+              dr.min.x += delta;
+            }
+        
+          delta = dest_bitmap->rect.min.y - dr.min.y;
+          if (delta > 0)
+            {
+              sr.min.y += delta;
+              dr.min.y += delta;
+            }
+        
+          delta = dr.max.x - dest_bitmap->rect.max.x;
+          if (delta > 0)
+            {
+              sr.max.x -= delta;
+              dr.max.x -= delta;
+            }
+        
+          delta = dr.max.y - dest_bitmap->rect.max.y;
+          if (delta > 0)
+            {
+              sr.max.x -= delta;
+              dr.max.x -= delta;
+            }
+        
+          drw = rect_width (& dr);
+          drh = rect_height (& dh);
+        
+          x0 = dr.min.x;
+          y0 = dr.min.y;
+          x3 = dr.max.x;
+          y3 = dr.max.y;
+        
+        #if 0
+          /* if the source rect min y is >= the source bitmap max y,
+             we transfer background color to the entire dest rect */
+          if (sr.min.y >= src->rect.max.y)
+            {
+ 1024: 
+              blt_background (dest_bitmap, dr);
+              goto done;
+            }
+        #endif
+        
+          /* top */
+          if (y0 != y1)
+            {
+              dr2.min.x = x0;
+              dr2.max.x = x3;
+              dr2.min.y = y0;
+              dr2.max.y = y1;
+              blt_background (dest_bitmap, & dr2);
+            }
+        
+          /*
+           * top:  if the source rect min y is less than the source bitmap min y,
+           * we need to transfer some backgound color to the top part of the dest
+           * rect
+           */
+          if (sr.min.y < src->rect.min.y)
+            {
+              Rect dr2;
+              uint32 bg_height;
+        
+              bg_height = src->rect.min.y - sr.min.y;
+              if (bg_height > sh)
+         bg_height = sh;
+        
+              dr2 = dr;
+              dr2.max.y = dr2.min.y + bg_height;
+        
+              blt_background (dest_bitmap, & dr2);
+        
+              /* now reduce the rect height by the number of lines of background
+          color */
+              sr.min.y += bg_height;
+              dr.min.y += bg_height;
+              sh -= bg_height;
+              dh -= bg_height;
+        
+              if (sr.min.y == sr.max.y)
+         goto done;
+            }
+        
+          if (y1 != y2)
+            {
+              /* left */
+              if (x0 != x1)
+         {
+           dr2.min.x = x1;
+           dr2.max.x = x1
+ 1024: ;
+           dr2.min.y = y1;
+           dr2.max.y = y2
+           blt_background (dest_bitmap, & dr2);
+         }
+        
+              /* middle */
+              if (x1 != x2)
+         {
+           /* ??? */
+         }
+        
+              /* right */
+              if (x2 != x3)
+         {
+           dr2.min.x = x2;
+           dr2.max.x = x3;
+           dr2.min.y = y1;
+           dr2.max.y = y2
+           blt_background (dest_bitmap, & dr2);
+         }
+            }
+        
+          /* bottom */
+          if (y2 != y3)
+            {
+              dr2.min.x = x0;
+              dr2.max.x = x3;
+              dr2.min.y = y2;
+              dr2.max.y = y3;
+              blt_background (dest_bitmap, & dr2);
+            }
+        
+         done:
+          return (dest_bitmap);
+        }
+        #else
+        Bitmap *bitblt (Bitmap *src_bitmap,
+          Rect   *src_rect,
+          Bitmap *dest_bitmap,
+          Point  *dest_min,
+          int tfn,
+          int background)
+        {
+          Point src_point, dest_point;
+        
+          if (! dest_bitmap)
+            {
+              Rect dest_rect = {{ 0, 0 }, { dest_min->x + rect_width (src_rect),
+                dest_min->y + rect_height (src_rect) }};
+              dest_bitmap = create_bitmap (& dest_rect);
+              if (! dest_bitmap)
+         return (NULL);
+            }
+        
+          if (tfn == TF_SRC)
+            {
+              for (src_point.y = src_rect->min.y;
+            src_point.y < src_rec
+ 1024: t->max.y;
+            src_point.y++)
+         {
+           dest_point.y = dest_min->y + src_point.y - src_rect->min.y;
+           
+           for (src_point.x = src_rect->min.x;
+                src_point.x < src_rect->max.x;
+                src_point.x++)
+             {
+               bool a;
+        
+               dest_point.x = dest_min->x + src_point.x - src_rect->min.x;
+        
+               a = get_pixel (src_bitmap, src_point);
+               set_pixel (dest_bitmap, dest_point, a);
+             }
+         }
+            }
+          else
+            {
+              for (src_point.y = src_rect->min.y;
+            src_point.y < src_rect->max.y;
+            src_point.y++)
+         {
+           dest_point.y = dest_min->y + src_point.y - src_rect->min.y;
+           
+           for (src_point.x = src_rect->min.x;
+                src_point.x < src_rect->max.x;
+                src_point.x++)
+             {
+               bool a, b, c;
+        
+               dest_point.x = dest_min->x + src_point.x - src_rect->min.x;
+        
+               a = get_pixel (src_bitmap, src_point);
+               b = get_pixel (dest_bitmap, dest_point);
+               c = (tfn & (1 << (a * 2 + b))) != 0;
+        
+               set_pixel (dest_bitmap, dest_point, c);
+             }
+         }
+            }
+          return (dest_bitmap);
+        }
+        #endif
+        
+        
+        /* in-plac
+ 1024: e transformations */
+        void flip_h (Bitmap *src)
+        {
+          word_t *rp;  /* row pointer */
+          int32_t y;
+          int shift1, shift2;
+        
+          rp = src->bits;
+          if ((rect_width (& src->rect) & 7) == 0)
+            {
+              for (y = src->rect.min.y; y < src->rect.max.y; y++)
+         {
+                  reverse_range_of_bytes ((uint8_t *) rp, rect_width (& src->rect) / 8)
+       ;
+           rp += src->row_words;
+         }
+              return;
+            }
+        
+          realloc_temp_buffer ((src->row_words + 1) * sizeof (word_t));
+        
+          temp_buffer [0] = 0;
+          shift1 = rect_width (& src->rect) & (BITS_PER_WORD - 1);
+          shift2 = BITS_PER_WORD - shift1;
+        
+          for (y = src->rect.min.y; y < src->rect.max.y; y++)
+            {
+              word_t d1, d2;
+              word_t *p1;  /* work src ptr */
+              word_t *p2;  /* work dest ptr */
+        
+              memcpy (temp_buffer + 1, rp, src->row_words * sizeof (word_t));
+              p1 = temp_buffer + src->row_words;
+              p2 = rp;
+        
+              d2 = *(p1--);
+        
+              while (p1 >= temp_buffer)
+         {
+           word_t t;
+           d1 = *(p1--);
+           t = (d1 >> shift1) | (d2 << shift2);
+           *(p2++) = bit_reverse_word (t);
+           d2 = d1;
+         }    
+ 1024:   
+        
+              rp += src->row_words;
+            }
+        }
+        
+        
+        void flip_v (Bitmap *src)
+        {
+          word_t *p1, *p2;
+        
+          realloc_temp_buffer (src->row_words * sizeof (word_t));
+        
+          p1 = src->bits;
+          p2 = src->bits + src->row_words * (rect_height (& src->rect) - 1);
+          while (p1 < p2)
+            {
+              memcpy (temp_buffer, p1, src->row_words * sizeof (word_t));
+              memcpy (p1, p2, src->row_words * sizeof (word_t));
+              memcpy (p2, temp_buffer, src->row_words * sizeof (word_t));
+              p1 += src->row_words;
+              p2 -= src->row_words;
+            }
+        }
+        
+        void rot_180 (Bitmap *src)  /* combination of flip_h and flip_v */
+        {
+          flip_h (src);
+          flip_v (src);
+        }
+        
+        /* "in-place" transformations - will allocate new memory and free old */
+        // XXX hideously inefficient!
+        void transpose (Bitmap *src)
+        {
+          Rect transposed_rect;
+          Bitmap *dest;
+          Point src_coord, dest_coord;
+        
+          transposed_rect.min.x = src->rect.min.y;
+          transposed_rect.max.x = src->rect.max.y;
+          transposed_rect.min.y = src->rect.min.x;
+          transposed_rect.max.y = src->rect.max.x;
+          dest = create_bitmap (& tr
+ 1024: ansposed_rect);
+        
+          for (src_coord.y = src->rect.min.y; src_coord.y < src->rect.max.y; src_coord.
+       y++)
+            {
+              dest_coord.x = src_coord.y;
+              
+              for (src_coord.x = src->rect.min.x; src_coord.x < src->rect.max.x; src_co
+       ord.x++)
+         {
+           dest_coord.y = src_coord.x;
+           set_pixel(dest, dest_coord, get_pixel(src, src_coord));
+         }
+            }
+        
+          SWAP(Bitmap, *src, *dest);
+          free_bitmap(dest);
+        }
+        
+        void rot_90 (Bitmap *src)   /* transpose + flip_h */
+        {
+          transpose (src);
+          flip_h (src);
+        }
+        
+        void rot_270 (Bitmap *src)  /* transpose + flip_v */
+        {
+          transpose (src);
+          flip_v (src);
+        }
+        
+        
+        /* frees original! */
+        Bitmap *resize_bitmap (Bitmap *src,
+                 int width_pixels,
+                 int height_pixels)
+        {
+          Rect src_rect;
+          Point dest_min;
+          Bitmap *dest;
+        
+          src_rect.min.x = (rect_width (& src->rect) - width_pixels) / 2;
+          src_rect.min.y = (rect_height (& src->rect) - height_pixels) / 2;
+          src_rect.max.x = src_rect.min.x + width_pixels;
+          src_rect.max.y = src_rect.min.y + height_pixels;
+        
+          dest_min.x = 0;
+          dest_min.y = 0;
+        
+          des
+  431: t = bitblt (src, & src_rect, NULL, & dest_min, TF_SRC, 0);
+          free_bitmap (src);
+          return (dest);
+        }
+        
+        
+        /* "in place" rotation */
+        void rotate_bitmap (Bitmap *src, int rotation)
+        {
+          switch (rotation)
+            {
+            case 0: break;
+            case 90: rot_90 (src); break;
+            case 180: rot_180 (src); break;
+            case 270: rot_270 (src); break;
+            default:
+              fprintf (stderr, "rotation %d, but must be 0, 90, 180, or 270\n", rotatio
+       n);
+            }
+        }
+        
+tape mark
+ 1024: /*
+         * tumble: build a PDF file from image files
+         *
+         * G4 compression
+         * Copyright 2003, 2017 Eric Smith <spacewar@gmail.com>
+         *
+         * This program is free software; you can redistribute it and/or modify
+         * it under the terms of the GNU General Public License version 2 as
+         * published by the Free Software Foundation.  Note that permission is
+         * not granted to redistribute this program under the terms of any
+         * other version of the General Public License.
+         *
+         * This program is distributed in the hope that it will be useful,
+         * but WITHOUT ANY WARRANTY; without even the implied warranty of
+         * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+         * GNU General Public License for more details.
+         *
+         * You should have received a copy of the GNU General Public License
+         * along with this program; if not, write to the Free Software
+         * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA
+         *
+         *  2007-06-20 [JDB] Fixed a bug wherein "g4_get_pixel" is called with pixel
+         *                   index == width
+ 1024: , causing an index off the end of the array
+         *                   if width % BITS_PER_WORD == 0.
+         */
+        
+        
+        #define G4_DEBUG 0
+        
+        
+        #include <stdbool.h>
+        #include <stdint.h>
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <string.h>
+        
+        
+        #include "bitblt.h"
+        #include "bitblt_tables.h"
+        #include "pdf_util.h"
+        
+        
+        #include "g4_tables.h"
+        
+        
+        #define BIT_BUF_SIZE 4096
+        
+        struct bit_buffer
+        {
+          FILE *f;
+          uint32_t byte_idx;  /* index to next byte position in data buffer */
+          uint32_t bit_idx;   /* one greater than the next bit position in data buffer,
+            8 = MSB, 1 = LSB */
+          uint8_t data [BIT_BUF_SIZE];
+        };
+        
+        
+        static void init_bit_buffer (struct bit_buffer *buf)
+        {
+          buf->byte_idx = 0;
+          buf->bit_idx = 8;
+          memset (& buf->data [0], 0, BIT_BUF_SIZE);
+        }
+        
+        
+        static void flush_bits (struct bit_buffer *buf)
+        {
+          size_t s;
+          if (buf->bit_idx != 8)
+            {
+              buf->byte_idx++;
+              buf->bit_idx = 8;
+            }
+          s = fwrite (& buf->data [0], 1, buf->byte_idx, buf->f);
+          /* $$$ should check result */
+          init_bit_buffer (buf);
+        }
+        
+        
+        static void advance_byte
+ 1024:  (struct bit_buffer *buf)
+        {
+          buf->byte_idx++;
+          buf->bit_idx = 8;
+          if (buf->byte_idx == BIT_BUF_SIZE)
+            flush_bits (buf);
+        }
+        
+        
+        static void write_bits (struct bit_buffer *buf,
+           uint32_t count,
+           uint32_t bits)
+        {
+          while (count > buf->bit_idx)
+            {
+              buf->data [buf->byte_idx] |= bits >> (count - buf->bit_idx);
+              count -= buf->bit_idx;
+              advance_byte (buf);
+            }
+        
+          bits &= ((1 << count) - 1);
+          buf->data [buf->byte_idx] |= bits << (buf->bit_idx - count);
+          buf->bit_idx -= count;
+          if (buf->bit_idx == 0)
+            advance_byte (buf);
+        }
+        
+        
+        static void g4_encode_horizontal_run (struct bit_buffer *buf,
+                  bool black,
+                  uint32_t run_length)
+        {
+          uint32_t i;
+        
+          while (run_length >= 2560)
+            {
+              write_bits (buf, 12, 0x01f);
+              run_length -= 2560;
+            }
+        
+          if (run_length >= 1792)
+            {
+              i = (run_length - 1792) >> 6;
+              write_bits (buf,
+            g4_long_makeup_code [i].count,
+            g4_long_makeup_code [i].bits);
+              run_length -= (1792 + (i << 6));
+            }
+          else if (run_length >= 64)
+        
+ 1024:     {
+              i = (run_length >> 6) - 1;
+              write_bits (buf,
+            g4_makeup_code [black] [i].count,
+            g4_makeup_code [black] [i].bits);
+              run_length -= (i + 1) << 6;
+            }
+        
+          write_bits (buf,
+               g4_h_code [black] [run_length].count,
+               g4_h_code [black] [run_length].bits);
+        }
+        
+        
+        static inline int g4_get_pixel (uint8_t *buf, uint32_t x)
+        {
+          return ((buf [x >> 3] >> (x & 7)) & 1);
+        }
+        
+        
+        #define not_aligned(p) (((word_t) p) & (sizeof (word_t) - 1))
+        
+        
+        static uint32_t g4_find_pixel (uint8_t *buf,
+                  uint32_t pos,
+                  uint32_t width,
+                  bool color)
+        {
+          uint8_t *p = buf + pos / 8;
+          int bit = pos & 7;
+          uint8_t *max_p = buf + (width - 1) / 8;
+          uint8_t d;
+        
+          /* check first byte (may be partial) */
+          d = *p;
+          if (! color)
+            d = ~d;
+          bit += rle_tab [bit][d];
+          if (bit < 8)
+            goto done;
+          p++;
+        
+          /* check individual bytes until we hit word alignment */
+          while ((p <= max_p) && not_aligned (p))
+            {
+              d = *p;
+              if (! color)
+         d = ~d;
+              if (d != 0)
+         goto found;
+              p++;
+         
+ 1024:    }
+        
+          /* check aligned words in middle */
+          while ((p <= (max_p - sizeof (word_t))))
+            {
+              word_t w = *((word_t *) p);
+              if (! color)
+         w = ~w;
+              if (w != 0)
+         break;
+              p += sizeof (word_t);
+            }
+        
+          /* check trailing bytes */
+          while (p <= max_p)
+            {
+              d = *p;
+              if (! color)
+         d = ~d;
+              if (d)
+         goto found;
+              p++;
+            }
+        
+          goto not_found;
+        
+         found:
+          bit = rle_tab [0][d];
+        
+         done:
+          pos = ((p - buf) << 3) + bit;
+          if (pos < width)
+            return (pos);
+        
+         not_found:
+          return (width);
+        }
+        
+        
+        static void g4_encode_row (struct bit_buffer *buf,
+              uint32_t width,
+              uint8_t *ref,
+              uint8_t *row)
+        {
+          uint32_t a0, a1, a2;
+          uint32_t b1, b2;
+          bool a0_c;
+        
+          a0 = 0;
+          a0_c = 0;
+        
+          a1 = g4_find_pixel (row, 0, width, 1);
+        
+          b1 = g4_find_pixel (ref, 0, width, 1);
+        
+        #if (G4_DEBUG & 1)
+          fprintf (stderr, "start of row\n");
+          if ((a1 != width) || (b1 != width))
+            {
+              fprintf (stderr, "a1 = %u, b1 = %u\n", a1, b1);
+            }
+        #endif
+          
+          while (a0 < width)
+            {
+              b2 = g4_find_pixel (r
+ 1024: ef, b1 + 1, width, ! g4_get_pixel (ref, b1));
+        
+              if (b2 < a1)
+         {
+           /* pass mode - 0001 */
+           write_bits (buf, 4, 0x1);
+           a0 = b2;
+        #if (G4_DEBUG & 1)
+           fprintf (stderr, "pass\n");
+        #endif
+         }
+              else if (abs (a1 - b1) <= 3)
+         {
+           /* vertical mode */
+           write_bits (buf,
+                g4_vert_code [3 + a1 - b1].count,
+                g4_vert_code [3 + a1 - b1].bits);
+           a0 = a1;
+        #if (G4_DEBUG & 1)
+           fprintf (stderr, "vertical %d\n", a1 - b1);
+        #endif
+         }
+              else
+         {
+           /* horizontal mode - 001 */
+           a2 = g4_find_pixel (row, a1 + 1, width, a0_c);
+           write_bits (buf, 3, 0x1);
+           g4_encode_horizontal_run (buf,   a0_c, a1 - a0);
+           g4_encode_horizontal_run (buf, ! a0_c, a2 - a1);
+        #if (G4_DEBUG & 1)
+           fprintf (stderr, "horizontal %d %s, %d %s\n",
+             a1 - a0, a0_c ? "black" : "white",
+             a2 - a1, a0_c ? "white" : "black");
+        #endif
+           a0 = a2;
+         }
+        
+              if (a0 >= width)
+         break;;
+        
+              a0_c = g4_get_pixel (row, a0);
+        
+              a1 = g4_find_pixel (row, a0 + 1, width, ! a0_c);
+              b1 = g4_find_pixel (ref, a0 + 1, width, ! g
+  996: 4_get_pixel (ref, a0));
+              if (g4_get_pixel (ref, b1) == a0_c)
+         b1 = g4_find_pixel (ref, b1 + 1, width, ! a0_c);
+        #if (G4_DEBUG & 1)
+              fprintf (stderr, "a1 = %u, b1 = %u\n", a1, b1);
+        #endif
+            }
+        }
+        
+        
+        void bitblt_write_g4 (Bitmap *bitmap, FILE *f)
+        {
+          uint32_t width = bitmap->rect.max.x - bitmap->rect.min.x;
+          uint32_t row;
+          struct bit_buffer bb;
+        
+          word_t *temp_buffer;
+        
+          word_t *cur_line;
+          word_t *ref_line;  /* reference (previous) row */
+        
+          temp_buffer = pdf_calloc (width / BITS_PER_WORD + 1,
+               sizeof (word_t));
+        
+          cur_line = bitmap->bits;
+          ref_line = temp_buffer;
+        
+          init_bit_buffer (& bb);
+        
+          bb.f = f;
+        
+          for (row = bitmap->rect.min.y;
+               row < bitmap->rect.max.y;
+               row++)
+            {
+              g4_encode_row (& bb,
+               width,
+               (uint8_t *) ref_line,
+               (uint8_t *) cur_line);
+              ref_line = cur_line;
+              cur_line += bitmap->row_words;
+            }
+        
+          
+          /* write EOFB code */
+          write_bits (& bb, 24, 0x001001);
+        
+          flush_bits (& bb);
+        
+          free (temp_buffer);
+        }
+        
+        
+        
+tape mark
+ 1024: /*
+         * tumble: build a PDF file from image files
+         *
+         * bitblt routines
+         * Copyright 2001, 2002, 2003, 2017 Eric Smith <spacewar@gmail.com>
+         *
+         * This program is free software; you can redistribute it and/or modify
+         * it under the terms of the GNU General Public License version 2 as
+         * published by the Free Software Foundation.  Note that permission is
+         * not granted to redistribute this program under the terms of any
+         * other version of the General Public License.
+         *
+         * This program is distributed in the hope that it will be useful,
+         * but WITHOUT ANY WARRANTY; without even the implied warranty of
+         * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+         * GNU General Public License for more details.
+         *
+         * You should have received a copy of the GNU General Public License
+         * along with this program; if not, write to the Free Software
+         * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA
+         *
+         *  2009-03-13 [JDB] pm_config.h (part of NETPBM) defines BITS_PER_WORD but
+         *                   ap
+ 1024: parently doesn't use it externally.  We undefine it here
+         *                   so that our version takes precedence and warnings are not
+         *                   generated.
+         */
+        
+        #undef BITS_PER_WORD
+        
+        
+        typedef struct Point
+        {
+          int32_t x;
+          int32_t y;
+        } Point;
+        
+        typedef struct Rect
+        {
+          Point min;
+          Point max;
+        } Rect;
+        
+        static inline int32_t rect_width (Rect *r)
+        {
+          return (r->max.x - r->min.x);
+        }
+        
+        static inline int32_t rect_height (Rect *r)
+        {
+          return (r->max.y - r->min.y);
+        }
+        
+        
+        /* word_t should be the largest native type that can be handled
+           efficiently, so it shouldn't be a 64-bit type on a processor that
+           doesn't have native 64-bit operations. */
+        typedef uint32_t word_t;
+        #define BITS_PER_WORD (8 * sizeof (word_t))
+        #define ALL_ONES (~ 0UL)
+        
+        
+        typedef struct Bitmap
+        {
+          word_t *bits;
+          Rect rect;
+          uint32_t row_words;
+        } Bitmap;
+        
+        
+        #define TF_SRC 0xc
+        #define TF_AND 0x8
+        #define TF_OR  0xe
+        #define TF_XOR 0x6
+        
+        
+        void bitblt_init (void);
+        
+        
+        Bitmap *create_bitmap (Rect *rect);
+        void free_bitmap (Bitmap *bitmap);
+        
+        bool get_pix
+  883: el (Bitmap *bitmap, Point coord);
+        void set_pixel (Bitmap *bitmap, Point coord, bool value);
+        
+        
+        Bitmap *bitblt (Bitmap *src_bitmap,
+          Rect   *src_rect,
+          Bitmap *dest_bitmap,
+          Point  *dest_min,
+          int tfn,
+          int background);
+        
+        
+        /* in-place transformations */
+        void flip_h (Bitmap *src);
+        void flip_v (Bitmap *src);
+        
+        void rot_180 (Bitmap *src);  /* combination of flip_h and flip_v */
+        
+        /* "in-place" transformations - will allocate new memory and free old */
+        void transpose (Bitmap *src);
+        
+        void rot_90 (Bitmap *src);   /* transpose + flip_h */
+        void rot_270 (Bitmap *src);  /* transpose + flip_v */
+        
+        
+        void reverse_bits (uint8_t *p, int byte_count);
+        
+        
+        void bitblt_write_g4 (Bitmap *bitmap, FILE *f);
+        
+        
+        /* frees original! */
+        Bitmap *resize_bitmap (Bitmap *src,
+                 int width_pixels,
+                 int height_pixels);
+        
+        /* "in place" rotation */
+        void rotate_bitmap (Bitmap *src, int rotation);
+        
+tape mark
+ 1024: /*
+         * tumble: build a PDF file from image files
+         *
+         * bitblt table generator
+         * Copyright 2003, 2017 Eric Smith <spacewar@gmail.com>
+         *
+         * This program is free software; you can redistribute it and/or modify
+         * it under the terms of the GNU General Public License version 2 as
+         * published by the Free Software Foundation.  Note that permission is
+         * not granted to redistribute this program under the terms of any
+         * other version of the General Public License.
+         *
+         * This program is distributed in the hope that it will be useful,
+         * but WITHOUT ANY WARRANTY; without even the implied warranty of
+         * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+         * GNU General Public License for more details.
+         *
+         * You should have received a copy of the GNU General Public License
+         * along with this program; if not, write to the Free Software
+         * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA
+         */
+        
+        
+        #include <stdbool.h>
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <string.h>
+        
+        
+        void gen_bit_revers
+ 1024: e_table (bool header)
+        {
+          int i, j;
+        
+          if (header)
+            printf ("extern ");
+          printf ("const uint8_t bit_reverse_byte [0x100]");
+          if (header)
+            {
+              printf (";\n");
+              return;
+            }
+          printf (" =\n");
+          printf ("{\n");
+          for (i = 0; i < 0x100; i++)
+            {
+              if ((i & 7) == 0)
+         printf ("  ");
+              j = (((i & 0x01) << 7) |
+            ((i & 0x02) << 5) |
+            ((i & 0x04) << 3) |
+            ((i & 0x08) << 1) |
+            ((i & 0x10) >> 1) |
+            ((i & 0x20) >> 3) |
+            ((i & 0x40) >> 5) |
+            ((i & 0x80) >> 7));
+              printf ("0x%02x", j);
+              if (i != 0xff)
+         printf (",");
+              if ((i & 7) == 7)
+         printf ("\n");
+              else
+         printf (" ");
+            }
+          printf ("};\n");
+        }
+        
+        
+        int count_run (int byte, int start_bit, int desired_val)
+        {
+          int count = 0;
+          int i;
+        
+        #ifdef WORDS_BIGENDIAN
+          for (i = 7 - start_bit; i >= 0; i--)
+            {
+              int bit = (byte >> i) & 1;
+              if (bit == desired_val)
+         count++;
+              else
+         break;
+            }
+        #else
+          for (i = start_bit; i < 8; i++)
+            {
+              int bit = (byte >> i) & 1;
+              if (bit == desired_val)
+         c
+ 1024: ount++;
+              else
+         break;
+            }
+        #endif
+        
+          return (count);
+        }
+        
+        
+        void gen_run_length_table (bool header, int val, char *name)
+        {
+          int i, j;
+        
+          if (header)
+            printf ("extern ");
+          printf ("const uint8_t %s [8][256]", name);
+          if (header)
+            {
+              printf (";\n");
+              return;
+            }
+          printf (" =\n");
+          printf ("{\n");
+          for (i = 0; i < 8; i++)
+            {
+              printf ("  {\n");
+              for (j = 0; j < 256; j++)
+         {
+           if ((j & 15) == 0)
+             printf ("  ");
+           printf ("%d", count_run (j, i, val));
+           if (j != 0xff)
+             printf (",");
+           if ((j & 15) == 15)
+             printf ("\n");
+           else
+             printf (" ");
+         }
+              printf ("  }");
+              if (i != 7)
+         printf (",");
+              printf ("\n");
+            }
+          printf ("};\n");
+        }
+        
+        
+        int main (int argc, char *argv[])
+        {
+          bool header;
+        
+          if (argc != 2)
+            {
+              fprintf (stderr, "wrong arg count\n");
+              exit (2);
+            }
+          if (strcmp (argv [1], "-h") == 0)
+            header = 1;
+          else if (strcmp (argv [1], "-c") == 0)
+            header = 0;
+          else
+            {
+              fprintf (stderr, "wrong args\n");
+              exi
+  376: t (2);
+            }
+        
+          printf ("/* This file is automatically generated; do not edit */\n");
+          printf ("\n");
+        
+          if (! header)
+            {
+              printf ("#include <stdint.h>\n");
+              printf ("#include \"bitblt_tables.h\"\n");
+              printf ("\n");
+            }
+        
+          gen_bit_reverse_table (header);
+          printf ("\n");
+        
+          gen_run_length_table (header, 0, "rle_tab");
+          printf ("\n");
+        
+          return (0);
+        }
+        
+tape mark
+ 1024: # Change Log
+        
+        ## [0.36] - 2017-12-27
+        ### Minor updates, no significant code changes.
+        - Minor changes to avoid a few compile warnings.
+        - Updates to email address, URL, copyright notices.
+        
+        ## [0.35] - 2016-06-23
+        ### Added CHANGELOG.md 
+         
+        ## [0.34] - 2016-06-23
+        ### Many fixes and enhancements from Palomar Corporation
+        - Modify "bitblt.h" to undefine BITS_PER_WORD, which is defined in the
+          netpbm header "pm_config.h", so that the tumble use takes precedence.
+        - Fix a bug in "bitblt_write_g4" (bitblt_g4.c).  Tumble would crash in
+          "g4_get_pixel" with bad pointer access when trying to encode a TIFF image
+          that was 14400 x 6100 (24" x 11").  "g4_get_pixel" was called with index
+          14400, which accesses the first byte beyond the allocated array.
+        - "bitblt_write_g4" is called to encode and write a TIFF bitmap to the PDF
+          file.  It allocates and zeros a temporary buffer to hold a scan line and
+          then calls "g4_encode_row" for each line.  "g4_find_pixel" is called to
+          find the first 1 bit in the temporary buffer.  Bec
+ 1024: ause the buffer has been
+          zeroed, "g4_find_pixel" returned the image width (14400) when the
+          specified pixel could not be found in scan line.  A subsequent call to
+          "g4_get_pixel" specified this pixel number (14400), which accessed memory
+          beyond the allocation.
+        
+          The crash wasn't repeatable.  To occur, the image width had to be a
+          multiple of 32 (else the last pixel + 1 would still be within the final
+          word), and the allocation had to end exactly on a page boundary (so the
+          first byte beyond the allocation was read-protected).
+         
+          Fix is to pad the temporary buffer with an extra word if the width is an
+          exact multiple of 32.  Note that access beyond the source bitmap is
+          prohibited by the "if (a0 >= width) break;" test prior to the
+          "g4_get_pixel" call.
+        
+        - Modify the makefile to add PNG and blank-page support files.
+        
+        - Modify "parser.y" to enable push and pop of input contexts.  This allows
+          "{" and "}" to create a local context for modifiers, such as TRANSPARENT.
+          Input modifiers specified outs
+ 1024: ide of a local context become global for
+          subsequent input clauses.
+        - Modify "pdf.c" to add creation and modification dates to the PDF
+          properties.  The "CreationDate" and "ModDate" values are set to the time
+          that the PDF was created.
+        - Modify "pdf.h" to change the page size limit from 45 inches (Reader 3.x)
+          to 200 inches (Reader 4.x and later), to add structures and parameters to
+          support the new features added to the parser, and to add the PDF
+          "producer" definition.
+        - Modify "pdf_g4.c" to add support for color-mapping bilevel images.
+          Mapping allows a black and white image to be drawn as any two specified
+          colors.  Useful for pages that are black-on-color or white-on-color. The
+          color mapping syntax is:
+        
+               COLORMAP (<red> <green> <blue>) , (<red> <green> <blue>) ;
+        
+          ...where the first triplet specifies the color to be displayed for black
+          and the second triplet specifies the color to be displayed for white.
+        
+          Note that a two-color PNG is about twice the size of a Group 4 TIFF.
+        
+          Impleme
+ 1024: ntation note: the colormap is added to the PDF as a string resource
+          and an indirect reference is made from the XObject.  Tumble should keep
+          each colormap only once in the file by keeping a global list of the
+          string resources created.  It doesn't.  However, if the colormap used on
+          an image is identical to the one used on the previous image, it will reuse
+          the string resource.  This covers the case of a section of colored pages.
+          However, a discontiguous run of colored pages, e.g., the front and back
+          covers, will store the colormap twice.
+        
+        - Modify "pdf_g4.c", "pdf_jpeg.c", "tumble.c", "tumble_jpeg.c", and
+          "tumble_pbm.c" to support color key masking (using the PDF Mask operator).
+          The syntax is:
+        
+               TRANSPARENT ( <gray_range> ) ;
+        
+          or:
+        
+               TRANSPARENT ( <red_range> <green_range> <blue_range> ) ;
+        
+          ...as a modifier to an input statement.  <range> may be either a single
+          integer or a low..high range.
+        
+          The range values must be compatible with the color space of the image.
+          For full-col
+ 1024: or images, the ranges would be 0..255.  For grayscale images,
+          the range would be 0..255.  For paletted images, the range  is expressed
+          in palette entry numbers, which is much less likely to be useful than a
+          single palette value.
+        
+        - Modify "pdf_g4.c", "tumble_input.h", and "tumble_tiff.c" to add handling
+          of TIFF images with min-is-black photometric interpretation.
+        
+        - Modify "pdf_g4.c," "pdf_jpeg.c," and "pdf_png.c" to fix bugs in the
+          callbacks within these files.  "pdf_write_stream" was called to write "Do"
+          commands with the XObject names without escaping restricted characters in
+          the name, which had been escaped when the corresponding directory was
+          written.  This led to "Undefined XObject resource" errors when more than
+          26 images were overlaid on a page ("pdf_new_XObject" generates names of
+          the form "ImA", "ImB", etc., and the 27th name was "Im[", which must be
+          escaped, as "[" is a restricted character; the dictionary name was being
+          escaped to "Im#5b", but the "Do" command name was not)
+ 1024: .
+        
+        - Modify "pdf_page_label.c" to fix a bug wherein a page label specifying
+          prefix without a style (e.g., LABEL <prefix>) produces bad PDF (no labels
+          are displayed).  Should output "/P <prefix>" but instead was outputting
+          "/S /P <prefix>".
+        
+        - Add new files "pdf_png.c" and "tumble_png.c" and modify "tumble_input.h"
+          to support PNG images (code from Daniel Gl  ckner via the tumble mailing
+          list).
+        
+        - Change PDF string handling in "pdf_prim.c" and "pdf_prim.h" to allow
+          embedded nulls by storing strings as character arrays plus length words.
+        
+        - Modify "parser.y", "scanner.l", "semantics.c", and "semantics.h" to
+          support blank pages, overlay images, color mapping, color-key masking, and
+          push/pop of input contexts.
+        
+        - Modify "tumble.c", "tumble_jpeg.c", and "tumble_pbm.c" to support overlay
+          images.  Overlays allow one image to be placed on top of another, e.g., a
+          JPEG photo on a bilevel TIFF text page, at a specified position. Overlays
+          are drawn after the page on which the overlay is specified.  T
+ 1024: he overlay
+          syntax is:
+        
+               PAGE <number> [ { OVERLAY <length>, <length> ;  ... } ] ;
+        
+          To support multiple images per page, the "Contents" stream is replaced by
+          an array of stream objects.
+        
+        - Modify "tumble.c" to add a new -V option that prints the program version
+          to stdio.  The version string printed is the PDF producer string.
+        
+        - Add new file "tumble_blank.c" and modify "tumble_input.c" and
+          "tumble_input.h" to support true blank pages.  A blank page is a new PDF
+          page with no content. The blank page syntax is:
+        
+               BLANK <size_clause>
+        
+        - Fix a bug that caused a double free in "tumble_input.c".
+        
+        - Modify "tumble_tiff.c" to suppress a "function defined but not used"
+          warning.
+        
+        - Modify "semantics.c" to reduce page label redundancy in the PDF.  Tumble
+          was outputting a PageLabel entry for every page, rather than just for
+          pages where the labelling changed.  This resulted in an unnecessarily
+          large label dictionary.  Now allows page labels to default to
+          auto-generation when appropriate.
+        
+        -
+  209:  Modify "semantics.c" to change the program report from "<n> pages
+          specified" to "<n> images specified" because, due to overlay images, the
+          number of images does not necessarily equal the number of pages.
+        
+tape mark
+ 1024:       GNU GENERAL PUBLIC LICENSE
+                 Version 2, June 1991
+        
+         Copyright (C) 1989, 1991 Free Software Foundation, Inc.
+                               59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+         Everyone is permitted to copy and distribute verbatim copies
+         of this license document, but changing it is not allowed.
+        
+               Preamble
+        
+          The licenses for most software are designed to take away your
+        freedom to share and change it.  By contrast, the GNU General Public
+        License is intended to guarantee your freedom to share and change free
+        software--to make sure the software is free for all its users.  This
+        General Public License applies to most of the Free Software
+        Foundation's software and to any other program whose authors commit to
+        using it.  (Some other Free Software Foundation software is covered by
+        the GNU Library General Public License instead.)  You can apply it to
+        your programs, too.
+        
+          When we speak of free software, we are referring to freedom, not
+        price.  Our General Public Licenses are designed to 
+ 1024: make sure that you
+        have the freedom to distribute copies of free software (and charge for
+        this service if you wish), that you receive source code or can get it
+        if you want it, that you can change the software or use pieces of it
+        in new free programs; and that you know you can do these things.
+        
+          To protect your rights, we need to make restrictions that forbid
+        anyone to deny you these rights or to ask you to surrender the rights.
+        These restrictions translate to certain responsibilities for you if you
+        distribute copies of the software, or if you modify it.
+        
+          For example, if you distribute copies of such a program, whether
+        gratis or for a fee, you must give the recipients all the rights that
+        you have.  You must make sure that they, too, receive or can get the
+        source code.  And you must show them these terms so they know their
+        rights.
+        
+          We protect your rights with two steps: (1) copyright the software, and
+        (2) offer you this license which gives you legal permission to copy,
+        distribute and/or modify the software
+endfile
+there were 43 data blocks with 41,807 bytes, and 5 tapemarks
+no blocks had errors
