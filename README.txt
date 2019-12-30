@@ -61,6 +61,7 @@ We so far support 7-track NRZI, and 9-track NRZI, PE, and GCR formats.
  src\decode_pe.c         PE (phase encoded) decoding routines
  src\decode_nrzi.c       NRZI (non-return-to-zero-inverted) decoding routines 
  src\decode_gcr.c        GCR (group coded recording) decoding routines
+ src]decode_ww.can       Whirlwind I 6-track decoding routines
  src\parmsets.c          parameter set processing, and their defaults
  src\textfile.c          interpreted text dump of the data
  src\ibmlabels.c         IBM 9-track standard label (SL) interpretation
@@ -86,4 +87,5 @@ We so far support 7-track NRZI, and 9-track NRZI, PE, and GCR formats.
 
 Len Shustek
 6 Feb 2018
-17 May 2018, 27 May 2018, 8 Oct 2018, 4 Aug 2019
+17 May 2018, 27 May 2018, 8 Oct 2018, 4 Aug 2019, 29 Dec 2019
+

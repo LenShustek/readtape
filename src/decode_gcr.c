@@ -447,7 +447,7 @@ static int bad_parity_in_dgroup;
 
 void gcr_bad_subgroup(int trk, const char *msg) {
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
-   if (debug_level >= 2) dlog(" bad dgroup at trk %d gcr_bitnum %d: %02X, %s\n", trk, gcr_bitnum, gcr_sgroup[trk], msg);
+   if (debug_level & DB_GCRERRS) dlog(" bad dgroup at trk %d gcr_bitnum %d: %02X, %s\n", trk, gcr_bitnum, gcr_sgroup[trk], msg);
    ++result->gcr_bad_dgroups; }
 
 void gcr_get_sgroups(void) {
@@ -487,8 +487,8 @@ void gcr_store_dgroups(bool groupa) {
    for (bitnum = 0; bitnum <= 3; ++bitnum) { // check for odd parity in all four 9-bit bytes we created,
       // including the ECC that will be discarded, which is the 4th byte of group B
       if (parity(data[gcr_bytenum + bitnum]) != expected_parity) {
-         if (debug_level >= 2) dlog("parity err at byte %d data %03X from time %.7lf\n",
-                                       gcr_bytenum + bitnum, data[gcr_bytenum + bitnum], data_time[gcr_bytenum + bitnum]);
+         if (debug_level & DB_GCRERRS) dlog("parity err at byte %d data %03X from time %.7lf\n",
+                                               gcr_bytenum + bitnum, data[gcr_bytenum + bitnum], data_time[gcr_bytenum + bitnum]);
          ++bad_parity_in_dgroup;
          if (result->first_error < 0) result->first_error = gcr_bytenum + bitnum; } }
    gcr_bytenum += 4; }
@@ -520,7 +520,7 @@ void gcr_postprocess(void) {
          rlog("%d    ", (data[i] >> (8 - bit)) & 1);
       extern uint16_t gooddata[];
       extern int gooddatacount;
-      if (i < gooddatacount) rlog("  ours: %03X good: %03X  %s", data[i], gooddata[i], data[i] == gooddata[i] ? "" : "*** BAD"); 
+      if (i < gooddatacount) rlog("  ours: %03X good: %03X  %s", data[i], gooddata[i], data[i] == gooddata[i] ? "" : "*** BAD");
       rlog("\n"); }
 #endif
    eccdatacount = 0;
@@ -575,12 +575,12 @@ void gcr_postprocess(void) {
 #endif
          struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
          if (gcr_compute_ecc() != data[gcr_bytenum - 1] >> 1) { // see if ECC is ok
-            if (debug_level >= 2) dlog("ecc bad in dgroup ending at byte %d\n", gcr_bytenum - 1);
+            if (debug_level & DB_GCRERRS) dlog("ecc bad in dgroup ending at byte %d\n", gcr_bytenum - 1);
             ++result->ecc_errs;
             if (result->first_error < 0) result->first_error = gcr_bytenum - 1; }
          if (bad_parity_in_dgroup) { // see if there were any parity errors in these 8 bytes
             uint16_t my_order, tom_order[8];
-            if (debug_level >= 2) {
+            if (debug_level & DB_GCRERRS) {
                dlog("%d parity errors in dgroup ending at byte %d from time %.7lf:", bad_parity_in_dgroup, gcr_bytenum - 1, data_time[gcr_bytenum-1]);
                for (int i = 0; i < 8; ++i) {
                   my_order = data[gcr_bytenum - 8 + i];
@@ -591,21 +591,21 @@ void gcr_postprocess(void) {
                   my_order = data[gcr_bytenum - 8 + i];
                   tom_order[i] = ((my_order >> 1) & 0xff) | ((my_order & 0x01) << 8); }
                if (correct_errors(tom_order, 0x01)) {
-                  if (debug_level >= 2) dlog("  as corrected using the ecc: ");
+                  if (debug_level & DB_GCRERRS) dlog("  as corrected using the ecc: ");
                   bad_parity_in_dgroup = 0;
                   for (int i = 0; i < 8; ++i) { //convert back to (msb)...(lsb)p
                      data[gcr_bytenum - 8 + i] = my_order = ((tom_order[i] & 0xff) << 1) | (tom_order[i] >> 8);
-                     if (debug_level >= 2) dlog("  %02X %d", my_order >> 1, my_order & 1);
+                     if (debug_level & DB_GCRERRS) dlog("  %02X %d", my_order >> 1, my_order & 1);
                      if (parity(my_order) != expected_parity) ++bad_parity_in_dgroup; }
-                  if (debug_level >= 2) dlog("\n  now there are %d parity errors in the dgroup\n", bad_parity_in_dgroup);
+                  if (debug_level & DB_GCRERRS) dlog("\n  now there are %d parity errors in the dgroup\n", bad_parity_in_dgroup);
                   ++result->corrected_bits;
                   if (gcr_compute_ecc() == data[gcr_bytenum - 1] >> 1) {
-                     if (debug_level >= 2) dlog("  and the ecc is still correct\n") }
+                     if (debug_level & DB_GCRERRS) dlog("  and the ecc is still correct\n") }
                   else {
-                     if (debug_level >= 2) dlog("  but the ecc is now wrong!?!\n");
+                     if (debug_level & DB_GCRERRS) dlog("  but the ecc is now wrong!?!\n");
                      ++result->ecc_errs; } }
                else {
-                  if (debug_level >= 2) dlog("did not correct error\n"); } }
+                  if (debug_level & DB_GCRERRS) dlog("did not correct error\n"); } }
             result->vparity_errs += bad_parity_in_dgroup; }
          gcr_bytenum -= 1; // remove ECC
          state = GCR_data_A;
@@ -693,15 +693,16 @@ void gcr_end_of_block(void) {
       avg_bit_spacing += (float)(t->t_lastbit - t->t_firstbit) / t->datacount;
       if (t->datacount > result->maxbits) result->maxbits = t->datacount;
       if (t->datacount < result->minbits) result->minbits = t->datacount;
-      if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain; }
+      if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain;
+      if (result->alltrk_min_agc_gain > t->min_agc_gain) result->alltrk_min_agc_gain = t->min_agc_gain; }
    result->avg_bit_spacing = avg_bit_spacing / ntrks;
-   //rlog("ending bitspacing: "); 
+   //rlog("ending bitspacing: ");
    //for (int trk = 0; trk < ntrks; ++trk) rlog("%.2f ", trkstate[trk].clkavg.t_bitspaceavg*1e6);
    //rlog("\n");
    dlog("GCR end of block, min %d max %d, avgbitspacing %.2f uS at %.7lf tick %.1lf\n",
         result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow, TICK(timenow));
    if (result->maxbits <= 10) {
-      if (verbose_level >= 2) rlog("   detected noise block of length %d at %.7lf\n", result->maxbits, timenow);
+      if (verbose_level & VL_ATTEMPTS) rlog("   detected noise block of length %d at %.7lf\n", result->maxbits, timenow);
       result->blktype = BS_NOISE; }
    else if (
       // "The Tape Mark is specified as 250 to 400 flux changes, all "ones," at 9042 frpi
@@ -721,7 +722,7 @@ void gcr_end_of_block(void) {
       // Note that a normal block has up to 2 bits of difference, because the last bit "restores the
       // magnetic remanence to the erase state", which means is  0 (no peak) or 1 (peak) such that
       // the last peak was positive.
-      if (verbose_level >= 3) show_track_datacounts("*** block with mismatched tracks");
+      if (verbose_level & VL_TRACKLENGTHS) show_track_datacounts("*** block with mismatched tracks");
       result->track_mismatch = result->maxbits - result->minbits;
       result->blktype = BS_BADBLOCK; }
    else gcr_postprocess(); }
@@ -748,9 +749,9 @@ void gcr_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a GCR bit
       dlog("trk %d starts a data blk with %d at %.7lf tick %.1lf, t_top %.7lf, v_top %.2f, t_bot %.7lf, v_bot %.2f, agc=%f, clkavg=%.2f, now %.7lf\n",
            t->trknum, bit, t_bit, TICK(t_bit), t->t_top, t->v_top, t->t_bot, t->v_bot, t->agc_gain, t->clkavg.t_bitspaceavg*1e6, timenow);
       t->datablock = true; }
-      if (debug_level >= 3) dlogtrk(" [add a %d to %d bytes on trk %d at %.7lf tick %.1lf, lastpeak %.7lf tick %.1lf; now: %.7lf tick %.1lf, bitspacing %.2f, agc %.2f]\n",
-           bit, t->datacount, t->trknum, t_bit, TICK(t_bit), t->t_lastpeak, TICK(t->t_lastpeak),
-           timenow, TICK(timenow), t->clkavg.t_bitspaceavg*1e6, t->agc_gain);
+   if (debug_level & DB_PEAKS) dlogtrk(" [add a %d to %d bytes on trk %d at %.7lf tick %.1lf, lastpeak %.7lf tick %.1lf; now: %.7lf tick %.1lf, bitspacing %.2f, agc %.2f]\n",
+                                          bit, t->datacount, t->trknum, t_bit, TICK(t_bit), t->t_lastpeak, TICK(t->t_lastpeak),
+                                          timenow, TICK(timenow), t->clkavg.t_bitspaceavg*1e6, t->agc_gain);
    uint16_t mask = 1 << (ntrks - 1 - t->trknum);  // update this track's bit in the data array
    data[t->datacount] = bit ? data[t->datacount] | mask : data[t->datacount] & ~mask;
    data_time[t->datacount] = t_bit;
@@ -825,14 +826,14 @@ int gcr_checkzeros(struct trkstate_t *t, float delta /* since last peak */) {
 #endif
 
       if (t->t_pulse_adj > 0.01e-6 || t->t_pulse_adj < -0.01e-6)
-         if (debug_level >= 3) dlogtrk("trk %d adjust pulse by %.4f uS, numbits %d delta %.4f uS peak difference %.5f numbits %d datacount %d at %.7lf tick %.1lf\n",
-              t->trknum, t->t_pulse_adj*1e6, numbits, delta*1e6, (delta - numbits * t->clkavg.t_bitspaceavg)*1e6, numbits, t->datacount, timenow, TICK(timenow)); }
+         if (debug_level & DB_PEAKS) dlogtrk("trk %d adjust pulse by %.4f uS, numbits %d delta %.4f uS peak difference %.5f numbits %d datacount %d at %.7lf tick %.1lf\n",
+                                                t->trknum, t->t_pulse_adj*1e6, numbits, delta*1e6, (delta - numbits * t->clkavg.t_bitspaceavg)*1e6, numbits, t->datacount, timenow, TICK(timenow)); }
    return numbits; // total number of bits, including the 1-bit
 }
 
 void gcr_bot(struct trkstate_t *t) { // detected a bottom or zerocrossing down
-   if (debug_level >= 3) dlogtrk("trk %d dwn at %.7lf tick %.1lf, agc %.2f, peak delta %.2f uS, timenow %.7lf\n",
-                                 t->trknum, t->t_bot, TICK(t->t_bot), t->agc_gain, (float)(t->t_bot - t->t_lastpeak)*1e6, timenow);
+   if (debug_level & DB_PEAKS) dlogtrk("trk %d dwn at %.7lf tick %.1lf, agc %.2f, peak delta %.2f uS, timenow %.7lf\n",
+                                          t->trknum, t->t_bot, TICK(t->t_bot), t->agc_gain, (float)(t->t_bot - t->t_lastpeak)*1e6, timenow);
    if (PEAK_STATS && t->t_lastclock != 0)
       record_peakstat(t->clkavg.t_bitspaceavg, (float)(t->t_bot - t->t_lastpeak), t->trknum);
    int numbits = gcr_checkzeros(t, (float)(t->t_bot - t->t_lastpeak)); // see if there are zeroes to be added.
@@ -841,8 +842,8 @@ void gcr_bot(struct trkstate_t *t) { // detected a bottom or zerocrossing down
       adjust_agc(t); }
 
 void gcr_top(struct trkstate_t *t) {  // detected a top or zerocrossing up
-   if (debug_level >= 3) dlogtrk("trk %d up at %.7lf tick %.1lf, agc %.2f, peak delta %.2f uS, timenow %.7lf\n",
-                                 t->trknum, t->t_top, TICK(t->t_top), t->agc_gain, (float)(t->t_top - t->t_lastpeak)*1e6, timenow);
+   if (debug_level & DB_PEAKS) dlogtrk("trk %d up at %.7lf tick %.1lf, agc %.2f, peak delta %.2f uS, timenow %.7lf\n",
+                                          t->trknum, t->t_top, TICK(t->t_top), t->agc_gain, (float)(t->t_top - t->t_lastpeak)*1e6, timenow);
    if (PEAK_STATS && t->t_lastclock != 0)
       record_peakstat(t->clkavg.t_bitspaceavg, (float)(t->t_top - t->t_lastpeak), t->trknum);
    int numbits = gcr_checkzeros(t, (float)(t->t_top - t->t_lastpeak)); // see if there are zeroes to be added.

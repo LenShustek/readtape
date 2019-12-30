@@ -65,7 +65,7 @@ parms[] = { // list of: type, name, min_value, max_value
    DEFINE_PARM(P_FLT, agc_alpha, ALLMODES, 0.0, 1.0),
    DEFINE_PARM(P_FLT, min_peak, ALLMODES, 0.0, 5.0),
    DEFINE_PARM(P_FLT, clk_factor, PE, 0.0, 2.0),
-   DEFINE_PARM(P_FLT, pulse_adj, ALLMODES, 0.0, 1.0),
+   DEFINE_PARM(P_FLT, pulse_adj, ALLMODES-WW, 0.0, 1.0),
    DEFINE_PARM(P_FLT, pkww_bitfrac, ALLMODES, 0.0, 2.0),
    DEFINE_PARM(P_FLT, pkww_rise, ALLMODES, 0.0, 5.0),
    DEFINE_PARM(P_FLT, midbit, NRZI, 0.0, 1.0),
@@ -108,7 +108,15 @@ char *parmcmds_GCR[MAXPARMSETS] = { // commands to set defaults for GCR
    "{         1,          0,      0.010,       0,      0.500,      0.200,   0.300,      1.500,      0.200,     1.450,  2.350,   PRM }",
    "{         1,         10,      0.000,       0,      0.500,      0.000,   0.600,      1.500,      0.140,     1.400,  2.300,   PRM }",
    "{         1           0       0.020,       0,      0.500,      0.200,   0.300,      1.500,      0.200,     1.480,  2.350,   PRM }",
-{ 0 } };
+   { 0 } };
+
+struct parms_t parmsets_WW[MAXPARMSETS] = { 0 }; // where we store the Whirlwind default parmsets
+char *parmcmds_WW[MAXPARMSETS] = { // commands to set defaults for GCR
+   "parms  active, clk_window, clk_alpha, agc_window, agc_alpha, min_peak, pkww_bitfrac, pkww_rise, id",
+   "{         1,          0,      0.050,       0,      0.500,      1.000,    0.400,      0.200,    PRM }",
+   "{         1,          0,      0.020,       0,      0.500,      0.050,    0.200,      0.200,    PRM }",
+   { 0 } };
+
 
 struct parms_t parmsets[MAXPARMSETS] = { 0 }; // the parmsets we construct and then use
 struct parms_t *parmsetsptr = parmsets;       // pointer to parmsets array we're using
@@ -198,23 +206,26 @@ void show_parms(struct parms_t *psptr, bool showall) {
             } }
       if (setptr->comment[0]) rlog(" //%s", setptr->comment);
       else rlog("\n"); }
-   rlog("compile-time decoding constants\n");
+   rlog("\ncompile-time decoding constants:\n");
    if (find_zeros) {
       rlog("  minimum excursion before considering a zero crossing: %.3fV\n", ZEROCROSS_PEAK);
       rlog("  maximum time in bits for the required excursion to be attained: %.1f bit times\n", ZEROCROSS_SLOPE); }
    else { // peak detection
-      rlog("  peak height closeness threshold: %.3f\n", PEAK_THRESHOLD);
+      rlog("  peak height closeness threshold: %.3fV\n", PEAK_THRESHOLD);
       rlog("  nominal peak height for rise calculation: %.1fV\n", PKWW_PEAKHEIGHT / 2); }
-   rlog("  AGC maximum: %.0f\n", (float)AGC_MAX);
+   rlog("  AGC maximum: %.0f\n", (float)AGC_MAX_VALUE);
    if (mode == GCR) {
       rlog("  GCR idle threshold: %.2f bits\n", GCR_IDLE_THRESH); }
    if (mode == PE) {
-      rlog("  PE idle treshold: %.2f bits\n", PE_IDLE_FACTOR); } }
+      rlog("  PE idle treshold: %.2f bits\n", PE_IDLE_FACTOR); }
+   if (mode == WW) {
+      rlog("  Whirlwind clock stop detect time: %.1f bits\n", WW_CLKSTOP_BITS); } }
 
 struct parms_t *default_parmset(void) {
    if (mode == PE) return parmsets_PE;
    else if (mode == NRZI) return parmsets_NRZI;
    else if (mode == GCR) return parmsets_GCR;
+   else if (mode == WW) return parmsets_WW;
    fatal("bad mode"); return NULLP; }
 
 // parse parameter-setting commands, either from a file or from precompiled strings
@@ -327,7 +338,10 @@ void read_parms(void) {   // process the optional .parms file of parameter sets 
    precompiled_line_ptr =
       mode == PE ? parmcmds_PE :
       mode == NRZI ? parmcmds_NRZI :
-      /* mode == GCR */ parmcmds_GCR;
+      mode == GCR ? parmcmds_GCR :
+      mode == WW ? parmcmds_WW :
+      NULLP;
+   assert(precompiled_line_ptr != NULLP, "bad mode in read_parms");
    parse_parms(default_parmset(), next_precompiled_line);
    //show_parms(default_parmset(), false);
 
@@ -350,10 +364,10 @@ void read_parms(void) {   // process the optional .parms file of parameter sets 
             setptr = default_parmset();
             memcpy(parmsets, setptr, sizeof(parmsets));
             if (!quiet) {
-               rlog("no .parms file was found, so we're using these internal defaults for the %s parameter sets:\n", modename());
+               rlog("\nno .parms file was found, so we're using these internal defaults for the %s parameter sets:\n", modename());
                show_parms(parmsets, false); }
             return; } } }
-   if (!quiet) rlog("reading parmsets from file %s\n", filename);
+   if (!quiet) rlog("\nreading parmsets from file %s\n", filename);
    parse_parms(parmsets, next_file_line);
    if (!quiet) show_parms(parmsets, false); // show the parms we will be using
 }

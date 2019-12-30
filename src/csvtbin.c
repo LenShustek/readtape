@@ -5,7 +5,7 @@ Convert between a Saleae .csv file with digitized samples of analog tape
 head voltages and a binary .tbin file with roughly the same data,
 perhaps with some loss of precision.
 
-usage:  csvtbin  <options>  <infilename>  <outfilename>
+usage:  csvtbin  <options>  <basefilename>
 
 Why? Because we get about a 10:1 reduction in the file size (using
 16-bit non-delta samples), and it's 3-4 times faster to process.
@@ -52,10 +52,15 @@ the readtape program won't need to be told about the non-standard order.
 
 17 Mar 2019, L. Shustek, add -scale option.
 
+08 Dec 2019, L. Shustek, add Whirlwind, and -subsample option
+V1.7         Add support for the trkorder header extension for Whirlwind.
+             Add -invert and -reverse options.
+             Switch to providing only <basefilename>, like for readtape.
+
 ******************************************************************************/
-#define VERSION "1.5"
+#define VERSION "1.7"
 /******************************************************************************
-Copyright (C) 2018, Len Shustek
+Copyright (C) 2018,2019 Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated documentation files
@@ -88,15 +93,15 @@ typedef unsigned char byte;
 
 #define MAXPATH 300
 #define MAXLINE 400
-#define MAXTRKS 11
 #define MINTRKS 5
 #define PREREAD_COUNT 1000000
 
 FILE *inf, *outf;
-char *infilename, *outfilename;
+char *basefilename;
+char infilename[MAXPATH], outfilename[MAXPATH];
 long long int num_samples = 0;
 uint64_t total_time = 0;
-unsigned skip_samples = 0;
+unsigned skip_samples = 0, subsample = 1;
 unsigned ntrks = 9;
 bool do_read = false, display_header = false, redo = false, redid = false;
 bool little_endian;
@@ -104,6 +109,7 @@ unsigned track_permutation[MAXTRKS] = { UINT_MAX };
 float scalefactor = 1.0f;
 float samples[MAXTRKS];
 struct tbin_hdr_t hdr = { HDR_TAG };
+struct tbin_hdrext_trkorder_t hdrext_trkorder = { HDR_TRKORDER_TAG };
 struct tbin_dat_t dat = { DAT_TAG };
 
 static void vfatal(const char *msg, va_list args) {
@@ -128,22 +134,27 @@ Routines for processing options
 *********************************************************************/
 void SayUsage(void) {
    static char *usage[] = {
-      "use: csvtbin <options> <infilename> <outfilename>",
+      "use: csvtbin <options> <basefilename>",
       "options:",
-      "  -ntrks=n     the number of tracks; the default is 9",
-      "  -order=      input data order for bits 0..ntrks-2 and P, where 0=MSB",
-      "               the default is 01234567P for 9 trks, 012345P for 7 trks",
-      "  -skip=n      skip the first n samples",
-      "  -scale=n     scale the voltages by n, which can be a fraction",
-      "  -maxvolts=x  expect x as the maximum plus or minus signal excursion",
-      "  -redo        do it over again if maxvolts wasn't big enough",
-      "  -read        read tbin and create csv -- otherwise, the opposite",
-      "               (or just display the tbin header if no output file is given)",
+      "  -ntrks=n      the number of tracks; the default is 9",
+      "  -order=       input data order for bits 0..ntrks-2 and P, where 0=MSB",
+      "                the default is 01234567P for 9 trks, 012345P for 7 trks",
+      "                (for Whirlwind: a combination of C L M c l m and x's)",
+      "  -skip=n       skip the first n samples",
+      "  -subsample=n  use only every nth data sample",
+      "  -invert       invert the data so positive peaks are negative and vice versa",
+      "  -scale=n      scale the voltages by n, which can be a fraction",
+      "  -maxvolts=x   expect x as the maximum plus or minus signal excursion",
+      "  -redo         do it over again if maxvolts wasn't big enough",
+      "  -read         read tbin and create csv -- otherwise, the opposite",
+      "  -showheader   just show the header info of a .tbin file, and check the data",
       "optional documentation that can be recorded in the TBIN file:",
       "  -descr=txt             a description of what is on the tape",
       "  -pe                    PE encoded",
       "  -nrzi                  NRZI encoded",
       "  -gcr                   GCR ecoded",
+      "  -whirlwind             Whirlwind I encoded",
+      "  -reverse               the tape might have been read or written backwards; mark it so",
       "  -ips=n                 the speed in inches/sec",
       "  -bpi=n                 the density in bits/inch",
       "  -datewritten=ddmmyyyy  when the tape was originally written",
@@ -209,23 +220,32 @@ bool opt_dat(const char* arg, const char*keyword, struct tm *time) {
    return true; }
 
 bool parse_track_order(const char*str) { // examples: P314520, 01234567P
-   int bits_done = 0;
-   if (strlen(str) != ntrks) return false;
-   for (unsigned i = 0; i < ntrks; ++i) {
-      byte ch = str[i];
-      if (toupper(ch) == 'P') ch = (byte) ntrks - 1; // we put parity last
-      else {
-         if (!isdigit(ch)) return false; // assumes ntrks <= 11
-         if ((ch -= '0') > ntrks - 2) return false; }
-      track_permutation[i] = ch;
-      bits_done |= 1 << ch; }
-   return bits_done + 1 == (1 << ntrks); } // must be a permutation of 0..ntrks-1
+   if (hdr.u.s.mode == WW) { // for Whirlwind, just copy the string to the header extension
+      assert(strlen(str) <= MAXTRKS, "Whirlwind -order string too long:%s", str);
+      strcpy(hdrext_trkorder.trkorder, str);
+      ntrks = strlen(str);
+      hdr.u.s.flags |= TBIN_TRKORDER_INCLUDED + TBIN_NO_REORDER;
+      printf("using Whirlwind -order=%s and ntrks=%d\n", str, ntrks);
+      return true; }
+   else {// for PE, NRZI, and GCR we reorder tracks as specified; examples: P314520, 01234567P
+      if (strlen(str) != ntrks) return false;
+      int bits_done = 0;  // bitmap showing which tracks are done
+      for (unsigned i = 0; i < ntrks; ++i) {
+         byte ch = str[i];
+         if (toupper(ch) == 'P') ch = (byte)ntrks - 1; // we put parity last
+         else {
+            if (!isdigit(ch)) return false; // assumes ntrks <= 11
+            if ((ch -= '0') > ntrks - 2) return false; }
+         track_permutation[i] = ch;
+         bits_done |= 1 << ch; }
+      return bits_done + 1 == (1 << ntrks); } } // must be a permutation of 0..ntrks-1
 
 bool parse_option(char *option) {
    if (option[0] != '/' && option[0] != '-') return false;
    char *arg = option + 1;
    const char *str;
    if (opt_key(arg, "READ")) do_read = true;
+   else if (opt_key(arg, "SHOWHEADER"))  do_read = display_header = true;
    else if (opt_int(arg, "NTRKS=", &ntrks, MINTRKS, MAXTRKS))
       assert(track_permutation[0] == UINT_MAX, "can't give -ntrks after -order");
    else if (opt_str(arg, "ORDER=", &str)) {
@@ -233,6 +253,9 @@ bool parse_option(char *option) {
    else if (opt_key(arg, "NRZI")) hdr.u.s.mode = NRZI;
    else if (opt_key(arg, "PE")) hdr.u.s.mode = PE;
    else if (opt_key(arg, "GCR")) hdr.u.s.mode = GCR;
+   else if (opt_key(arg, "WHIRLWIND")) hdr.u.s.mode = WW;
+   else if (opt_key(arg, "INVERT")) hdr.u.s.flags |= TBIN_INVERTED;
+   else if (opt_key(arg, "REVERSE")) hdr.u.s.flags |= TBIN_REVERSED;
    else if (opt_flt(arg, "BPI=", &hdr.u.s.bpi, 50, 10000));
    else if (opt_flt(arg, "IPS=", &hdr.u.s.ips, 10, 100));
    else if (opt_flt(arg, "MAXVOLTS=", &hdr.u.s.maxvolts, 0.1f, 15.0f));
@@ -243,7 +266,9 @@ bool parse_option(char *option) {
    else if (opt_dat(arg, "DATEWRITTEN=", &hdr.u.s.time_written)) ;
    else if (opt_dat(arg, "DATEREAD=", &hdr.u.s.time_read)) ;
    else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX)) {
-      printf("Will skip the first %d samples\n", skip_samples); }
+      printf("will skip the first %d samples\n", skip_samples); }
+   else if (opt_int(arg, "SUBSAMPLE=", &subsample, 1, INT_MAX)) {
+      printf("will use every %d samples\n", subsample); }
    else if (opt_key(arg, "REDO")) redo = true;
    else if (option[2] == '\0') // single-character switches
       switch (toupper(option[1])) {
@@ -400,11 +425,18 @@ void read_tbin(void) {
    printf("file format %d, ntrks %d, encoding %s, max %.2fV, bpi %.2f, ips %.2f, sample delta %.2f usec\n",
           hdr.u.s.format, hdr.u.s.ntrks, modename(hdr.u.s.mode), hdr.u.s.maxvolts,
           hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta / 1e3);
-   printf("the track ordering was%s given when the .tbin file was created\n", hdr.u.s.flags & TBIN_NO_ORDER ? " not" : "");
+   printf("the track ordering was%s given when the .tbin file was created\n", hdr.u.s.flags & TBIN_NO_REORDER ? " not" : "");
    printf("description: %s\n", hdr.descr);
    if (hdr.u.s.time_written.tm_year > 0)   printf("created on:   %s", asctime(&hdr.u.s.time_written));
    if (hdr.u.s.time_read.tm_year > 0)      printf("read on:      %s", asctime(&hdr.u.s.time_read));
    if (hdr.u.s.time_converted.tm_year > 0) printf("converted on: %s", asctime(&hdr.u.s.time_converted));
+   if (hdr.u.s.flags & TBIN_INVERTED) printf("the data was inverted\n");
+   if (hdr.u.s.flags & TBIN_REVERSED) printf("the tape might have been read or written backwards\n");
+   if (hdr.u.s.flags & TBIN_TRKORDER_INCLUDED) { // optional trkorder heaader extension?
+      assert(fread(&hdrext_trkorder, sizeof(hdrext_trkorder), 1, inf) == 1, "can't read trkorder header extension");
+      assert(strcmp(hdrext_trkorder.tag, HDR_TRKORDER_TAG) == 0, "had trkorder header extension tag");
+      assert(hdr.u.s.mode == WW, "trkorder header extension included with non-Whirlwind file");
+      printf("the Whirlwind tracks were specified as -order=%s\n", hdrext_trkorder.trkorder); }
    assert(fread(&dat, sizeof(dat), 1, inf) == 1, "can't read dat");
    assert(strcmp(dat.tag, DAT_TAG) == 0, "bad dat tag");
    if (!little_endian) reverse8(&dat.tstart); // convert to big endian if necessary
@@ -437,8 +469,10 @@ void read_tbin(void) {
       timenow += hdr.u.s.tdelta;
       total_time += hdr.u.s.tdelta;
       if (!display_header) {
-         for (unsigned trk = 0; trk < ntrks; ++trk)
-            fprintf(outf, "%9.5f, ", (float)data[track_permutation[trk]] / 32767 * hdr.u.s.maxvolts);
+         for (unsigned trk = 0; trk < ntrks; ++trk) {
+            float fsample = (float)data[track_permutation[trk]] / 32767 * hdr.u.s.maxvolts;
+            if (hdr.u.s.flags & TBIN_INVERTED) fsample = -fsample;  // invert, if told to
+            fprintf(outf, "%9.5f, ", fsample); }
          fprintf(outf, "\n"); }
       ++num_samples;
       update_progress_count(); }
@@ -456,6 +490,8 @@ void write_tbin_hdr(void) {
    assert(fwrite(hdr.tag, sizeof(hdr.tag)+sizeof(hdr.descr), 1, outf) == 1, "can't write hdr tag/descr");
    for (int i = 0; i < sizeof(hdr.u.s) / 4; ++i)
       output4(hdr.u.a[i]);  // write all the 4-byte quantities as little-endian
+   if (hdr.u.s.flags & TBIN_TRKORDER_INCLUDED) // include the optional trkorder header extension?
+      assert(fwrite(&hdrext_trkorder, sizeof(hdrext_trkorder), 1, outf) == 1, "can't write hdr trkorder extension");
    // complete and write the data header, of which there could eventually be more than one.
    dat.sample_bits = 16;  // the only thing we support right now
    assert(fwrite(dat.tag, sizeof(dat)-sizeof(dat.tstart), 1, outf) == 1, "can't write dat tag");
@@ -488,8 +524,13 @@ void csv_preread(void) {
          if (voltage < 0) voltage = -voltage;
          if (maxvolts < voltage) maxvolts = voltage; } }
    maxvolts = ((float)(int)((maxvolts+0.55f)*10.0f))/10.0f; // add 0.5V and round to nearest 0.1V
-   printf("after %s samples, the sample delta is %.2lf usec (%u nsec), samples start at %.6lf, and the rounded-up maximum voltage is %.1fV\n",
+   printf("after %s samples, the sample delta is %.2lf usec (%u nsec), samples start at %.6lf seconds, and the rounded-up maximum voltage is %.1fV\n",
           intcommas(linecounter), (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart/1e9, maxvolts);
+   if (subsample > 1) {
+      dat.tstart += (subsample - 1) * hdr.u.s.tdelta;
+      hdr.u.s.tdelta *= subsample;
+      printf("for subsampling every %d samples, we adjusted the delta to %.2lf usec (%u nsec), and the sample start to %.6lf seconds\n",
+             subsample, (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart / 1e9); }
    if (hdr.u.s.maxvolts == 0) // maxvolts= wasn't given
       hdr.u.s.maxvolts = maxvolts;
    else if (hdr.u.s.maxvolts < maxvolts) {
@@ -517,17 +558,20 @@ void write_tbin(void) {
       line[MAXLINE - 1] = 0;
       long long count_toosmall = 0, count_toobig = 0;
       float maxvolts = 0, minvolts = 0;
-      while (fgets(line, MAXLINE, inf)) {
+      while (1) {
+         for (unsigned skip = 0; skip < subsample; ++skip)
+            if (!fgets(line, MAXLINE, inf)) goto done;
          linep = line;
          float fsample, round;
          int32_t sample;
          scanfast_double(&linep); // scan and discard the timestamp
          for (unsigned trk = 0; trk < ntrks; ++trk)  // read and permute the samples
             samples[track_permutation[trk]] = scanfast_float(&linep) * scalefactor;
-         byte outbuf[MAXTRKS * 2]; // accumulate data for all track, for faster writing
+         byte outbuf[MAXTRKS * 2]; // accumulate data for all tracks, for faster writing
          int bufndx = 0;
          for (unsigned trk = 0; trk < ntrks; ++trk) { // generate the little-endian integer samples
             fsample = samples[trk];
+            if (hdr.u.s.flags & TBIN_INVERTED) fsample = -fsample;  // invert, if told to
             if (fsample < 0) round = -0.5;  else round = 0.5;  // (int) truncates towards zero
             sample = (int)((fsample / hdr.u.s.maxvolts * 32767) + round);
             //printf("%6d %9.5f, ", sample, fsample);
@@ -545,6 +589,7 @@ void write_tbin(void) {
          total_time += hdr.u.s.tdelta;
          ++num_samples;
          update_progress_count(); }
+done:
       output2(0x8000); // end marker
       printf("\ndone; minimum voltage was %.1fV, maximum voltage was %.1fV\n", minvolts, maxvolts);
       if (count_toobig)
@@ -582,7 +627,7 @@ int main(int argc, char *argv[]) {
 #endif
 
    printf("csvtbin: convert between .CSV and .TBIN files\n");
-   printf("version \"%s\" was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+   printf("version %s was compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
    uint32_t testendian = 1;
    little_endian = *(byte *)&testendian == 1;
    printf("this is a %s-endian computer\n", little_endian ? "little" : "big");
@@ -590,36 +635,40 @@ int main(int argc, char *argv[]) {
       SayUsage(); exit(4); }
    argnext = HandleOptions(argc, argv);
 
-   assert(argnext > 0, "missing input filename");
-   infilename = argv[argnext];
-   printf("opening  \"%s\"\n", infilename);
-   inf = fopen(infilename, do_read ? "rb" : "r");
-   assert(inf, "unable to open input file\"%s\"", infilename);
+   assert(argnext > 0, "missing basefilename");
+   basefilename = argv[argnext];
+   assert(argnext == argc-1, "unknown stuff: %s", argv[argnext + 1]);
 
-   ++argnext;
-   if (argnext >= argc && do_read)  // no output file given
-      display_header = true;
-   else {
-      assert(argnext < argc, "missing output filename");
-      outfilename = argv[argnext];
-      printf("creating \"%s\"\n", outfilename);
+   strncpy(infilename, basefilename, MAXPATH - 10); infilename[MAXPATH - 10] = 0;
+   strcat(infilename, do_read ? ".tbin": ".csv");
+   printf("opening  %s\n", infilename);
+   inf = fopen(infilename, do_read ? "rb" : "r");
+   assert(inf, "unable to open input file %s", infilename);
+
+   if (!do_read) {
+      strncpy(outfilename, basefilename, MAXPATH - 10); outfilename[MAXPATH - 10] = 0;
+      strcat(outfilename, do_read ? ".csv" : ".tbin");
+      printf("creating %s\n", outfilename);
       outf = fopen(outfilename, do_read ? "w" : "wb");
-      assert(outf, "file create failed for \"%s\"", outfilename);
-      ++argnext;
-      assert(argnext == argc, "extra stuff \"%s\"", argv[argnext]); }
+      assert(outf, "file create failed for %s", outfilename); }
 
    if (track_permutation[0] == UINT_MAX) { // no input value permutation was given
-      if (!do_read) {
+      if (!do_read && !(hdr.u.s.flags & TBIN_TRKORDER_INCLUDED)) {
          printf("WARNING: using the default track ordering, and marking the .tbin file to show it wasn't given\n");
-         hdr.u.s.flags |= TBIN_NO_ORDER; }
+         hdr.u.s.flags |= TBIN_NO_REORDER; }
       for (unsigned i = 0; i < ntrks; ++i) track_permutation[i] = i; // create default
    }
    if (!display_header) {
       printf("%s track order: ", do_read ? "output" : "input");
-      for (unsigned i = 0; i < ntrks; ++i)
-         if (track_permutation[i] == ntrks - 1) printf("p");
-         else printf("%d", track_permutation[i]);
-      printf("\n"); }
+      if (hdr.u.s.flags & TBIN_TRKORDER_INCLUDED)
+         printf(hdrext_trkorder.trkorder);
+      else {
+         for (unsigned i = 0; i < ntrks; ++i)
+            if (track_permutation[i] == ntrks - 1) printf("p");
+            else printf("%d", track_permutation[i]); }
+      printf("\n");
+      if (hdr.u.s.flags & TBIN_INVERTED) printf("the data will be inverted\n");
+      if (hdr.u.s.flags & TBIN_REVERSED) printf("the tape might have been read or written backwards\n"); }
 
    if (scalefactor != 1.0f)
       printf("input voltages will be scaled by %f\n", scalefactor);

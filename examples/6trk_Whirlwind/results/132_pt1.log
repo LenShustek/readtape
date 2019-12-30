@@ -1,0 +1,166 @@
+this is readtape version 3.9, compiled on Dec 29 2019 16:59:38, running on Sun Dec 29 20:08:03 2019
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: readtape -whirlwind -v3 -fluxdir=auto -tap -deskew -octal2 -flexo -outp=results\ 132_pt1 
+  current directory: C:\data\github\readtape\examples\6trk_Whirlwind
+  this is a little-endian computer
+  For more information, see https://github.com/LenShustek/readtape
+
+reading file "132_pt1.tbin"
+the output files will be "results\132_pt1.xxx"
+
+.tbin file header:
+  -order=mClLcM
+  the waveforms were inverted by CSVTBIN
+  converted on: Tue Dec 17 12:13:12 2019
+  max voltage: 4.0V
+  time between samples: 3.840 usec
+  using .tbin mode = Whirlwind
+
+no .parms file was found, so we're using these internal defaults for the Whirlwind parameter sets:
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak,pkww_bitfrac,  pkww_rise,  id
+  {            1,          0,      0.050,          0,      0.500,      1.000,      0.400,      0.200,   PRM}
+  {            1,          0,      0.020,          0,      0.500,      0.050,      0.200,      0.200,   PRM}
+
+compile-time decoding constants:
+  peak height closeness threshold: 0.005V
+  nominal peak height for rise calculation: 2.0V
+  AGC maximum: 2
+  Whirlwind clock stop detect time: 1.5 bits
+
+starting preprocessing to determine head skew...
+
+execution-time configuration:
+  we set ntrks=6 as implied by the -order string "mClLcM"
+  6 track Whirlwind encoding, no parity, 100 BPI at 50 IPS (200.00 usec/bit)
+  first sample is at time 2.3108877 seconds on the tape
+  sampling rate is 260,416 Hz (3.84 usec), or about 52 samples per bit
+  peak detection window width is 20 samples (76.80 usec)
+  Whirlwind data has 6 tracks from 6 data heads assigned as follows:
+    track 1, head 1 is the  primary clk, 'C'
+    track 3, head 3 is the  primary LSB, 'L'
+    track 5, head 5 is the  primary MSB, 'M'
+    track 4, head 4 is the  alternate clk, 'c'
+    track 2, head 2 is the  alternate LSB, 'l'
+    track 0, head 0 is the  alternate MSB, 'm'
+  the initial peak polarity for each flux change will be automatically determined for each block
+
+  the flux direction was set to negative based on a peak on track 3 at time 2.3118246
+
+head skew compensation after reading the first 15 blocks:
+  track 0 delayed by 7 clocks (26.88 usec) based on 848 observed flux transitions
+  track 1 delayed by 16 clocks (61.44 usec) based on 4381 observed flux transitions
+  track 2 delayed by 5 clocks (19.20 usec) based on 1179 observed flux transitions
+  track 3 delayed by 10 clocks (38.40 usec) based on 1179 observed flux transitions
+  track 4 delayed by 4 clocks (15.36 usec) based on 4390 observed flux transitions
+  track 5 delayed by 0 clocks (0.00 usec) based on 848 observed flux transitions
+  the earliest peak is 197.84 usec, and the latest peak is 257.44 usec
+  that peak difference of 59.61 usec, and the largest standard deviation of 3.66 usec, are 29.8% and 1.8% of the nominal bit spacing
+  created statistics file "results\132_pt1.peakstats_deskew.csv" from 12,825 measurements of flux transition positions
+  to graph it from Excel, open the CSV file, then: insert chart 2D line
+
+  trk 0 average peak height is 2.61V and AGC is 0.77, based on 848 measurements
+  trk 1 average peak height is 2.60V and AGC is 0.75, based on 4388 measurements
+  trk 2 average peak height is 2.10V and AGC is 0.94, based on 1198 measurements
+  trk 3 average peak height is 2.75V and AGC is 0.73, based on 1189 measurements
+  trk 4 average peak height is 2.34V and AGC is 0.86, based on 4392 measurements
+  trk 5 average peak height is 2.06V and AGC is 0.89, based on 848 measurements
+
+  tapemark after block 0 at file position 3,632 time 2.3119552
+creating file "results\132_pt1.octal2.flexo.txt"
+creating file "results\132_pt1.tap"
+  tapemark after block 0 at file position 31,088 time 2.3207411
+wrote block   1,   14 bytes, 1 try, parmset 0, AGC 0.85-1.26, ok, avg speed 50.22 IPS at time 2.3322227
+  tapemark after block 1 at file position 97,244 time 2.3419110
+  tapemark after block 1 at file position 124,076 time 2.3504973
+  missing primary clk   at 2.3862438 tick 19623.0, last pri clk 2.3859558 tick 19548.0, bitspacing 200.2
+  missing primary clk   at 2.3864474 tick 19676.0, last pri clk 2.3859558 tick 19548.0, bitspacing 200.2
+  missing primary clk   at 2.4079283 tick 25270.0, last pri clk 2.4076422 tick 25195.5, bitspacing 197.9
+  missing primary clk   at 2.4081242 tick 25321.0, last pri clk 2.4076422 tick 25195.5, bitspacing 198.0
+  missing primary clk   at 2.4085197 tick 25424.0, last pri clk 2.4082355 tick 25350.0, bitspacing 197.8
+  missing alternate LSB at 2.7364518 tick 110823.0, last alt pulse end 2.7346778 tick 110361.0, bitspacing 196.5
+wrote block   2,  528 bytes, 1 try, parmset 0, AGC 0.83-2.00, ok, 6 warnings: missing 1-bit, missing clk, avg speed 50.18 IPS at time 2.7717914
+  tapemark after block 2 at file position 1,470,296 time 2.7812877
+  tapemark after block 2 at file position 1,496,972 time 2.7898240
+wrote block   3,   14 bytes, 1 try, parmset 0, AGC 0.88-1.23, ok, avg speed 50.18 IPS at time 2.8012403
+  tapemark after block 3 at file position 1,555,376 time 2.8085133
+  tapemark after block 3 at file position 1,582,820 time 2.8172954
+wrote block   4,   14 bytes, 1 try, parmset 0, AGC 0.92-1.21, ok, avg speed 49.30 IPS at time 2.8288691
+  tapemark after block 4 at file position 1,649,324 time 2.8385766
+  tapemark after block 4 at file position 1,676,852 time 2.8473856
+wrote block   5,  528 bytes, 1 try, parmset 0, AGC 0.82-1.89, ok, avg speed 49.82 IPS at time 3.2686221
+  tapemark after block 5 at file position 3,022,544 time 3.2780070
+  tapemark after block 5 at file position 3,049,412 time 3.2866048
+wrote block   6,   14 bytes, 1 try, parmset 0, AGC 0.86-1.09, ok, avg speed 50.81 IPS at time 3.2979981
+  tapemark after block 6 at file position 3,107,792 time 3.3052864
+  tapemark after block 6 at file position 3,135,200 time 3.3140570
+wrote block   7,   14 bytes, 1 try, parmset 0, AGC 0.87-1.21, ok, avg speed 49.49 IPS at time 3.3256230
+  tapemark after block 7 at file position 3,200,600 time 3.3349850
+  tapemark after block 7 at file position 3,228,128 time 3.3437939
+wrote block   8,  528 bytes, 1 try, parmset 0, AGC 0.81-1.67, ok, avg speed 49.54 IPS at time 3.7653261
+  tapemark after block 8 at file position 4,573,964 time 3.7744614
+  tapemark after block 8 at file position 4,600,700 time 3.7830170
+wrote block   9,   14 bytes, 1 try, parmset 0, AGC 0.85-1.14, ok, avg speed 50.39 IPS at time 3.7944947
+  tapemark after block 9 at file position 4,658,336 time 3.8014605
+  tapemark after block 9 at file position 4,685,780 time 3.8102426
+wrote block  10,   14 bytes, 1 try, parmset 0, AGC 0.86-1.16, ok, avg speed 50.08 IPS at time 3.8217088
+  tapemark after block 10 at file position 4,750,676 time 3.8310093
+  tapemark after block 10 at file position 4,778,300 time 3.8398490
+  missing primary LSB   at 4.7075123 tick 624120.0, last pri pulse end 4.7071091 tick 624015.0, bitspacing 200.7
+  missing primary LSB   at 4.7077120 tick 624172.0, last pri pulse end 4.7071091 tick 624015.0, bitspacing 200.7
+wrote block  11, 1270 bytes, 1 try, parmset 0, AGC 0.80-2.00, ok, 2 warnings: missing 1-bit, avg speed 50.43 IPS at time 4.8545958
+  tapemark after block 11 at file position 7,978,292 time 4.8638464
+  tapemark after block 11 at file position 8,005,460 time 4.8725402
+wrote block  12, 1270 bytes, 1 try, parmset 0, AGC 0.78-1.61, ok, avg speed 49.89 IPS at time 5.8875866
+  tapemark after block 12 at file position 11,205,836 time 5.8966605
+  tapemark after block 12 at file position 11,233,592 time 5.9055424
+wrote block  13,  598 bytes, 1 try, parmset 0, AGC 0.79-2.00, ok, avg speed 50.69 IPS at time 6.3836877
+  tapemark after block 13 at file position 12,755,708 time 6.3926195
+  tapemark after block 13 at file position 12,783,536 time 6.4015245
+wrote block  14,   14 bytes, 1 try, parmset 0, AGC 0.82-1.15, ok, avg speed 49.71 IPS at time 6.4131750
+  tapemark after block 14 at file position 12,840,572 time 6.4197760
+  tapemark after block 14 at file position 12,867,764 time 6.4284774
+wrote block  15,   14 bytes, 1 try, parmset 0, AGC 0.80-1.12, ok, avg speed 50.31 IPS at time 6.4399590
+  tapemark after block 15 at file position 12,934,028 time 6.4496819
+  tapemark after block 15 at file position 12,961,832 time 6.4585792
+wrote block  16,  528 bytes, 1 try, parmset 0, AGC 0.79-1.39, ok, avg speed 49.97 IPS at time 6.8805952
+  tapemark after block 16 at file position 14,309,624 time 6.8898726
+  tapemark after block 16 at file position 14,337,188 time 6.8986931
+wrote block  17,   14 bytes, 1 try, parmset 0, AGC 0.81-1.28, ok, avg speed 49.89 IPS at time 6.9101939
+  tapemark after block 17 at file position 14,395,652 time 6.9174016
+  tapemark after block 17 at file position 14,423,156 time 6.9262029
+wrote block  18,   14 bytes, 1 try, parmset 0, AGC 0.80-1.10, ok, avg speed 50.00 IPS at time 6.9376883
+  tapemark after block 18 at file position 14,489,432 time 6.9474112
+  tapemark after block 18 at file position 14,516,624 time 6.9561126
+  missing primary MSB   at 7.1221120 tick 1252922.0, last pri pulse end 7.1219238 tick 1252873.0, bitspacing 198.9
+wrote block  19,  528 bytes, 1 try, parmset 0, AGC 0.76-1.89, ok, 1 warning: missing 1-bit, avg speed 50.10 IPS at time 7.3779981
+  tapemark after block 19 at file position 15,863,708 time 7.3871795
+  tapemark after block 19 at file position 15,890,996 time 7.3959117
+wrote block  20,   14 bytes, 1 try, parmset 0, AGC 0.81-1.15, ok, avg speed 49.72 IPS at time 7.4074317
+  tapemark after block 20 at file position 15,956,312 time 7.4168128
+  tapemark after block 20 at file position 15,983,732 time 7.4255872
+wrote block  21,  528 bytes, 1 try, parmset 0, AGC 0.71-1.42, ok, avg speed 50.03 IPS at time 7.8472883
+  tapemark after block 21 at file position 17,328,716 time 7.8559821
+  tapemark after block 21 at file position 17,356,184 time 7.8647718
+wrote block  22,   14 bytes, 1 try, parmset 0, AGC 0.85-1.17, ok, avg speed 50.66 IPS at time 7.8761805
+  tapemark after block 22 at file position 17,421,740 time 7.8857498
+  tapemark after block 22 at file position 17,449,148 time 7.8945203
+wrote block  23,  528 bytes, 1 try, parmset 0, AGC 0.74-1.85, ok, avg speed 50.17 IPS at time 8.3169894
+  tapemark after block 23 at file position 18,797,996 time 8.3261517
+  tapemark after block 23 at file position 18,824,504 time 8.3346342
+wrote block  24,   14 bytes, 1 try, parmset 0, AGC 0.80-1.11, ok, avg speed 49.16 IPS at time 8.3462848
+  tapemark after block 24 at file position 18,879,176 time 8.3521293
+results\132_pt1.tap was closed at time 8.3537382 after 7,030 data bytes were extracted from 24 blocks
+
+summary for file "132_pt1.tbin":
+  1,573,661 samples were processed in 1 seconds (0.042 seconds/block)
+  created 1 output file with a total of 7,446 bytes
+  decoded 49 tape marks and 24 blocks with 7,030 bytes from 6.04 seconds of tape data
+  0 blocks had errors, 3 had warnings
+  0 good blocks had to try more than one parmset
+  parmset 0 was tried   73 times and used   73 times, or 100.0%
+
+  created statistics file "results\132_pt1.peakstats.csv" from 84,525 measurements of flux transition positions
+  to graph it from Excel, open the CSV file, then: insert chart 2D line
+  the earliest peak is 195.08 usec, and the latest peak is 198.12 usec
+  that peak difference of 3.04 usec, and the largest standard deviation of 4.31 usec, are 1.5% and 2.2% of the nominal bit spacing
+  deskewing with delays up to 29.8% of a bit time seems to have been successful

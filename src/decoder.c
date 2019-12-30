@@ -55,7 +55,7 @@ state is then in struct blkstate_t block.
 ----> See readtape.c for the merged change log.
 
 *******************************************************************************
-Copyright (C) 2018, Len Shustek
+Copyright (C) 2018,2019 Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated documentation files
@@ -84,6 +84,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 int num_trks_idle;
 int errcode=0;
 struct nrzi_t nrzi = { 0 };      // NRZI decoding status
+struct ww_t ww = { 0 };          // Whirlwind decoding status
 int pkww_width = 0;              // the width of the peak detection window, in number of samples
 
 double timenow = 0;              // time of last sample in seconds
@@ -116,60 +117,85 @@ guarantees no more than 2 consecutive zero bits.
 ************************************************************************************************************************/
 #if PEAK_STATS
 #define PEAK_STATS_NUMBUCKETS 50
-float peak_stats_leftbin = 0;
-float peak_stats_binwidth = 0;
-int peak_counts[MAXTRKS][PEAK_STATS_NUMBUCKETS] = { 0 };
-int peak_trksums[MAXTRKS] = { 0 }; // counts not at the two extremes
+float peak_stats_leftbin;
+float peak_stats_binwidth;
+int peak_counts[MAXTRKS][PEAK_STATS_NUMBUCKETS];
+int peak_trksums[MAXTRKS]; // all counts other than at the two extremes
+bool peak_stats_initialized = false;
 
-void record_peakstat(float bitspacing, double peaktime, int trknum) {
-   static bool initialized = false;
-   if (!initialized) { // first time: set range for statistics
+void record_peakstat(float bitspacing, float peaktime, int trknum) {
+   if (!peak_stats_initialized) { // first time: set range for statistics
+      peak_stats_leftbin = peak_stats_binwidth = 0;
+      memset(peak_counts, 0, sizeof(peak_counts));
+      memset(peak_trksums, 0, sizeof(peak_trksums));
       // we want bins for a half bit time below the expected peak(s), and a half bit time above
       float range = bitspacing *
                     (mode == NRZI ? 1.0f
                      : mode == PE ? 1.2f
-                     : /* GCR */ 3.0f);
+                     : mode == GCR ? 3.0f
+                     : mode == WW ? 0.75f
+                     : 1.0f);
       peak_stats_binwidth = range / PEAK_STATS_NUMBUCKETS;
-      // round to the nearest 0.1 usec
+      // round to the nearest 0.1 usec so numbers print nicely
       peak_stats_binwidth = (float)((int)(peak_stats_binwidth*10e6 + 0.5)*1e-6) / 10.0f;
-      peak_stats_leftbin = mode == PE ? bitspacing * 0.25f : bitspacing * 0.5f;
+      //peak_stats_leftbin = mode == PE ? bitspacing * 0.25f : bitspacing * 0.5f;
+      peak_stats_leftbin = bitspacing - range / 2;
       // round to next lower multiple of BINWIDTH
       peak_stats_leftbin = (float)(int)(peak_stats_leftbin / peak_stats_binwidth) * peak_stats_binwidth;
-      dlog("peakstats started: bitspacing %.2f, peaktime %.7lf range %.2f binwidth %.2f leftbin %.2f\n",
-           bitspacing*1e6, peaktime, range*1e6, peak_stats_binwidth*1e6, peak_stats_leftbin*1e6);
-      initialized = true; }
+      dlog("peakstats started: bitspacing %.2f, peaktime %.2f range %.2f binwidth %.2f leftbin %.2f\n",
+           bitspacing*1e6, peaktime*1e6, range*1e6, peak_stats_binwidth*1e6, peak_stats_leftbin*1e6);
+      peak_stats_initialized = true; }
    int bucket = (int)((peaktime - peak_stats_leftbin) / peak_stats_binwidth);
-   if (bucket < 0) ++peak_counts[trknum][0];
+   if (bucket < 0) {
+      ++peak_counts[trknum][0];
+      //rlog("left bin: spacing %.1f, peaktime %.1f, trk %d time "TIMEFMT"\n",
+      //   bitspacing*1e6, peaktime*1e6, trknum, TIMETICK(timenow)); // TEMP
+   }
    else if (bucket >= PEAK_STATS_NUMBUCKETS) ++peak_counts[trknum][PEAK_STATS_NUMBUCKETS - 1];
    else { // not one of the extremes
       ++peak_counts[trknum][bucket];
       ++peak_trksums[trknum]; } }
 
-void output_peakstats(void) { // Create an Excel .CSV file with flux transition position statistics
+void output_peakstats(const char *name) { // Create an Excel .CSV file with flux transition position statistics
    FILE *statsf;
    char filename[MAXPATH];
    int trk, bkt;
    int totalcount = 0;
    long long int avgsum;
-   sprintf(filename, "%s.peakstats.csv", baseoutfilename);
+   sprintf(filename, "%s.peakstats%s.csv", baseoutfilename, name);
    assert((statsf = fopen(filename, "w")) != NULLP, "can't open stats file \"%s\"", filename);
-   for (bkt = 0; bkt < PEAK_STATS_NUMBUCKETS; ++bkt)
+   fprintf(statsf, "total cnt, <=%.1f uS, >=%.1f uS, track",  // first 3 columns are counts of totals, and the 2 extreme buckets
+           peak_stats_leftbin * 1e6, peak_stats_binwidth*1e6 * (PEAK_STATS_NUMBUCKETS-1) + peak_stats_leftbin * 1e6);
+   for (bkt = 1; bkt < PEAK_STATS_NUMBUCKETS-1; ++bkt)
       fprintf(statsf, ",%.1f uS", peak_stats_binwidth*1e6 * bkt + peak_stats_leftbin * 1e6);
    if (mode == NRZI) fprintf(statsf, ",avg uS");
    fprintf(statsf, "\n");
+#if (0) // dump raw numbers for debugging
    for (trk = 0; trk < ntrks; ++trk) {
+      fprintf(statsf, ", %d, %d, trk%d", trk, peak_counts[trk][0], peak_counts[trk][PEAK_STATS_NUMBUCKETS - 1]);
+      for (bkt = 1; bkt < PEAK_STATS_NUMBUCKETS-1; ++bkt)
+         fprintf(statsf, ", %d", peak_counts[trk][bkt]);
+      fprintf(statsf, ", %d\n", peak_trksums[trk]); }
+   fprintf(statsf, "\n");
+#endif
+   for (trk = 0; trk < ntrks; ++trk) { // show percentages
       avgsum = 0;
       // we don't count the first/last buckets, which catch the extremes
       for (bkt = 1; bkt < PEAK_STATS_NUMBUCKETS-1; ++bkt) {
          avgsum += (long long)(peak_counts[trk][bkt] * (peak_stats_binwidth*1e6 * bkt + peak_stats_leftbin * 1e6)); }
-      fprintf(statsf, "trk%d,", trk);
-      for (bkt = 0; bkt < PEAK_STATS_NUMBUCKETS; ++bkt)
-         fprintf(statsf, "%.2f%%, ", 100 * (float)peak_counts[trk][bkt] / (float)peak_trksums[trk]);
-      if (mode == NRZI) fprintf(statsf, "%.2f", (float)avgsum / (float)peak_trksums[trk]);
+      fprintf(statsf, "%d, %d, %d,", peak_trksums[trk] + peak_counts[trk][0] + peak_counts[trk][PEAK_STATS_NUMBUCKETS - 1],
+              peak_counts[trk][0], peak_counts[trk][PEAK_STATS_NUMBUCKETS - 1]);
+      fprintf(statsf, "trk%d", trk);
+      for (bkt = 1; bkt < PEAK_STATS_NUMBUCKETS-1; ++bkt)
+         fprintf(statsf, ", %.2f%%", peak_trksums[trk] ? 100 * (float)peak_counts[trk][bkt] / (float)peak_trksums[trk] : 0);
+      if (mode == NRZI) fprintf(statsf, ", %.2f", (float)avgsum / (float)peak_trksums[trk]);
       fprintf(statsf, "\n");
       totalcount += peak_trksums[trk]; }
    fclose(statsf);
-   if (!quiet) rlog("created statistics file \"%s\" from %s measurements of flux transition positions\n", filename, intcommas(totalcount)); }
+   if (!quiet) {
+      rlog("  created statistics file \"%s\" from %s measurements of flux transition positions\n", filename, intcommas(totalcount));
+      rlog("  to graph it from Excel, open the CSV file, then: insert chart 2D line\n"); }
+   peak_stats_initialized = false; }
 
 #endif
 
@@ -177,8 +203,8 @@ void output_peakstats(void) { // Create an Excel .CSV file with flux transition 
    Routines for using accumulated flux transition times to
    deskew the input data by delaying some of the channel data
 
-We do this only for NRZI, where the tracks must be aligned.
-PE and GCR are self-clocking, so track skew isn't a problem.
+We do this for NRZI, GCR, and Whirlwind, where the tracks must be aligned.
+PE tracks are self-clocking, so track skew isn't a problem.
 ************************************************************************************************************************/
 
 #if DESKEW
@@ -188,33 +214,55 @@ struct skew_t {
    int slots_filled;        // how many slots are filled, 0..skewdelaycnt[trk]
 } skew[MAXTRKS];            // (This structure is cleared at the start of each block.)
 int skew_delaycnt[MAXTRKS] = { 0 };    // the skew delay, in number of samples, for each track. (This is persistent.)
+float deskew_max_delay_percent;       // the worse-case percentage-of-a-bit skew delay
 
 void skew_set_delay(int trknum, float time) { // set the skew delay for a track
    assert(sample_deltat > 0, "delta T not set yet in skew_set_delay");
    assert(time >= 0, "negative skew amount %f for trk %d which had delaycnt %d", time, trknum, skew_delaycnt[trknum]);
    int delay = (int)((time + sample_deltat/2) / sample_deltat);
    //rlog("set skew trk %d to %f usec, %d samples\n", trknum, time*1e6, delay);
-   if (delay > MAXSKEWSAMP) rlog("track %d skew of %.1f usec is too big\n", trknum, time*1e6);
+   if (delay > MAXSKEWSAMP) rlog("---> Warning: head %d skew of %.1f usec is too big\n", trknum, time*1e6);
    skew_delaycnt[trknum] = min(delay, MAXSKEWSAMP); };
 
-void skew_set_deskew(void) {  // set all the deskew amounts based on where we see most of the transitions
+bool skew_compute_deskew(bool do_set) {
+   // compute (and optionally set) deskew amounts based on where we see the average
+   // of the transitions for each track. Return true if the skew is within acceptable bounds.
    int trk, bkt;
    long long int avgsum;
    float avg[MAXTRKS]; // the average peak position for each track
-   for (trk = 0; trk < ntrks; ++trk) {
+   float stddev[MAXTRKS]; // the std deviation of the peak positions for each track
+   // we don't count the first/last buckets, which catch the extremes
+   for (trk = 0; trk < ntrks; ++trk) { // compute the average peak positions
       avgsum = 0;
-      // we don't count the first/last buckets, which catch the extremes
       for (bkt = 1; bkt < PEAK_STATS_NUMBUCKETS-1; ++bkt) {
          avgsum += (long long) (peak_counts[trk][bkt] * (peak_stats_binwidth*1e6 * bkt + peak_stats_leftbin * 1e6)); }
       avg[trk] = (float)avgsum / (float)peak_trksums[trk]; }
-   float maxavg = 0;
-   for (trk = 0; trk < ntrks; ++trk) // see which track has the last transitions, on average
+   for (trk = 0; trk < ntrks; ++trk) { // compute the standard deviations of the peak positions
+      stddev[trk] = 0;
+      for (bkt = 1; bkt < PEAK_STATS_NUMBUCKETS - 1; ++bkt) {
+         float deviation = ((peak_stats_binwidth*1e6f * bkt + peak_stats_leftbin * 1e6f)) - avg[trk];
+         stddev[trk] += peak_counts[trk][bkt] * (deviation * deviation); }
+      stddev[trk] = sqrtf(stddev[trk]/(float)peak_trksums[trk]); }
+   float maxavg = 0, minavg = FLT_MAX, maxstddev = 0;;
+   for (trk = 0; trk < ntrks; ++trk) { // find min/max average, and max std deviation
       maxavg = max(maxavg, avg[trk]);
-   for (trk = 0; trk < ntrks; ++trk) {
-      dlog("trk %d has %d transitions, avg %f max %f\n", trk, peak_trksums[trk], avg[trk], maxavg);
-      skew_set_delay(trk, peak_trksums[trk] > 0 ? (maxavg - avg[trk]) / 1e6f : 0); // delay the other tracks relative to it
-   }
-   if (!quiet) skew_display(); }
+      minavg = min(minavg, avg[trk]);
+      maxstddev = max(maxstddev, stddev[trk]); }
+   if (do_set) {
+      for (trk = 0; trk < ntrks; ++trk) {
+         dlog("trk %d has %d transitions, avg position %.2f usec, std dev %.2f usec\n", trk, peak_trksums[trk], avg[trk], stddev[trk]);
+         skew_set_delay(trk, peak_trksums[trk] > 0 ? (maxavg - avg[trk]) / 1e6f : 0); // delay the other tracks relative to it
+      }
+      if (!quiet) skew_display(); }
+   float peak_frac = (maxavg - minavg) / (1e6f / (bpi*ips)); // peak difference as a fraction of bit spacing
+   float stddev_frac = maxstddev / (1e6f / (bpi*ips)); // standard deviation as a fraction of bit spacing
+   if (!quiet) {
+      rlog("  the earliest peak is %.2f usec, and the latest peak is %.2f usec\n",
+           minavg, maxavg);
+      rlog("  that peak difference of %.2f usec, and the largest standard deviation of %.2f usec, are %.1f%% and %.1f%% of the nominal bit spacing\n",
+           maxavg - minavg, maxstddev, peak_frac * 100, stddev_frac * 100); }
+   if (do_set) deskew_max_delay_percent = peak_frac * 100; // save what we set it to in a global for reporting later
+   return peak_frac < DESKEW_PEAKDIFF_WARNING && stddev_frac < DESKEW_STDDEV_WARNING; }
 
 int skew_min_transitions(void) { // return the lowest number of transitions on any track
    int min_transitions = INT_MAX;
@@ -270,7 +318,7 @@ bool estden_transition(struct trkstate_t *t, double peaktime, float deltasecs) {
    //dlog("estden_transition %.3f usec at %.7lf\n", deltasecs*1e6, timenow);
    assert(deltasecs > 0, "negative delta %f usec in estden_transition", deltasecs*1e6);
    if (deltasecs > 0 && deltasecs <= ESTDEN_MAXDELTA) {
-      //if (deltasecs < 2e-6)dlog("estden_transition %f usec trk %d thispeak %.7lf tick %.1lf, lastpeak %.7lf tick %.1lf, at %.7lf tick %.1lf\n", 
+      //if (deltasecs < 2e-6)dlog("estden_transition %f usec trk %d thispeak %.7lf tick %.1lf, lastpeak %.7lf tick %.1lf, at %.7lf tick %.1lf\n",
       //   deltasecs*1e6, t->trknum, peaktime, TICK(peaktime), t->t_lastpeak, TICK(t->t_lastpeak), timenow, TICK(timenow));
       for (ndx = 0; ndx < estden.binsused; ++ndx) // do we have it already?
          if (estden.deltas[ndx] == delta) break;  // yes
@@ -306,7 +354,7 @@ void estden_setdensity(int nblks) { // figure out the tape density
       if (diff < 0) diff = -diff;
       if (diff < stddensity * ESTDEN_CLOSEPERCENT / 100) {
          bpi = stddensity;
-         if (!quiet) rlog("  density set to %.0f BPI (%.2f usec/bit) after reading %d blocks and seeing %s transitions in %d bins that imply %.0f BPI\n",
+         if (!quiet) rlog("  density was set to %.0f BPI (%.2f usec/bit) after reading the first %d blocks and seeing %s transitions in %d bins that imply %.0f BPI\n",
                              bpi, 1e6/(bpi*ips), nblks, intcommas(estden.totalcount), estden.binsused, density);
          return; } }
    fatal("The detected density of %.0f (%.1f usec) after seeing %s transitions is non-standard; please specify it.",
@@ -329,17 +377,29 @@ void init_clkavg(struct clkavg_t *c, float init_avg) { // initialize a clock ave
    for (int i = 0; i < CLKRATE_WINDOW; ++i) // initialize moving average bitspacing array
       c->t_bitspacing[i] = init_avg; }
 
+void init_trackpeak_state(void) { // this is also used by Whirlwind when we move back in the file
+#if DESKEW
+   memset(&skew, 0, sizeof(skew));
+#endif
+   block.window_set = false;
+   block.endblock_done = false;
+   for (int trknum = 0; trknum < ntrks; ++trknum) {
+      struct trkstate_t *trk = &trkstate[trknum];
+      trk->pkww_left = trk->pkww_right = 0;
+      trk->pkww_minv = trk->pkww_maxv = 0;
+      trk->pkww_countdown = 0; } }
+
 void init_trackstate(void) {  // initialize all track and some block state information for a new decoding of a block
+   // for Whirlwind we do this only once at the beginning, because we need to preseve peak height info for very close blocks
    num_trks_idle = ntrks;
    block.window_set = false;
    block.endblock_done = false;
    if (mode == GCR) gcr_preprocess();
-#if DESKEW
-   memset(&skew, 0, sizeof(skew));
-#endif
+   init_trackpeak_state();
    memset(&block.results[block.parmset], 0, sizeof(struct results_t));
    block.results[block.parmset].blktype = BS_NONE;
-   block.results[block.parmset].alltrk_max_agc_gain = 1.0;
+   block.results[block.parmset].alltrk_max_agc_gain = 0.0;
+   block.results[block.parmset].alltrk_min_agc_gain = FLT_MAX;
    memset(trkstate, 0, sizeof(trkstate));  // only need to initialize non-zeros below
    for (int trknum = 0; trknum < ntrks; ++trknum) {
       struct trkstate_t *trk = &trkstate[trknum];
@@ -347,13 +407,18 @@ void init_trackstate(void) {  // initialize all track and some block state infor
       trk->idle = true;
       //  trk->zerocross_dn_pending = trk->zerocross_up_pending = true; // allow first zerocrossing to occur from an idle track
       trk->agc_gain = 1.0;
-      trk->max_agc_gain = 1.0;
-      trk->v_avg_height = PKWW_PEAKHEIGHT;
+      trk->max_agc_gain = 0.0;
+      trk->min_agc_gain = FLT_MAX;
+      trk->v_avg_height = PKWW_PEAKHEIGHT; 
       if (!doing_density_detection) init_clkavg(&trk->clkavg, 1 / (bpi*ips));
       trk->t_clkwindow = trk->clkavg.t_bitspaceavg / 2 * PARM.clk_factor; }
    if (mode == NRZI) {
       memset(&nrzi, 0, sizeof(nrzi));
-      if (!doing_density_detection) init_clkavg(&nrzi.clkavg, 1 / (bpi*ips)); } }
+      if (!doing_density_detection) init_clkavg(&nrzi.clkavg, 1 / (bpi*ips)); }
+   if (mode == WW) {
+      memset(&ww, 0, sizeof(ww));
+      if (!doing_density_detection) init_clkavg(&ww.clkavg, 1 / (bpi*ips)); } }
+
 
 void show_track_datacounts (char *msg) {
    rlog("%s\n", msg);
@@ -372,6 +437,24 @@ void check_data_alignment(int clktrk) {
          dlog("! at clk on trk %d, trk %d has %d databytes, not %d, at %.7lf\n", clktrk, trknum, t->datacount, datacount, timenow);
          ++numshown; } } }
 
+// the following avg height routines are new for WW, and NRZI/PE/GCR ought to use them too instead of having their own code for this
+
+void accumulate_avg_height(struct trkstate_t *t) {
+   if (t->v_top > t->v_bot) {
+      t->v_avg_height_sum += t->v_top - t->v_bot;
+      ++t->v_avg_height_count;
+      t->v_heights[t->heightndx] = t->v_top - t->v_bot;
+      if (++t->heightndx >= PARM.agc_window) t->heightndx = 0; } }
+
+void compute_avg_height(struct trkstate_t *t) {
+   if (t->v_avg_height_count) {
+      t->v_avg_height = t->v_avg_height_sum / t->v_avg_height_count; // then compute avg peak-to-peak voltage
+      dlogtrk("trk %d avg peak-to-peak after %d transitions is %.2fV at "TIMEFMT"\n",
+              t->trknum, t->v_avg_height_count, t->v_avg_height, TIMETICK(timenow));
+      assert(t->v_avg_height>0, "avg peak-to-peak voltage isn't positive");
+      t->v_avg_height_count = 0;  t->v_avg_height_sum = 0; } }
+
+
 void adjust_agc(struct trkstate_t *t) { // update the automatic gain control level
    if (find_zeros) return;  // no AGC if we're looking for zero crossings instead of peaks
    assert(!PARM.agc_window || !PARM.agc_alpha, "inconsistent AGC parameters in parmset %d", block.parmset);
@@ -381,11 +464,12 @@ void adjust_agc(struct trkstate_t *t) { // update the automatic gain control lev
       if (lastheight > 0 /*&& lastheight < t->v_avg_height*/ ) { // if it's smaller than average  *** NO, DO THIS ALWAYS??
          gain = t->v_avg_height / lastheight;  		// the new gain, which could be less than 1
          gain = PARM.agc_alpha * gain + (1 - PARM.agc_alpha)*t->agc_gain;  // exponential smoothing with previous values
-         if (gain > AGC_MAX) gain = AGC_MAX;
+         if (gain > AGC_MAX_VALUE) gain = AGC_MAX_VALUE;
          dlogtrk("trk %d adjust gain lasttop %.2f lastbot %.2f lastheight %.2f, avgheight %.2f, old gain %.2f new gain %.2f at %.7lf tick %.1lf\n",
                  t->trknum, t->v_lasttop, t->v_lastbot, lastheight, t->v_avg_height, t->agc_gain, gain, timenow, TICK(timenow));
          t->agc_gain = gain;
-         if (gain > t->max_agc_gain) t->max_agc_gain = gain; } }
+         if (gain > t->max_agc_gain) t->max_agc_gain = gain;
+         if (gain < t->min_agc_gain) t->min_agc_gain = gain; } }
    if (PARM.agc_window) {  // do automatic gain control based on the minimum of the last n peak-to-peak voltages
       assert(PARM.agc_window <= AGC_MAX_WINDOW, "AGC window too big in parmset %d", block.parmset);
       lastheight = t->v_lasttop - t->v_lastbot; // last peak-to-peak height
@@ -397,11 +481,12 @@ void adjust_agc(struct trkstate_t *t) { // update the automatic gain control lev
          assert(minheight < 99, "bad minimum peak-to-peak voltage for trk %d", t->trknum);
          if (1 /*minheight < t->v_avg_height*/) { // if min peak-to-peak voltage is lower than during preamble  *** NO, DO THIS ALWAYS?
             gain = t->v_avg_height / minheight;  // what gain we should use; could be less than 1
-            if (gain > AGC_MAX) gain = AGC_MAX;
+            if (gain > AGC_MAX_VALUE) gain = AGC_MAX_VALUE;
             t->agc_gain = gain;
             // dlogtrk("adjust_gain: trk %d lastheight %.3fV, avgheight %.3f, minheight %.3f, heightndx %d, datacount %d, gain is now %.3f at %.7lf\n",
             //        t->trknum, lastheight, t->v_avg_height, minheight, t->heightndx, t->datacount, gain, timenow);
-            if (gain > t->max_agc_gain) t->max_agc_gain = gain; } } } }
+            if (gain > t->max_agc_gain) t->max_agc_gain = gain;
+            if (gain < t->min_agc_gain) t->min_agc_gain = gain; } } } }
 
 void adjust_clock(struct clkavg_t *c, float delta, int trk) {  // update the bit clock speed estimate
    int clk_window = PARM.clk_window;
@@ -420,11 +505,11 @@ void adjust_clock(struct clkavg_t *c, float delta, int trk) {  // update the bit
    }
    else { // *** STRATEGY 3: use a constant instead of averaging
       assert(bpi > 0, "bpi=0 in adjust_clock at %.7lf", timenow);
-      c->t_bitspaceavg = mode == PE ? 1 / (bpi*ips) : nrzi.clkavg.t_bitspaceavg; //
+      c->t_bitspaceavg = mode & PE+WW ? 1 / (bpi*ips) : nrzi.clkavg.t_bitspaceavg; //
    }
-   //if (DEBUG && trace_on && trk==TRACETRK)
-   //   dlog("trk %d adjust clock of %.2f with delta %.2f uS to %.2f at %.7lf tick %.1lf\n",
-   //        trk, prevdelta*1e6, delta*1e6, c->t_bitspaceavg*1e6, timenow, TICK(timenow)); //
+   if (DEBUG && trace_on && (DEBUGALL || trk == TRACETRK))
+      rlog("trk %d adjust clock of %.2f with delta %.2f uS to %.2f at %.7lf tick %.1lf\n",
+           trk, prevdelta*1e6, delta*1e6, c->t_bitspaceavg*1e6, timenow, TICK(timenow)); //
 }
 void force_clock(struct clkavg_t *c, float delta, int trk) { // force the clock speed
    for (int i = 0; i < CLKRATE_WINDOW; ++i) c->t_bitspacing[i] = delta;
@@ -454,7 +539,8 @@ void process_up_transition(struct trkstate_t *t) {
    else {
       if (mode == PE) pe_top(t);
       else if (mode == NRZI) nrzi_top(t);
-      else if (mode == GCR) gcr_top(t); }
+      else if (mode == GCR) gcr_top(t);
+      else if (mode == WW) ww_top(t); }
    t->v_lasttop = t->v_top;
    t->v_lastpeak = t->v_top;
    t->t_prevlastpeak = t->t_lastpeak;
@@ -470,8 +556,10 @@ void process_down_transition(struct trkstate_t *t) {
    else {
       if (mode == PE) pe_bot(t);
       else if (mode == NRZI) nrzi_bot(t);
-      else if (mode == GCR) gcr_bot(t); }
+      else if (mode == GCR) gcr_bot(t);
+      else if (mode == WW) ww_bot(t); }
    t->v_lastbot = t->v_bot;
+   t->t_lastbot = t->t_bot;
    t->v_lastpeak = t->v_bot;
    t->t_prevlastpeak = t->t_lastpeak;
    t->t_lastpeak = t->t_bot; }
@@ -508,7 +596,7 @@ void lookfor_zerocrossing(struct trkstate_t *t) {
                process_down_transition(t); } }
       if (t->v_prev > 0 && t->v_top > ZEROCROSS_PEAK ) { // just crossed zero going down after a big up peak
          t->t_bot = timenow; // remember this as a possible zero crossing down
-         //rlog("trk %d zerocross dn pending at %.7lf, v_top %.3f\n", t->trknum, timenow, t->v_top); 
+         //rlog("trk %d zerocross dn pending at %.7lf, v_top %.3f\n", t->trknum, timenow, t->v_top);
          t->zerocross_dn_pending = true; } }
    t->v_prev = t->v_now; }
 
@@ -609,31 +697,34 @@ void lookfor_peak(struct trkstate_t *t) {
       --t->pkww_countdown; } // don't look a the shape within the window yet
 
    else { // see if the window has the profile of a new top or bottom peak
+      assert(t->agc_gain > 0, "AGC gain bad in lookfor_peak: %.2f", t->agc_gain);
+      // the following calculation uses t->v_avg_height to set the longterm expectation of the signal magnitude for this track,
+      // and t->agc_gain to track shortterm variations. We do the same for the min_peak test.
       float required_rise = PARM.pkww_rise * (t->v_avg_height / (float)PKWW_PEAKHEIGHT) / t->agc_gain;  // how much of a voltage rise constitutes a peak
-      //float required_rise = PARM.pkww_rise;
-      //dlogtrk("trk %d at %.7lf tick %.1f req rise %.3f, avg height %.2f, AGC %.2f, left %.3fV right %.3fV max %.3fV min %.3fV\n",
-      //                     t->trknum, timenow, TICK(timenow), required_rise, t->v_avg_height, t->agc_gain,
-      //                     t->pkww_v[t->pkww_left], t->pkww_v[t->pkww_right], t->pkww_maxv, t->pkww_minv);
+      float required_min = PARM.min_peak * (t->v_avg_height / (float)PKWW_PEAKHEIGHT) / t->agc_gain; // the minimum peak for this track
+      if (0) dlogtrk("trk %d at %.7lf tick %.1f req rise %.3f, avg height %.2f, AGC %.2f, left %.3fV right %.3fV max %.3fV min %.3fV\n",
+                           t->trknum, timenow, TICK(timenow), required_rise, t->v_avg_height, t->agc_gain,
+                           t->pkww_v[t->pkww_left], t->pkww_v[t->pkww_right], t->pkww_maxv, t->pkww_minv);
       if (t->pkww_maxv > t->pkww_v[t->pkww_left] + required_rise
             && t->pkww_maxv > t->pkww_v[t->pkww_right] + required_rise  // the max is a lot higher than the left and right sides
-            && (PARM.min_peak == 0 || t->pkww_maxv > PARM.min_peak)) {  // and it's higher than the min peak, if given
+            && (required_min == 0 || t->pkww_maxv > required_min)) {  // and it's higher than the min peak, if given
          t->v_top = t->pkww_maxv;  // which means we hit a top peak
          t->t_top = refine_peak(t, t->pkww_maxv, true, required_rise);
-         dlogtrk("trk %d top of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, avg ht %.3f, AGC %.2f at %.7lf tick %.1f \n",
+         dlogtrk("trk %d top of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, req min %.3f, avg ht %.3f, AGC %.2f at %.7lf tick %.1f, found %.7lf tick %.1f\n",
                  t->trknum, t->v_top,
-                 t->pkww_maxv - t->pkww_v[t->pkww_left], t->pkww_maxv - t->pkww_v[t->pkww_right], required_rise,
-                 t->v_avg_height, t->agc_gain, t->t_top, TICK(t->t_top));
+                 t->pkww_maxv - t->pkww_v[t->pkww_left], t->pkww_maxv - t->pkww_v[t->pkww_right], required_rise, required_min,
+                 t->v_avg_height, t->agc_gain, TIMETICK(t->t_top), TIMETICK(timenow));
          process_up_transition(t); }
 
       else if (t->pkww_minv < t->pkww_v[t->pkww_left] - required_rise
                && t->pkww_minv < t->pkww_v[t->pkww_right] - required_rise  // the min is a lot lower than the left and right sides
-               && (PARM.min_peak == 0 || t->pkww_minv < -PARM.min_peak)) { // and it's lower than the min peak, if given
+               && (required_min == 0 || t->pkww_minv < -required_min)) { // and it's lower than the min peak, if given
          t->v_bot = t->pkww_minv;  //so we hit a bottom peak
          t->t_bot = refine_peak(t, t->pkww_minv, false, required_rise);
-         dlogtrk("trk %d bot of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, avg ht %.3f, AGC %.2f at %.7lf tick %.1f \n",
+         dlogtrk("trk %d bot of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, req min %.3f, avg ht %.3f, AGC %.2f at %.7lf tick %.1f, found %.7lf tick %.1f\n",
                  t->trknum, t->v_bot,
-                 t->pkww_v[t->pkww_left] - t->pkww_minv, t->pkww_v[t->pkww_right] - t->pkww_minv, required_rise,
-                 t->v_avg_height, t->agc_gain, t->t_bot, TICK(t->t_bot));
+                 t->pkww_v[t->pkww_left] - t->pkww_minv, t->pkww_v[t->pkww_right] - t->pkww_minv, required_rise, required_min,
+                 t->v_avg_height, t->agc_gain, TIMETICK(t->t_bot), TIMETICK(timenow));
          process_down_transition(t); } } }
 
 
@@ -706,7 +797,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
             && timenow > t->t_lastpeak + GCR_IDLE_THRESH * t->clkavg.t_bitspaceavg) { // if no peaks for too long
          t->datablock = false; // then we're at the end of the block for this track
          t->idle = true;
-         dlog("trk %d becomes idle, %d idle at %.7f tick %.1lf, AGC %.2f, v_now %f, t_lastpeak %.7lf v_lastpeak %f, bitspaceavg %.2f\n", //
+         dlog("trk %d becomes idle, %d idle at %.7lf tick %.1lf, AGC %.2f, v_now %f, t_lastpeak %.7lf v_lastpeak %f, bitspaceavg %.2f\n", //
               t->trknum, num_trks_idle + 1, timenow, TICK(timenow), t->agc_gain, t->v_now, t->t_lastpeak, t->v_lastpeak, t->clkavg.t_bitspaceavg*1e6);
          //show_track_datacounts("at idle");
          if (++num_trks_idle >= ntrks) { // and maybe for all tracks
@@ -714,6 +805,10 @@ enum bstate_t process_sample(struct sample_t *sample) {
             goto exit; } }
 
    } // for tracks
+
+   if (mode == WW && ww.datablock
+         && ww.t_lastclkpulseend > 0 && timenow - ww.t_lastclkpulseend > ww.clkavg.t_bitspaceavg * WW_CLKSTOP_BITS) {  // the clock has stopped
+      ww_end_of_block(); }
 
 #if TRACEFILE
    trace_startstop();

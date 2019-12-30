@@ -78,7 +78,8 @@ void nrzi_end_of_block(void) {
       avg_bit_spacing += (float)(t->t_lastbit - t->t_firstbit) / t->datacount;
       if (t->datacount > result->maxbits) result->maxbits = t->datacount;
       if (t->datacount < result->minbits) result->minbits = t->datacount;
-      if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain; }
+      if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain;
+      if (result->alltrk_min_agc_gain > t->min_agc_gain) result->alltrk_min_agc_gain = t->min_agc_gain; }
    result->avg_bit_spacing = avg_bit_spacing / ntrks;
    dlog("NRZI end of block %d, min %d max %d, avgbitspacing %f uS at %.7lf tick %.1lf\n",
         numblks+1, result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow, TICK(timenow));
@@ -91,7 +92,7 @@ void nrzi_end_of_block(void) {
       dlog("   detected noise block of length %d at %.7lf\n", result->maxbits, timenow);
       result->blktype = BS_NOISE; }
    else if (result->maxbits - result->minbits > NRZI_MAX_MISMATCH) {  // very different number of bits in different tracks
-      if (verbose_level >= 3) show_track_datacounts("*** trkmismatched block");
+      if (verbose_level & VL_TRACKLENGTHS) show_track_datacounts("*** trkmismatched block");
       result->blktype = BS_BADBLOCK;
       result->track_mismatch = result->maxbits - result->minbits; }
    else { // finally, perhaps a good block
@@ -186,7 +187,7 @@ void nrzi_top(struct trkstate_t *t) {  // detected a top
    //if (trace_on) dlog("trk %d top at %.7f tick %.1lf, agc %.2f\n",
    //                      t->trknum, t->t_top, TICK(t->t_top), t->agc_gain);
    if (PEAK_STATS && nrzi.t_lastclock != 0 && nrzi.datablock && nrzi.post_counter == 0)
-      record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_top-nrzi.t_lastclock), t->trknum);
+      record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_top - nrzi.t_lastclock), t->trknum);
    if (t->t_top < nrzi.t_last_midbit && nrzi.post_counter == 0) {
       dlog("---trk %d top of %.2fV at %.7lf tick %.1lf found at %.7lf tick %.1lf is %.2lfuS before midbit at %.7lf tick %.1f\n"
            "    lastclock %.7lf tick %.1f, AGC %.2f, bitspace %.2f, datacnt %d\n",

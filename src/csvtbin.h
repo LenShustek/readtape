@@ -7,7 +7,7 @@ This describes a file format that is more general that what is implemented.
 The current code supports only one data block with 16-bit non-delta samples.
 
 *******************************************************************************
-Copyright (C) 2018, Len Shustek
+Copyright (C) 2018,2019 Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated documentation files
@@ -26,26 +26,31 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
 
 #define TBIN_FILE_FORMAT 1
+#define MAXTRKS 19 // should be one less than a multiple of 4, 
+//                 // for machine-independent alignment of data structures here.
 
 //**** beware that changing these definitions may invalidate existing files!
 
 enum mode_t {
-   UNKNOWN = 0, PE = 0x01, NRZI = 0x02, GCR = 0x04,
-   ALLMODES = PE + NRZI + GCR };
+   UNKNOWN = 0, PE = 0x01, NRZI = 0x02, GCR = 0x04, WW = 0x08,
+   ALLMODES = PE + NRZI + GCR + WW };
 
 struct tbin_hdr_t {     // the file header for .tbin files, which appears once
    char tag[8];                     // a zero-terminated ASCII string identifier tag
 #define HDR_TAG "TBINHDR"
    char descr[80];                  // tape description, a zero-terminated ASCII string
    union {
-      struct { // everything below must be 4-byte numbers, stored little-endian
+      struct { // everything in this struct must be 4-byte numbers, stored little-endian
          uint32_t tbinhdrsize;      // size of this header in bytes
          uint32_t format;           // .tbin file format version
          struct tm time_written;    // when the analog tape data was written (9 integers)
          struct tm time_read;       // when the analog tape data was digitized (9 integers)
          struct tm time_converted;  // when the digitized data was converted to .tbin (9 integers)
          uint32_t flags;            // file format flags, TBIN_xxx
-#define TBIN_NO_ORDER 0x01          //    tracks weren't reordered with -order=
+#define TBIN_NO_REORDER 0x01           //  tracks weren't reordered with -order=
+#define TBIN_TRKORDER_INCLUDED 0x02    //  the "trkorder" header extension follows this header
+#define TBIN_INVERTED 0x04             //  the data was +- inverted 
+#define TBIN_REVERSED 0x08             //  the data might have been read (or written) backwards
          uint32_t ntrks;            // number of tracks (heads)
          uint32_t tdelta;           // time between samples, in nanoseconds
          float maxvolts;            // maximum voltage for any sample
@@ -55,7 +60,18 @@ struct tbin_hdr_t {     // the file header for .tbin files, which appears once
          float ips;                 // read speed in inches per second, if known
       } s;
       uint32_t a[1];    // (for accessing the above as an array of 4-byte little-endian integers)
-   } u; };
+   } u;
+};
+
+struct tbin_hdrext_trkorder_t {  // the optional "trkorder" header extension
+   // This is currently used only for Whirlwind tapes, because the ordering is complex.
+   // For other tapes, the reordering is performed when the TBIN file is created, and
+   // the the TBIN_NO_REORDER flag is turned off.
+   char tag[8];                     // a zero-terminated ASCII string identifier tag
+#define HDR_TRKORDER_TAG "TBINORD"
+   char trkorder[MAXTRKS + 1]; // the -order= parameter value that was given, as a C string
+};
+
 
 struct tbin_dat_t {     // the data header that starts each block of data
    char tag[4];                     // a zero-terminated ASCII string identifier tag

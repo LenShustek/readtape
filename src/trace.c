@@ -43,7 +43,7 @@ bool trace_on = false, trace_done = false, trace_start = false;
 int trace_lines = 0;
 FILE *tracef;
 
-#define TRACE_DEPTH 200
+#define TRACE_DEPTH 500
 
 #define TB 3.00f   // base y-axis display level for miscellaneous stuff
 #define TT -6.00f  // base y-axis display level for track info
@@ -221,7 +221,9 @@ void trace_startstop(void) {
 //**** Choose a test here for turning the trace on, depending on what anomaly we're looking at...
 
    //if (rereading
-   if (timenow >= 6.2182470 - 200e-6 /*9.75630784 -100e-6*/
+   //if (true 
+         if (ww.datablock && numblks >= 2
+         //if (timenow >  8.35
          //if (numblks >= 1478 && block.parmset == 2 && timenow > 163.863
          //if (timenow > 13.1369 && trkstate[0].datacount > 270
          //if (trkstate[TRACETRK].peakcount > 0
