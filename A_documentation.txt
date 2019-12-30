@@ -249,7 +249,7 @@ description of the various tape formats we process.
   it could have bad parity; no CRC character
 - tape mark: 1-bits on tracks 8,4,2,1, then 4 bit times, then the same
 
-*** 6-track 200 BPI NRZI Whirlwind tapes
+*** 6-track 100 BPI NRZI Whirlwind tapes
 - track order is (maybe?) CLMCLM, where C is the clock track and L M are
   LSB/MSB data tracks. Each track appears twice, for redundancy, but the
   order can vary
