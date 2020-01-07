@@ -35,7 +35,7 @@ between CSV and TBIN. The "readtape" decoding program can read either
 format. The compression is about 10:1, and it speeds up decoding by 
 about 2x. 
 
-We so far support 7-track NRZI forat, 9-track NRZI, PE, GCR formats, and,
+We so far support 7-track NRZI format, 9-track NRZI, PE, GCR formats, and,
 most recently, the bizarre 6-track tapes that were written on the vacuum-
 tube Whirlwind I computer. The museum has over a hundred of them, and we
 have had remarkable success (about 95%) in recovering data and programs 
