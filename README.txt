@@ -35,7 +35,11 @@ between CSV and TBIN. The "readtape" decoding program can read either
 format. The compression is about 10:1, and it speeds up decoding by 
 about 2x. 
 
-We so far support 7-track NRZI, and 9-track NRZI, PE, and GCR formats. 
+We so far support 7-track NRZI forat, 9-track NRZI, PE, GCR formats, and,
+most recently, the bizarre 6-track tapes that were written on the vacuum-
+tube Whirlwind I computer. The museum has over a hundred of them, and we
+have had remarkable success (about 95%) in recovering data and programs 
+that have been unread and unexamined for fifty years. 
 
 *** The files in this repository
 
@@ -61,7 +65,7 @@ We so far support 7-track NRZI, and 9-track NRZI, PE, and GCR formats.
  src\decode_pe.c         PE (phase encoded) decoding routines
  src\decode_nrzi.c       NRZI (non-return-to-zero-inverted) decoding routines 
  src\decode_gcr.c        GCR (group coded recording) decoding routines
- src]decode_ww.can       Whirlwind I 6-track decoding routines
+ src\decode_ww.c         Whirlwind I 6-track decoding routines
  src\parmsets.c          parameter set processing, and their defaults
  src\textfile.c          interpreted text dump of the data
  src\ibmlabels.c         IBM 9-track standard label (SL) interpretation
@@ -81,11 +85,13 @@ We so far support 7-track NRZI, and 9-track NRZI, PE, and GCR formats.
  
 *** Thanks to: 
  - Paul Pierce for the original inspiration of his similar work 10+ years ago.
- - Al Kossow for the tape drive, for making lots of good suggestions (Saleae, 
-   .tap format, compressed files, etc.), and for reading many tapes to try.
  - Grant Saviers for detailed consulting on tape nitty-gritties. 
+ - Al Kossow for the tape drive, for making lots of good suggestions (Saleae, 
+   .tap format, compressed files, etc.), and for carefully reading many, many 
+   tapes from the collection of the Computer History Museum.
 
 Len Shustek
-6 Feb 2018
-17 May 2018, 27 May 2018, 8 Oct 2018, 4 Aug 2019, 29 Dec 2019
+ 6 Feb 2018
+17 May 2018, 27 May 2018, 8 Oct 2018
+ 4 Aug 2019, 29 Dec 2019
 
