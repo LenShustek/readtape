@@ -1,3 +1,7 @@
+      UPDATE: Here is a link to the video of my talk about this
+      project at the August 2020 Vintage Computer Festival West: 
+      https://youtu.be/7YoolSAHR5w?t=4200. 
+
 This is a program for recovering data from old magnetic computer tapes
 by digitizing the analog waveforms and then using software to decode the 
 bits and reconstruct the original data. The objective is to correctly 
@@ -32,8 +36,8 @@ But the CSV files can be huge -- many tens of gigabytes for a few
 minutes of recording -- so for archival purposes we've defined a binary 
 compressed "TBIN" format, and I wrote a utility program that can convert 
 between CSV and TBIN. The "readtape" decoding program can read either 
-format. The compression is about 10:1, and it speeds up decoding by 
-about 2x. 
+format. The compression using TBIN is about 10:1, and it speeds up 
+decoding by about 2x. 
 
 We so far support 7-track NRZI format, 9-track NRZI, PE, GCR formats, and,
 most recently, the bizarre 6-track tapes that were written on the vacuum-
@@ -50,7 +54,7 @@ that have been unread and unexamined for fifty years.
 ---DOCUMENTATION
 
  A_documentation.txt    A narrative about usage and internal operation
- A_experiences.txt      Some anecdotes about what we have done with this
+ A_experiences.txt      Some (old) anecdotes about what we have done with this
  AtoD_attachment.jpg    A photo showing how the analyzer connects to the drive
  example_01.pdf         An example of a really bad block we can decode
  flux_transition_dispersion.jpg  A graph showing the effect of head skew
@@ -75,7 +79,7 @@ that have been unread and unexamined for fifty years.
 
  src\csvtbin.c           a program for converting between CSV and TBIN files
  src\dumptap.c           a program for dumping SIMH .tap files, one of the output formats
-                        (but this functionality is now an option in readtape)
+                         (but this functionality, expanded, is now an option in readtape)
 ---BINARIES
  bin\readtape.exe        Windows 64-bit executable
  bin\csvtbin.exe         Windows 64-bit executable
