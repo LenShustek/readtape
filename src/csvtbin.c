@@ -56,6 +56,9 @@ the readtape program won't need to be told about the non-standard order.
 V1.7         Add support for the trkorder header extension for Whirlwind.
              Add -invert and -reverse options.
              Switch to providing only <basefilename>, like for readtape.
+28 Feb 2020, L. Shustek, allow IPS up to 200
+V1.8
+
 
 --- FUTURE VERSION IDEAS ---
 
@@ -65,9 +68,9 @@ V1.7         Add support for the trkorder header extension for Whirlwind.
   independent way to find out the size of the file and how far we're read.)
 
 ******************************************************************************/
-#define VERSION "1.7"
+#define VERSION "1.8"
 /******************************************************************************
-Copyright (C) 2018,2019 Len Shustek
+Copyright (C) 2018,2019,2022 Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated documentation files
@@ -264,7 +267,7 @@ bool parse_option(char *option) {
    else if (opt_key(arg, "INVERT")) hdr.u.s.flags |= TBIN_INVERTED;
    else if (opt_key(arg, "REVERSE")) hdr.u.s.flags |= TBIN_REVERSED;
    else if (opt_flt(arg, "BPI=", &hdr.u.s.bpi, 50, 10000));
-   else if (opt_flt(arg, "IPS=", &hdr.u.s.ips, 10, 100));
+   else if (opt_flt(arg, "IPS=", &hdr.u.s.ips, 10, 200));
    else if (opt_flt(arg, "MAXVOLTS=", &hdr.u.s.maxvolts, 0.1f, 15.0f));
    else if (opt_flt(arg, "SCALE=", &scalefactor, 1e-4f, 1e+4f));
    else if (opt_str(arg, "DESCR=", &str)) {
