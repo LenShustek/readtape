@@ -57,6 +57,13 @@ V1.7         Add support for the trkorder header extension for Whirlwind.
              Add -invert and -reverse options.
              Switch to providing only <basefilename>, like for readtape.
 
+--- FUTURE VERSION IDEAS ---
+
+- round up the auto-determined maxvolts even more, to reduce the number of
+  times a redo is necessary
+- display % done along with sample progress count. (Requires a system-
+  independent way to find out the size of the file and how far we're read.)
+
 ******************************************************************************/
 #define VERSION "1.7"
 /******************************************************************************

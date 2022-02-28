@@ -1,31 +1,35 @@
-      UPDATE: Here is a link to the video of my talk about this
-      project at the August 2020 Vintage Computer Festival West: 
-      https://youtu.be/7YoolSAHR5w?t=4200. 
 
-This is a program for recovering data from old magnetic computer tapes
-by digitizing the analog waveforms and then using software to decode the 
-bits and reconstruct the original data. The objective is to correctly 
-read tapes that have degraded beyond the point where conventional tape 
-drives will work. We have had good success using this for tapes in the
-collection of the Computer History Museum.
+This is a program for recovering data from old magnetic computer tapes by 
+digitizing the analog waveforms and then using software to decode the bits 
+and reconstruct the original data. The objective is to correctly read tapes 
+that have degraded beyond the point where conventional tape drives will 
+work, or for which drives are no longer available. We have had good success 
+using this for tapes in the collection of the Computer History Museum. 
 
-We are currently recording data using a 16-channel Saleae logic analyzer 
-(https://www.saleae.com) connected to a Qualstar 1052 tape transport 
-(http://bitsavers.org/pdf/qualstar/500150B_1052serviceMan.pdf). The 
-input is taken from the output of a differential amplifier that produces 
-a +-2V or larger analog signal for reasonable tapes. We ignore the 
-drive's subsequent thresholding circuitry that tries to recreate the 
-data bits on the tape.
+This lives at https://github.com/LenShustek/readtape. For a slide show
+about the system, see VCF_Aug2020_01.pdf. For a low-quality video of me
+giving a talk about it, see https://www.youtube.com/watch?v=7YoolSAHR5w&t=4200s.
 
-We have also used other tape drives, in particular for 9-track GCR tapes
-recorded at 6250 BPI.
+For lots of detailed information about how to use it, and how it works, 
+see A_documentation.txt. For a detailed change log, see the beginning
+of src\readtape.c.
 
-(I had first designed and prototyped a custom 9-channel A-to-D converter
+We record data using a 16-channel Saleae digital/analog logic analyzer 
+(https://www.saleae.com) connected to any of several computer-grade magnetic 
+tape decks, including the Qualstar 1052 with either a 9-track or 7-track 
+head installed, the Qualstar 3418S, and the Kennedy 9600. The input is 
+typically taken from the output of a differential amplifier that produces 
+a +-2V or larger analog signal for reasonable tapes. We ignore the drive's 
+subsequent circuitry (thresholding, zero-crossing identification, envelope 
+detection, etc.) that tries to recreate the data bits on the tape. 
+
+I had first designed and prototyped a custom 9-channel A-to-D converter
 using the amazing Cirrus/Wolfson WM8235 9-channel analog front end, 
 http://www.mouser.com/ds/2/76/WM8235_v4.2-532446.pdf. But I was unable
 to find the right setting for their 300 configuration registers that made
 it work as a normal A-to-D converter, and their tech support would not
-respond to inquiries. It is on hold, but I may someday get back to it.)
+respond to inquiries. The remnants of that suspended project are in the
+front_end directory.
 
 The data exported by the logic analyzer is a comma-separated-value (CSV) 
 file whose lines contains a timestamp and the voltages for all the read 
@@ -58,7 +62,7 @@ that have been unread and unexamined for fifty years.
  AtoD_attachment.jpg    A photo showing how the analyzer connects to the drive
  example_01.pdf         An example of a really bad block we can decode
  flux_transition_dispersion.jpg  A graph showing the effect of head skew
- analog_front_end.pdf   The schematic of my original design for the A-to-D converter
+ VCF_Aug2020_01.pdf     The slide show about the project
  
 ---READTAPE source code
 
@@ -97,5 +101,5 @@ that have been unread and unexamined for fifty years.
 Len Shustek
  6 Feb 2018
 17 May 2018, 27 May 2018, 8 Oct 2018
- 4 Aug 2019, 29 Dec 2019
+ 4 Aug 2019, 29 Dec 2019, 28 Feb 2022
 

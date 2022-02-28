@@ -219,7 +219,10 @@ void show_parms(struct parms_t *psptr, bool showall) {
    if (mode == PE) {
       rlog("  PE idle treshold: %.2f bits\n", PE_IDLE_FACTOR); }
    if (mode == WW) {
-      rlog("  Whirlwind clock stop detect time: %.1f bits\n", WW_CLKSTOP_BITS); } }
+      rlog("  Whirlwind clock stop detect time:   %03.1f bits\n", WW_CLKSTOP_BITS);
+      rlog("  Whirlwind peak same-bit  threshold: %03.1f bits\n", WW_PEAKSCLOSE_BITS);
+      rlog("  Whirlwind peak unrelated threshold: %03.1f bits\n", WW_PEAKSFAR_BITS);
+      rlog("  Whirlwind clock variation warning threshold: %.0f%%\n", WW_MAX_CLK_VARIATION * 100); } }
 
 struct parms_t *default_parmset(void) {
    if (mode == PE) return parmsets_PE;

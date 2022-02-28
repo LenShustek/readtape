@@ -1,22 +1,26 @@
 //file: readtape.c
 /*******************************************************************************
 
-Read the analog signals recorded from the heads of a magnetic tape,
+Read the analog signals recorded from the heads of a magnetic tape drive,
 decode the data in any of several formats and speeds,
 and create one or more files with the original data written to the tape.
 
 readtape <options> <baseinfilename>
 
 The input is either:
-  - a CSV file with multiple columns:a timestamp in seconds,
+  - a CSV file with multiple columns: a timestamp in seconds,
     and then the read head voltages at that time for each of the tracks.
   - a TBIN binary compressed data file; see csvtbin.h
 
-See the "A_documentation.txt" file for a narrative about usage,
-internal operation, and the algorithms we use.
+This is open-source code at https://github.com/LenShustek/readtape.
+- See the "A_documentation.txt" file for a narrative about usage,
+  internal operation, and the algorithms we use.
+- See VCF_Aug2020_01.pdf for a slide show about the system.
+- See https://www.youtube.com/watch?v=7YoolSAHR5w&t=4200s for a bad-quality
+  video of me giving a talk using that slideshow.
 
 ********************************************************************************
-Copyright (C) 2018,2019 Len Shustek
+Copyright (C) 2018,2019,2022 Len Shustek
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including
@@ -269,9 +273,25 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 - Make PARM.min_peak be relative to avg_height and agc_gain. Why did we not, before?
   (Does that break other modes?)
 - Add -sumt and -sumc to accumulate statistics for multiple files
+- Add -showibg=nnn to show large interblock gaps
+- Allow command line to override .tbin -order string
+
+*** 27 Feb 2022, L. Shustek, V3.10
+- Add the "differentiate" option and a new zero-crossing algorithm for it.
+  (Thanks to Chuck Sobey for providing the GCR data that inspired it.)
+- Change max IPS from 100 to 200.
+- Change timestamp display from 7 to 8 digits, for sampling rates above 10 Mhz.
+- Minor log changes: always log first block; show blocks so far at tape mark.
+
 
  TODO:
 
+- Log the last block? Harder than the first block; perhaps just say the time.
+- support reading Saleae binary export files;
+  see https://support.saleae.com/faq/technical-faq/data-export-format-analog-binary
+  (But .tbin is still smaller and faster, so have csvtbin do that conversion too?)
+-set block.t_blockstart for formats other than Whirlwind so that
+  -showibg will work for them
 - make multiple decodes work for WW. Pb is that the peak and skew state
   needs to be saved and restored because the blocks can be so close.
   Flash: we now have similar code at the end of deskewing, so check that out.
@@ -287,7 +307,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.9"
+#define VERSION "3.10"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -428,7 +448,7 @@ bool tbin_file = false, do_txtfile = false, labels = true;
 bool multiple_tries = false, deskew = false, skew_given = false, add_parity = false;
 bool invert_data = false, autoinvert_data = false, reverse_tape = false;
 bool doing_deskew = false, doing_density_detection = false, doing_summary = false;
-bool do_correction = false, find_zeros = false;
+bool do_correction = false, find_zeros = false, do_differentiate = false;
 enum flux_direction_t flux_direction_requested = FLUX_NEG, flux_direction_current = FLUX_AUTO;
 bool set_ntrks_from_order = false;
 bool hdr1_label = false;
@@ -451,7 +471,7 @@ float bpi_specified = -1;   // -1 means not specified; 0 means do auto-detect
 float ips_specified = -1;   // -1 means not specified; use tbin header or default
 int ntrks_specified = -1;   // -1 means not specified; use tbin header or CSV title line
 float bpi = 0, ips = 0;
-int ntrks = 0, nheads = 0;
+int ntrks = 0, nheads = 0, samples_per_bit = 0;
 
 enum txtfile_numtype_t txtfile_numtype = NONUM;  // suboptions for -textfile
 enum txtfile_chartype_t txtfile_chartype = NOCHAR;
@@ -462,7 +482,10 @@ bool txtfile_linefeed = false;
 int starting_parmset = 0;
 time_t start_time;
 double data_start_time = 0;
+double last_block_time = 0;
 int skip_samples = 0, subsample = 1;
+bool show_ibg = false;
+int show_ibg_threshold;
 int dlog_lines = 0;
 
 /********************************************************************
@@ -539,50 +562,52 @@ void SayUsage (void) {
       "   or NRZI/PE/GCR/Whirlwind.parms, in the base or current directory",
       "",
       "options:",
-      "  -ntrks=n      set the number of tracks",
-      "  -order=       set input data order for tracks 0..ntrks-2,P, where 0=MSB",
-      "                default: 01234567P for 9 trk, 012345P for 7 trk",
-      "                (for Whirlwind: a combination of C L M c l m and x's)",
-      "  -pe           PE (phase encoding)",
-      "  -nrzi         NRZI (non return to zero inverted)",
-      "  -gcr          GCR (group coded recording)",
-      "  -whirlwind    Whirlwind I 6-track 2-bit-per-character",
-      "  -ips=n        speed in inches/sec (default: 50, except 25 for GCR)",
-      "  -bpi=n        density in bits/inch (default: autodetect)",
-      "  -zeros        base decoding on zero crossings instead of peaks",
-      "  -even         expect even parity instead of odd (for 7-track NRZI BCD tapes)",
-      "  -invert       invert the data so positive peaks are negative and vice versa",
-      "  -fluxdir=d    flux direction is 'pos', 'neg', or 'auto' for each block",
-      "  -reverse      reverse bits in a word and words in a block (Whirlwind only)",
-      "  -skip=n       skip the first n samples",
-      "  -blklimit=n   stop after n blocks",
-      "  -subsample=n  use only every nth data sample",
-      "  -tap          create one SIMH .tap file from all the data",
-      "  -deskew       do NRZI track deskewing based on the beginning data",
-      "  -skew=n,n     use this skew, in #samples for each track, rather than deducing it",
-      "  -correct      do error correction, where feasible",
-      "  -addparity    include the parity bit as the highest bit in the data (for ntrks<9)",
-      "  -tbin         only look for a .tbin input file, not .csv first",
-      "  -nolog        don't create a log file",
-      "  -nolabels     don't try to decode IBM standard tape labels",
-      "  -textfile     create an interpreted .<options>.txt file from the data",
-      "                  numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
-      "                  character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo",
-      "                  characters per line: -linesize=nn",
-      "                  space every n bytes of data: -dataspace=n",
-      "                  make LF or CR start a new line: -linefeed",
-      "  -outf=bbb     use bbb as the <basefilename> for output files",
-      "  -outp=ppp     otherwise use ppp as an optional prepended path for output files",
-      "  -sumt=sss     append a text summary of results to text file sss",
-      "  -sumc=ccc     append a CSV summary of results to text file ccc",
-      "  -m            try multiple ways to decode a block",
-      "  -nm           don't try multiple ways to decode a block",
-      "  -v[n]         verbose mode [level n, default is 1]",
-#if DEBUG
-      "  -d[n]         debug mode [level n, default is 1]",
-#endif
-      "  -q            quiet mode (only say \"ok\" or \"bad\")",
-      "  -f            take a file list from <basefilename>.txt",
+      "  -ntrks=n       set the number of tracks to n",
+      "  -order=        set input data order for tracks 0..ntrks-2,P, where 0=MSB",
+      "                 default: 01234567P for 9 trk, 012345P for 7 trk",
+      "                 (for Whirlwind: a combination of C L M c l m and x's)",
+      "  -pe            PE (phase encoding)",
+      "  -nrzi          NRZI (non return to zero inverted)",
+      "  -gcr           GCR (group coded recording)",
+      "  -whirlwind     Whirlwind I 6-track 2-bit-per-character",
+      "  -ips=n         speed in inches/sec (default: 50, except 25 for GCR)",
+      "  -bpi=n         density in bits/inch (default: autodetect)",
+      "  -zeros         base decoding on zero crossings instead of peaks",
+      "  -differentiate do simple delta differentiation of the input data",
+      "  -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)",
+      "  -invert        invert the data so positive peaks are negative and vice versa",
+      "  -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block",
+      "  -reverse       reverse bits in a word and words in a block (Whirlwind only)",
+      "  -skip=n        skip the first n samples",
+      "  -blklimit=n    stop after n blocks",
+      "  -subsample=n   use only every nth data sample",
+      "  -showibg=n     report on interblock gaps greater than n milliseconds",
+      "  -tap           create one SIMH .tap file from all the data",
+      "  -deskew        do NRZI track deskewing based on the beginning data",
+      "  -skew=n,n      use this skew, in #samples for each track, rather than deducing it",
+      "  -correct       do error correction, where feasible",
+      "  -addparity     include the parity bit as the highest bit in the data (for ntrks<9)",
+      "  -tbin          only look for a .tbin input file, not .csv first",
+      "  -nolog         don't create a log file",
+      "  -nolabels      don't try to decode IBM standard tape labels",
+      "  -textfile      create an interpreted .<options>.txt file from the data",
+      "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
+      "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo",
+      "                   characters per line: -linesize=nn",
+      "                   space every n bytes of data: -dataspace=n",
+      "                   make LF or CR start a new line: -linefeed",
+      "  -outf=bbb      use bbb as the <basefilename> for output files",
+      "  -outp=ppp      otherwise use ppp as an optional prepended path for output files",
+      "  -sumt=sss      append a text summary of results to text file sss",
+      "  -sumc=ccc      append a CSV summary of results to text file ccc",
+      "  -m             try multiple ways to decode a block",
+      "  -nm            don't try multiple ways to decode a block",
+      "  -v[n]          verbose mode [level n, default is 1]",
+#if DEBUG               
+      "  -d[n]          debug mode [level n, default is 1]",
+#endif                  
+      "  -q             quiet mode (only say \"ok\" or \"bad\")",
+      "  -f             take a file list from <basefilename>.txt",
       NULLP };
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]);
    fprintf(stderr, github_info); }
@@ -598,20 +623,19 @@ bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max)
       if (toupper(*arg++) != *keyword++)
          return false; }
    while (*keyword);
-   int num, nch;
+   int num=0, nch=0;
    if (*arg == '0') { // leading 0: alternate number base specified
       ++arg;
       if (toupper(*arg) == 'X') { // hex
          if (sscanf(++arg, "%x%n", &num, &nch) != 1) return false; }
       else if (toupper(*arg) == 'B') { // binary
          char ch; // (why is there no %b conversion?)
-         num = nch = 0;
          while (ch = *++arg) {
             if (ch == '0') num <<= 1;
             else if (ch == '1') num = (num << 1) + 1;
             else return false; } }
-      else { // octal
-         if (sscanf(arg, "%o%n", &num, &nch) != 1) return false; } }
+      else { // octal, or just a single zero
+         if (*arg != 0 && sscanf(arg, "%o%n", &num, &nch) != 1) return false; } }
    else if (sscanf(arg, "%d%n", &num, &nch) != 1) return false; // decimal
    if (num < min || num > max || arg[nch] != '\0') return false;
    *pval = num;
@@ -652,7 +676,7 @@ void assign_ww_track(int head, enum wwtrk_t tracktype) {
 bool parse_track_order(const char *str) {
    // the output are the permutations that map heads (the input data) to tracks (our processing structures)
    int temp_nheads = (int)strlen(str); // the length might be specifying the # heads
-   assert(ntrks <= 0 || temp_nheads == ntrks, "-order length doesn't match ntrks=%d", ntrks);
+   assert(nheads <= 0 || temp_nheads == nheads, "-order length doesn't match nheads=%d", nheads);
    assert(temp_nheads >= MINTRKS && temp_nheads <= MAXTRKS, "-order can't imply ntrks=%d", temp_nheads);
    strncpy(track_order_string, str, MAXTRKS);
    if (mode == WW) { // Whirlwind examples: CMLcml..,  ..C.M.L..
@@ -721,11 +745,13 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "WHIRLWIND")) {
       mode = WW;  bpi = 100; }
    else if (opt_key(arg, "ZEROS")) find_zeros = true;
+   else if (opt_key(arg, "DIFFERENTIATE")) do_differentiate = true;
    else if (opt_flt(arg, "BPI=", &bpi_specified, 100, 10000));
-   else if (opt_flt(arg, "IPS=", &ips_specified, 10, 100));
+   else if (opt_flt(arg, "IPS=", &ips_specified, 10, 200));
    else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX));
    else if (opt_int(arg, "BLKLIMIT=", &numblks_limit, 0, INT_MAX));
    else if (opt_int(arg, "SUBSAMPLE=", &subsample, 1, INT_MAX));
+   else if (opt_int(arg, "SHOWIBG=", &show_ibg_threshold, 0, INT_MAX)) show_ibg = true;
    else if (opt_int(arg, "V", &verbose_level, 0, 255)) verbose = true;
 #if DEBUG
    else if (opt_int(arg, "D", &debug_level, 0, 255)) ;
@@ -839,6 +865,7 @@ void show_block_errs (int len) { // report on parity errors and faked bits in al
          dlog("\n"); } } }
 
 void output_tap_marker(uint32_t num) {  //output a 4-byte .TAP file marker, little-endian
+   //rlog("  .tap marker %08lX, numoutbytes=%d\n", num, numoutbytes);
    for (int i = 0; i < 4; ++i) {
       byte lsb = num & 0xff;
       assert(fwrite(&lsb, 1, 1, outf) == 1, "fwrite failed in output_tap_marker");
@@ -848,7 +875,7 @@ void output_tap_marker(uint32_t num) {  //output a 4-byte .TAP file marker, litt
 void close_file(void) {
    if (outf) {
       fclose(outf);
-      if (!quiet) rlog("%s was closed at time %.7lf after %s data bytes were extracted from %d blocks\n",
+      if (!quiet) rlog("%s was closed at time %.8lf after %s data bytes were extracted from %d blocks\n",
                           outdatafilename, timenow, longlongcommas(numfilebytes), numfileblks);
       outf = NULLP; } }
 
@@ -889,22 +916,37 @@ struct file_position_t {   // routines to save and restore the file position and
 
 void save_file_position(struct file_position_t *fp, const char *msg) {
    assert((fp->position=ftello(inf)) >= 0, "ftell failed");
-   //rlog("        at %.7lf, saving position %s %s\n", timenow, longlongcommas(fp->position), msg);
+   //rlog("        at %.8lf, saving position %s %s\n", timenow, longlongcommas(fp->position), msg);
+   //rlog("    save_file_position %s at %.3lf msec\n", msg, timenow*1e3);
    fp->time_ns = timenow_ns;
    fp->time = timenow; }
 
 void restore_file_position(struct file_position_t *fp, const char *msg) {
-   //rlog("        at %.7lf, restor position %s time %.7lf %s\n", timenow, longlongcommas(fp->position), fp->time, msg);
+   //rlog("        at %.8lf, restor position %s time %.8lf %s\n", timenow, longlongcommas(fp->position), fp->time, msg);
    assert(fseeko(inf, fp->position, SEEK_SET) == 0, "fseek failed");
    timenow_ns = fp->time_ns;
    timenow = fp->time; }
 
 static struct file_position_t blockstart;
 
+void show_ibg_time(void) {
+   // "blockstart.time" is when we start looking for a block,
+   // so it is at the end of the previous block or tape mark.
+   // "block.t_blockstart" is the time when the decoder noticed the start of data.
+   int ibg_msec = (int)(((block.t_blockstart - blockstart.time) * 1000.0) + 0.5);
+   //rlog("    show IBG time at %.3lf msec, started looking %.3lf msec, data started %.3lf msec\n", timenow*1e3, blockstart.time*1e3, block.t_blockstart*1e3);
+   if (show_ibg_threshold == 0 || ibg_msec >= show_ibg_threshold)
+      rlog("  %d msec interblock gap\n", ibg_msec); }
+
 void got_tapemark(void) {
    ++numtapemarks;
+   if (show_ibg) show_ibg_time();
    save_file_position(&blockstart, "after tapemark");
-   if (!quiet) rlog("  tapemark after block %d at file position %s time %.7lf\n", numfileblks, longlongcommas(blockstart.position), timenow);
+   //if (!quiet) rlog("  tapemark after block %d at file position %s time %.8lf\n", numfileblks, longlongcommas(blockstart.position), timenow);
+   //if (!quiet) rlog("  tapemark after block %d at time %.8lf\n", numfileblks, timenow);
+   if (!quiet) {
+      if (SHOW_TAP_OFFSET) rlog("  tapemark at time %.8lf, tap offset %lld, %d blocks written so far\n", timenow, numoutbytes, numblks);
+      else rlog("  tapemark at time %.8lf, %d blocks written so far\n", timenow, numblks); }
    if (do_txtfile) txtfile_tapemark();
    if (tap_format) {
       if (!outf) create_datafile(NULLP);
@@ -915,20 +957,21 @@ void got_tapemark(void) {
 void got_datablock(bool badblock) { // decoded a tape block
    struct results_t *result = &block.results[block.parmset];
    int length = result->minbits;
-
+   if (show_ibg) show_ibg_time();
    bool labeled = !badblock && labels && ibm_label(); // process and absorb IBM tape labels
    if (length > 0 && (tap_format || !labeled)) {
       // a normal non-label data block (or in tap_format)
       if (mode != WW && length <= 2) {
-         dlog("*** ignoring runt block of %d bytes at %.7lf\n", length, timenow); }
+         dlog("*** ignoring runt block of %d bytes at %.8lf\n", length, timenow); }
       if (badblock) {
          ++numblks_unusable;
          if (!quiet) {
             rlog("ERROR: unusable block, ");
             if (result->track_mismatch) rlog("tracks mismatched with lengths %d to %d", result->minbits, result->maxbits);
             else rlog("unknown reason");
-            rlog(", %d tries, parmset %d, at time %.7lf\n", block.tries, block.parmset, timenow); } }
+            rlog(", %d tries, parmset %d, at time %.8lf\n", block.tries, block.parmset, timenow); } }
       else { // We have decoded a block whose data we want to write
+         last_block_time = timenow;
          if (!outf) { // create a generic data file if we didn't see a file header label
             create_datafile(NULLP); }
          uint32_t errflag = result->errcount ? 0x80000000 : 0;  // SIMH .tap file format error flag
@@ -940,8 +983,9 @@ void got_datablock(bool badblock) { // decoded a tape block
             assert(fwrite(&b, 1, 1, outf) == 1, "data write failed"); }
          if (tap_format) {
             byte zero = 0;  // tap format needs an even number of data bytes
-            if (length & 1) assert(fwrite(&zero, 1, 1, outf) == 1, "write of odd byte failed");
-            numoutbytes += 1;
+            if (length & 1) {
+               assert(fwrite(&zero, 1, 1, outf) == 1, "write of odd byte failed");
+               numoutbytes += 1; }
             output_tap_marker(length | errflag); // trailing record length
          }
          if (do_txtfile) txtfile_outputrecord();
@@ -976,7 +1020,8 @@ void got_datablock(bool badblock) { // decoded a tape block
 
          if (result->errcount != 0) ++numblks_err;
          if (result->warncount != 0) ++numblks_warn;
-         if (verbose || (!quiet && (result->errcount > 0 || result->warncount > 0 || badblock))) {
+         if (verbose || (numblks == 0)
+               || (!quiet && (result->errcount > 0 || result->warncount > 0 || badblock))) {
             rlog("wrote block %3d, %4d bytes, %d %s, parmset %d, ",
                  numblks + 1, length, block.tries, block.tries > 1 ? "tries" : "try", block.parmset);
             if (result->alltrk_min_agc_gain == FLT_MAX)
@@ -1007,13 +1052,14 @@ void got_datablock(bool badblock) { // decoded a tape block
                if (result->ww_leading_clock) rlog("leading clk, ");
                if (result->ww_missing_onebit) rlog("missing 1-bit, ");
                if (result->ww_missing_clock) rlog("missing clk, "); }
-            rlog("avg speed %.2f IPS at time %.7lf\n", 1 / (result->avg_bit_spacing * bpi), timenow); }
+            if (SHOW_TAP_OFFSET) rlog("avg speed %.2f IPS at time %.8lf, tap offset %lld\n", 1 / (result->avg_bit_spacing * bpi), timenow, numoutbytes);
+            else rlog("avg speed %.2f IPS at time %.8lf\n", 1 / (result->avg_bit_spacing * bpi), timenow); }
          if (result->track_mismatch) {
             //rlog("   WARNING: tracks mismatched, with lengths %d to %d\n", result->minbits, result->maxbits);
             ++numblks_trksmismatched; }
          if (result->missed_midbits > 0) {
             ++numblks_midbiterrs;
-            rlog("   WARNING: %d bits were before the midbit using parmset %d for block %d at %.7lf\n",
+            rlog("   WARNING: %d bits were before the midbit using parmset %d for block %d at %.8lf\n",
                  result->missed_midbits, block.parmset, numblks + 1, timenow); //
          }
          if (result->corrected_bits > 0) ++numblks_corrected;
@@ -1023,7 +1069,7 @@ void got_datablock(bool badblock) { // decoded a tape block
          ++numfileblks;
          ++numblks; } }
    save_file_position(&blockstart, "after block done"); // remember the file position for the start of the next block
-//log("got valid block %d, file pos %s at %.7lf\n", numblks, longlongcommas(blockstart.position), timenow);
+//log("got valid block %d, file pos %s at %.8lf\n", numblks, longlongcommas(blockstart.position), timenow);
 };
 
 /*****************************************************************************************
@@ -1112,6 +1158,8 @@ void reverse8(uint64_t *pnum) {
       ((byte *)pnum)[7 - i] = x; } }
 
 void read_tbin_header(void) {  // read the .TBIN file header
+   if (!quiet) rlog("\n.tbin file header:\n");
+   // (1) read the fixed header part
    assert(fread(&tbin_hdr, sizeof(tbin_hdr), 1, inf) == 1, "can't read .tbin header");
    assert(strcmp(tbin_hdr.tag, HDR_TAG) == 0, ".tbin file missing "HDR_TAG" tag");
    if (!little_endian)  // convert all 4-byte integers in the header to big-endian
@@ -1120,24 +1168,6 @@ void read_tbin_header(void) {  // read the .TBIN file header
    assert(tbin_hdr.u.s.format == TBIN_FILE_FORMAT, "bad .tbin file header version");
    assert(tbin_hdr.u.s.tbinhdrsize == sizeof(tbin_hdr),
           "bad .tbin hdr size: %d, not %d", tbin_hdr.u.s.tbinhdrsize, sizeof(tbin_hdr));
-   if (tbin_hdr.u.s.flags & TBIN_TRKORDER_INCLUDED) { // "trkorder" header extension is included
-      assert(fread(&tbin_hdrext_trkorder, sizeof(tbin_hdrext_trkorder), 1, inf) == 1, "can't read .tbin trkorder header extension");
-      assert(strcmp(tbin_hdrext_trkorder.tag, HDR_TRKORDER_TAG) == 0, ".tbin file missing "HDR_TRKORDER_TAG" tag");
-      assert(parse_track_order(tbin_hdrext_trkorder.trkorder), "invalid track order in TBIN file: %s", tbin_hdrext_trkorder.trkorder); }
-   if (!quiet) {
-      rlog("\n.tbin file header:\n");
-      if (!(tbin_hdr.u.s.flags & TBIN_NO_REORDER) && (head_to_trk[0] != -1))
-         rlog("  -order ignored because it was specified when the .tbin file was created\n");
-      if (tbin_hdr.u.s.flags & TBIN_TRKORDER_INCLUDED)
-         rlog("  -order=%s\n", tbin_hdrext_trkorder.trkorder);
-      if (tbin_hdr.u.s.flags & TBIN_INVERTED) rlog("  the waveforms were inverted by CSVTBIN\n");
-      if (tbin_hdr.u.s.flags & TBIN_REVERSED) rlog("  the tape may have been read or written backwards\n");
-      if (tbin_hdr.descr[0] != 0) rlog("   description: %s\n", tbin_hdr.descr);
-      if (tbin_hdr.u.s.time_written.tm_year > 0)   rlog("  created on:   %s", asctime(&tbin_hdr.u.s.time_written));
-      if (tbin_hdr.u.s.time_read.tm_year > 0)      rlog("  read on:      %s", asctime(&tbin_hdr.u.s.time_read));
-      if (tbin_hdr.u.s.time_converted.tm_year > 0) rlog("  converted on: %s", asctime(&tbin_hdr.u.s.time_converted));
-      rlog("  max voltage: %.1fV\n", tbin_hdr.u.s.maxvolts);
-      rlog("  time between samples: %.3f usec\n", (float)tbin_hdr.u.s.tdelta / 1000); }
    if (tbin_hdr.u.s.ntrks != 0) {
       if (ntrks <= 0) {
          ntrks = nheads = tbin_hdr.u.s.ntrks;
@@ -1154,6 +1184,28 @@ void read_tbin_header(void) {  // read the .TBIN file header
       if (!quiet) rlog("  using .tbin ips = %.0f\n", ips); }
    sample_deltat_ns = tbin_hdr.u.s.tdelta;
    sample_deltat = (float)sample_deltat_ns / 1e9f;
+   // (2) read the optional "trkorder" header extension
+   if (tbin_hdr.u.s.flags & TBIN_TRKORDER_INCLUDED) {
+      assert(fread(&tbin_hdrext_trkorder, sizeof(tbin_hdrext_trkorder), 1, inf) == 1, "can't read .tbin trkorder header extension");
+      assert(strcmp(tbin_hdrext_trkorder.tag, HDR_TRKORDER_TAG) == 0, ".tbin file missing "HDR_TRKORDER_TAG" tag");
+      if (track_order_string[0] && strcmp(tbin_hdrext_trkorder.trkorder, track_order_string) != 0) {
+         if (!quiet) rlog("  the .tbin head order %s is being ignored because it was specified as %s on the command line\n",
+                             tbin_hdrext_trkorder.trkorder, track_order_string); }
+      else {
+         assert(parse_track_order(tbin_hdrext_trkorder.trkorder), "invalid track order in TBIN file: %s", tbin_hdrext_trkorder.trkorder);
+         if (!quiet) rlog("  -order=%s\n", tbin_hdrext_trkorder.trkorder); } }
+   if (!quiet) {
+      if (!(tbin_hdr.u.s.flags & TBIN_NO_REORDER) && (head_to_trk[0] != -1))
+         rlog("  -order ignored because it was specified when the .tbin file was created\n");
+      if (tbin_hdr.u.s.flags & TBIN_INVERTED) rlog("  the waveforms were inverted by CSVTBIN\n");
+      if (tbin_hdr.u.s.flags & TBIN_REVERSED) rlog("  the tape may have been read or written backwards\n");
+      if (tbin_hdr.descr[0] != 0) rlog("   description: %s\n", tbin_hdr.descr);
+      if (tbin_hdr.u.s.time_written.tm_year > 0)   rlog("  created on:   %s", asctime(&tbin_hdr.u.s.time_written));
+      if (tbin_hdr.u.s.time_read.tm_year > 0)      rlog("  read on:      %s", asctime(&tbin_hdr.u.s.time_read));
+      if (tbin_hdr.u.s.time_converted.tm_year > 0) rlog("  converted on: %s", asctime(&tbin_hdr.u.s.time_converted));
+      rlog("  max voltage: %.1fV\n", tbin_hdr.u.s.maxvolts);
+      rlog("  time between samples: %.3f usec\n", (float)tbin_hdr.u.s.tdelta / 1000); }
+   // (3) read the data section header
    assert(fread(&tbin_dat, sizeof(tbin_dat), 1, inf) == 1, "can't read .tbin dat");
    assert(strcmp(tbin_dat.tag, DAT_TAG) == 0, ".tbin file missing DAT tag");
    assert(tbin_dat.sample_bits == 16, "we support only 16 bits/sample, not %d", tbin_dat.sample_bits);
@@ -1166,6 +1218,19 @@ void force_end_of_block(void) {
    else if (mode == NRZI && nrzi.datablock) nrzi_end_of_block();
    else if (mode == GCR) gcr_end_of_block(); }
 
+void differentiate(struct sample_t *psample, int trk) { // do simple-minded differentiation: delta between successive voltage samples
+   float voltage = psample->voltage[trk];
+   float delta = voltage - trkstate[trk].v_last_raw;
+   if (delta < DIFFERENTIATE_THRESHOLD && delta > -DIFFERENTIATE_THRESHOLD) delta = 0;
+   trkstate[trk].v_last_raw = voltage;
+   psample->voltage[trk] = delta * DIFFERENTIATE_SCALE * samples_per_bit;
+   static int derivative_dumps = 0;
+   if (0 && trk == TRACETRK) {
+      if (derivative_dumps == 0 && timenow >= 0.8608976) ++derivative_dumps; // start dumping
+      if (derivative_dumps > 0 && derivative_dumps < 2000) {
+         rlog("derivative, %.8f, %.4f, %.4f\n", timenow, voltage, psample->voltage[trk]);
+         ++derivative_dumps; } } }
+
 bool readblock(bool retry) { // read the CSV or TBIN file until we get to the end of a tape block
    // return false if we are at the endfile
    struct sample_t sample;
@@ -1173,6 +1238,7 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
    bool endfile = false;
    enum bstate_t blockkind;
 
+   samples_per_bit = bpi > 0 ? (int)(1 / (bpi*ips*sample_deltat)) : 20;
    do { // loop reading samples
       if (!retry) ++lines_in;
       if (tbin_file) { // TBIN file
@@ -1189,8 +1255,10 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
             for (int head = 1; head < nheads; ++head)
                reverse2((uint16_t *)&tbin_voltages[head]);
          for (int head = 0; head < nheads; ++head) {
-            sample.voltage[head_to_trk[head]] = (float)tbin_voltages[head] / 32767 * tbin_hdr.u.s.maxvolts;
-            if (invert_data) sample.voltage[head_to_trk[head]] = -sample.voltage[head_to_trk[head]]; }
+            int trk = head_to_trk[head];
+            sample.voltage[trk] = (float)tbin_voltages[head] / 32767 * tbin_hdr.u.s.maxvolts;
+            if (invert_data) sample.voltage[trk] = -sample.voltage[trk];
+            if (do_differentiate) differentiate(&sample, trk); }
          sample.time = (double)timenow_ns / 1e9;
          timenow_ns += sample_deltat_ns; // (for next time)
       }
@@ -1213,8 +1281,10 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
          char *linep = line;
          sample.time = scanfast_double(&linep);  // get the time of this sample
          for (int head = 0; head < nheads; ++head) { // read voltages for all tracks, and permute as requested
-            sample.voltage[head_to_trk[head]] = scanfast_float(&linep);
-            if (invert_data) sample.voltage[head_to_trk[head]] = -sample.voltage[head_to_trk[head]]; } }
+            int trk = head_to_trk[head];
+            sample.voltage[trk] = scanfast_float(&linep);
+            if (invert_data) sample.voltage[trk] = -sample.voltage[trk];
+            if (do_differentiate) differentiate(&sample, trk); } }
       timenow = sample.time;
       if (torigin == 0) torigin = timenow; // for debugging output
 
@@ -1230,7 +1300,7 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
             rlog("  %d track %s encoding, %s parity, %d BPI at %d IPS", ntrks, modename(),
                  mode == WW ? "no" : expected_parity ? "odd" : "even", (int)bpi, (int)ips);
             if (bpi != 0) rlog(" (%.2f usec/bit)", 1e6f / (bpi*ips));
-            rlog("\n  first sample is at time %.7lf seconds on the tape\n", timenow);
+            rlog("\n  first sample is at time %.8lf seconds on the tape\n", timenow);
             if (subsample > 1) rlog("  subsampling every %d samples\n", subsample);
             if (invert_data) rlog("  inverting the data polarity\n");
             if (reverse_tape) rlog("  reversing the bit pairs in each word, and the words in each block\n");
@@ -1460,6 +1530,7 @@ bool process_file(int argc, char *argv[]) {
             if (mode == WW) { // for Whirlwind we compute average peak height during deskew, because we have no other opportunity
                init_trackpeak_state(); // erase skew and peak state
                ww.t_lastblockmark = 0;
+               ww.blockmark_queued = false;
                for (int trk = 0; trk < ntrks; ++trk) {
                   struct trkstate_t *t = &trkstate[trk];
                   int count = t->v_avg_height_count;
@@ -1474,7 +1545,7 @@ bool process_file(int argc, char *argv[]) {
       init_blockstate();  // initialize for first processing of a new block
       block.parmset = starting_parmset;
       save_file_position(&blockstart, "to remember block start"); // remember the file position for the start of a block
-      dlog("\n*** block start file pos %s at %.7lf\n", longlongcommas(blockstart.position), timenow);
+      dlog("\n*** block start file pos %s at %.8lf\n", longlongcommas(blockstart.position), timenow);
 
       bool keep_trying;
       int last_parmset;
@@ -1511,14 +1582,17 @@ bool process_file(int argc, char *argv[]) {
          //window_set = false;
          if (mode == WW) ww_init_blockstate();  // for Whirlwind, we initialize the whole track state only once because blocks can be very close together
          else init_trackstate();
-         if (verbose_level & VL_ATTEMPTS) rlog("     trying block %d with parmset %d at byte %s, time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
-         if (mode == WW && ww.blockmark_queued) ww_blockmark(); // returned the queued-up blockmark from the end of the last block
+         if (verbose_level & VL_ATTEMPTS) rlog("     trying block %d with parmset %d at byte %s, time %.8lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
+         if (mode == WW && ww.blockmark_queued) {
+            ww_blockmark(); // returned the queued-up blockmark from the end of the last block
+            block.t_blockstart = timenow - ww.clkavg.t_bitspaceavg; // and say that it started one bit ago
+         }
          else endfile = !readblock(block.tries > 0); // ***** read a block ******
          struct results_t *result = &block.results[block.parmset];
          if (result->blktype == BS_NONE) goto endfile; // stuff at the end wasn't a real block
          ++block.tries;
          ++PARM.tried;  // note that we used this parameter set in another attempt
-         if (verbose_level & VL_ATTEMPTS) rlog("       block %d is type %s with parmset %d; minlength %d, maxlength %d, %d errors, %d warnings, %d corrected bits at %.7lf\n", //
+         if (verbose_level & VL_ATTEMPTS) rlog("       block %d is type %s with parmset %d; minlength %d, maxlength %d, %d errors, %d warnings, %d corrected bits at %.8lf\n", //
                                                   numblks + 1, bs_names[result->blktype], block.parmset, result->minbits, result->maxbits, result->errcount, result->warncount, result->corrected_bits, timenow);
          if (result->blktype == BS_TAPEMARK) goto done;  // if we got a tapemake, we're done
          if (result->blktype == BS_NOISE && SKIP_NOISE) goto done; // if we got noise and are immediately skipping noise blocks, we're done
@@ -1538,7 +1612,7 @@ bool process_file(int argc, char *argv[]) {
                block.parmset = next_parmset;
                restore_file_position(&blockstart, "to retry the same block");
                interblock_counter = 0;
-               dlog("   retrying block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow); } } }
+               dlog("   retrying block %d with parmset %d at byte %s at time %.8lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow); } } }
       while (keep_trying);
 
       // We didn't succeed in getting a perfect decoding of the block, so pick the best of all our bad decodings.
@@ -1602,12 +1676,12 @@ done:
                && last_parmset != block.parmset) { // and the decoding we chose isn't the last one we did
             restore_file_position(&blockstart, "to recompute the best decoding");    // then reprocess the chosen one to recompute that best data
             interblock_counter = 0;
-            dlog("     rereading block %d with parmset %d at byte %s at time %.7lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
+            dlog("     rereading block %d with parmset %d at byte %s at time %.8lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
             rereading = true;
             init_trackstate();
             endfile = !readblock(true);
             rereading = false;
-            dlog("     reread of block %d with parmset %d is type %s, minlength %d, maxlength %d, %d errors, %d corrected bits at %.7lf\n", //
+            dlog("     reread of block %d with parmset %d is type %s, minlength %d, maxlength %d, %d errors, %d corrected bits at %.8lf\n", //
                  numblks + 1, block.parmset, bs_names[result->blktype], result->minbits, result->maxbits, result->errcount, result->corrected_bits, timenow); }
 
          switch (block.results[block.parmset].blktype) {  // process the block according to our best decoding
@@ -1753,6 +1827,7 @@ int main(int argc, char *argv[]) {
                  numfiles, numfiles != 1 ? "s" : "", longlongcommas(numoutbytes));
             rlog("  decoded %d tape marks and %d blocks with %s bytes from %.2lf seconds of tape data\n",
                  numtapemarks, numblks, longlongcommas(numdatabytes), timenow - data_start_time);
+            if (last_block_time) rlog("   the last block written was %.8lf seconds into the tape\n", last_block_time);
             rlog("  %d block%s had errors, %d had warnings", numblks_err, numblks_err != 1 ? "s" : "", numblks_warn);
             if (mode != WW) rlog(", %d had mismatched tracks, %d had bits corrected", numblks_trksmismatched, numblks_corrected);
             if (mode == NRZI) rlog(", %d had midbit timing errors", numblks_midbiterrs);
@@ -1761,11 +1836,12 @@ int main(int argc, char *argv[]) {
                      num_flux_polarity_changes, num_flux_polarity_changes > 1 ? "s" : "");
             if (numblks_unusable > 0) rlog("  %d blocks were unusable and were not written\n", numblks_unusable); }
          close_summary_file();
-         rlog("  %d good blocks had to try more than one parmset\n", numblks_goodmultiple);
-         for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
-            if (parmsetsptr[i].tried > 0) {
-               rlog("  parmset %d was tried %4d times and used %4d times, or %5.1f%%\n",
-                    i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried); }
+         if (multiple_tries) {
+            rlog("  %d good blocks had to try more than one parmset\n", numblks_goodmultiple);
+            for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
+               if (parmsetsptr[i].tried > 0) {
+                  rlog("  parmset %d was tried %4d times and used %4d times, or %5.1f%%\n",
+                       i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried); } }
 #if PEAK_STATS
          rlog("\n");
          output_peakstats("");
@@ -1784,12 +1860,12 @@ int main(int argc, char *argv[]) {
       } // !quiet
       if (summcsvfilename[0]) {
          assert((summf = fopen(summcsvfilename, "a")) != NULLP, "can't open summary file %s", summcsvfilename);
-         // the format here is odd only because it matches the spreadsheet we use to keep track of Whirlwind tape decodings
-         fprintf(summf, "=\"%s\",,=\"%s\",=\"%s\", %.2lf, %d, %d, %lld, %d, %d, %d,\"%c\"\n",
+         // the format here is odd, but it matches the spreadsheet we use to keep track of Whirlwind tape decodings
+         fprintf(summf, "=\"%s\",=\"%s\",=\"%s\",=\"%s\", %.2lf, %d, %d, %lld, %d, %d, %d,\"%c\"\n",
                  baseinfilename,
+                 tbin_hdr.u.s.flags & TBIN_INVERTED ? "yes" : "",
                  num_flux_polarity_changes == 0 ? (flux_direction_current == FLUX_POS ? "pos" : "neg") : "pos&neg",
-                 track_order_string,
-                 timenow - data_start_time, numtapemarks, numblks, numdatabytes,
+                 track_order_string, timenow - data_start_time, numtapemarks, numblks, numdatabytes,
                  numblks_err, numblks_warn, num_flux_polarity_changes, skew_ok ? 'y' : 'n');
          fclose(summf); } }
 

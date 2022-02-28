@@ -60,13 +60,13 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
    for (int trk = 0; trk < ntrks; ++trk) { // process postamble bits on all tracks
       struct trkstate_t *t = &trkstate[trk];
       avg_bit_spacing += (float)(t->t_lastbit - t->t_firstbit) / t->datacount;
-      //dlog("trk %d firstbit at %.7lf, lastbit at %.7lf, avg spacing %.2f\n", trk, t->t_firstbit, t->t_lastbit, avg_bit_spacing*1e6);
+      //dlog("trk %d firstbit at %.8lf, lastbit at %.8lf, avg spacing %.2f\n", trk, t->t_firstbit, t->t_lastbit, avg_bit_spacing*1e6);
       int postamble_bits;
       if (t->datacount > 0) {
          for (postamble_bits = 0; postamble_bits <= PE_MAX_POSTBITS; ++postamble_bits) {
             --t->datacount; // remove one bit
             if ((data_faked[t->datacount] & (1 << (ntrks - 1 - trk))) != 0) { // if the bit we removed was faked,
-               assert(block.results[block.parmset].corrected_bits > 0, "bad fake data count on trk %d at %.7lf", trk, timenow);
+               assert(block.results[block.parmset].corrected_bits > 0, "bad fake data count on trk %d at %.8lf", trk, timenow);
                --block.results[block.parmset].corrected_bits;  // then decrement the count of faked bits
                dlog("   remove fake bit %d on track %d\n", t->datacount, trk); //
             }
@@ -83,7 +83,7 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
    result->avg_bit_spacing = avg_bit_spacing / ntrks;
 
    if (result->maxbits == 0) {
-      dlog("   detected noise block at %.7lf\n", timenow);
+      dlog("   detected noise block at %.8lf\n", timenow);
       if (!doing_density_detection)
          result->blktype = BS_NOISE;
       // If we're doing density detection, most everything (especially for PE) looks like noise because bitspaceavg=0
@@ -108,7 +108,7 @@ void pe_addbit (struct trkstate_t *t, byte bit, bool faked, double t_bit) { // w
    TRACE(clkwin,t_bit, UPTICK, t);	   // start a new clock window
    if (t->t_lastbit == 0) t->t_lastbit = t_bit - 1/(bpi*ips); // start of preamble  FIX? TEMP? Ok?
    if (t->datablock) { // collecting data
-      dlogtrk("trk %d add %d to %3d bytes at %.7lf, V=%.5f, AGC=%.2f\n", t->trknum, bit, t->datacount, t_bit, t->v_now, t->agc_gain);
+      dlogtrk("trk %d add %d to %3d bytes at %.8lf, V=%.5f, AGC=%.2f\n", t->trknum, bit, t->datacount, t_bit, t->v_now, t->agc_gain);
       t->lastdatabit = bit;
       if (!t->idle && !faked) { // adjust average clock rate based on inter-bit timing
          float delta = (float)(t_bit - t->t_lastbit);
@@ -136,15 +136,15 @@ void pe_preamble_peak(struct trkstate_t *t, bool is_top) {
          && (is_top ? t->t_top : t->t_bot) - t->t_lastpeak > t->t_clkwindow) { // and we missed a clock
       t->datablock = true;	// then this 1 means data is starting (end of preamble)
       t->v_avg_height = t->v_avg_height_sum / t->v_avg_height_count; // compute avg peak-to-peak voltage
-      //dlog("trk %d avg peak-to-peak is %.2fV at %.7lf\n", t->trknum, t->v_avg_height, timenow);
-      dlogtrk("trk %d starts data at %.7lf tick %.1lf, AGC %.2f, clk window %lf usec, avg peak-to-peak %.2fV\n",
+      //dlog("trk %d avg peak-to-peak is %.2fV at %.8lf\n", t->trknum, t->v_avg_height, timenow);
+      dlogtrk("trk %d starts data at %.8lf tick %.1lf, AGC %.2f, clk window %lf usec, avg peak-to-peak %.2fV\n",
               t->trknum, timenow, TICK(timenow), t->agc_gain, t->t_clkwindow*1e6, t->v_avg_height);
-      assert(t->v_avg_height > 0, "avg peak-to-peak voltage isn't positive on trk %d at %.7lf", t->trknum, timenow);   //
+      assert(t->v_avg_height > 0, "avg peak-to-peak voltage isn't positive on trk %d at %.8lf", t->trknum, timenow);   //
    }
    else { // stay in the preamble
       t->clknext = is_top != t->bit1_up;  // set whether data or clock comes next
       if (t->peakcount >= AGC_STARTBASE && t->peakcount <= AGC_ENDBASE) { // accumulate peak-to-peak voltages
-         //assert(t->v_top - t->v_bot >= 0, "PE preamble peak height negative (%.3f) on trk %d at time %.7lf\n",
+         //assert(t->v_top - t->v_bot >= 0, "PE preamble peak height negative (%.3f) on trk %d at time %.8lf\n",
          //   t->v_top - t->v_bot, t->trknum, timenow);
          if (t->v_top > t->v_bot) {
             t->v_avg_height_sum += t->v_top - t->v_bot;
@@ -159,14 +159,14 @@ void pe_top (struct trkstate_t *t) {  // local maximum: end of a positive flux t
       bool missed_transition = (t->t_top + t->t_pulse_adj) - t->t_lastpeak > t->t_clkwindow; // missed a half-bit transition?
       if (!t->clknext // if we're expecting a data transition
             || missed_transition) { // or we missed a clock transition
-         dlogtrk("trk %d add %d top at %.7lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.7lf tick %.1lf, clkwin %.2f uS\n",
+         dlogtrk("trk %d add %d top at %.8lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.8lf tick %.1lf, clkwin %.2f uS\n",
                  t->trknum, t->bit1_up, t->t_top, TICK(t->t_top), t->t_pulse_adj*1e6, t->v_top, t->t_lastpeak, TICK(t->t_lastpeak), t->t_clkwindow*1e6);
          pe_addbit (t, t->bit1_up, false, t->t_top);  // then we have new data
          t->clknext = true; }
       else { // this was a clock transition
          TRACE(clkedg, t->t_top, UPTICK, t);
          TRACE(clkdet, t->t_top, UPTICK, t);
-         dlogtrk("trk %d clk   top at %.7lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.7lf tick %.1lf, clkwin %.2f uS\n",
+         dlogtrk("trk %d clk   top at %.8lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.8lf tick %.1lf, clkwin %.2f uS\n",
                  t->trknum, t->t_top, TICK(t->t_top), t->t_pulse_adj*1e6, t->v_top, t->t_lastpeak, TICK(t->t_lastpeak), t->t_clkwindow*1e6);
          t->clknext = false; }
       t->t_pulse_adj = ((float)(t->t_top - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * PARM.pulse_adj;
@@ -182,14 +182,14 @@ void pe_bot (struct trkstate_t *t) { // local minimum: end of a negative flux tr
       bool missed_transition = (t->t_bot + t->t_pulse_adj) - t->t_lastpeak > t->t_clkwindow; // missed a half-bit transition?
       if (!t->clknext // if we're expecting a data transition
             || missed_transition) { // or we missed a clock transition
-         dlogtrk("trk %d add %d bot at %.7lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.7lf tick %.1lf, clkwin %.2f uS\n",
+         dlogtrk("trk %d add %d bot at %.8lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.8lf tick %.1lf, clkwin %.2f uS\n",
                  t->trknum, !t->bit1_up, t->t_bot, TICK(t->t_bot), t->t_pulse_adj*1e6, t->v_bot, t->t_lastpeak, TICK(t->t_lastpeak), t->t_clkwindow*1e6);
          pe_addbit (t, !t->bit1_up, false, t->t_bot);  // then we have new data
          t->clknext = true; }
       else { // this was a clock transition
          TRACE(clkedg,t->t_bot, UPTICK, t);
          TRACE(clkdet,t->t_bot, UPTICK, t);
-         dlogtrk("trk %d clk   bot at %.7lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.7lf tick %.1lf, clkwin %.2f uS\n",
+         dlogtrk("trk %d clk   bot at %.8lf tick %.1lf + adj %.2f uS, %.3fV, lastpeak at %.8lf tick %.1lf, clkwin %.2f uS\n",
                  t->trknum, t->t_bot, TICK(t->t_bot), t->t_pulse_adj*1e6, t->v_bot, t->t_lastpeak, TICK(t->t_lastpeak), t->t_clkwindow*1e6);
          t->clknext = false; }
       t->t_pulse_adj = ((float)(t->t_bot - t->t_lastpeak) - t->clkavg.t_bitspaceavg / (missed_transition ? 1 : 2)) * PARM.pulse_adj;
@@ -236,14 +236,14 @@ int choose_number_of_corrected_bits(struct trkstate_t *t) {
       numbits = numbits / numtrks - t->datacount;
       break;
    default: fatal("bad choose_bad_bits strategy", ""); }
-   //dlog("  strategy %d would add %d bits at %.7lf\n", strategy, numbits, timenow); //
+   //dlog("  strategy %d would add %d bits at %.8lf\n", strategy, numbits, timenow); //
    assert(numbits>0, "choose_bad_bits bad count");
    return numbits; }
 
 void pe_generate_fake_bits(struct trkstate_t *t) {
    int numbits = choose_number_of_corrected_bits(t);
    if (numbits > 0) {
-      dlog("trk %d adding %d fake bits to %d bits at %.7lf, lastbit at %.7lf, bitspaceavg=%.2f\n", //
+      dlog("trk %d adding %d fake bits to %d bits at %.8lf, lastbit at %.8lf, bitspaceavg=%.2f\n", //
            t->trknum, numbits, t->datacount, timenow, t->t_lastbit, t->clkavg.t_bitspaceavg*1e6);
       if (DEBUG) show_track_datacounts("*** before adding bits");
       while (numbits--) pe_addbit(t, t->lastdatabit, true, timenow);

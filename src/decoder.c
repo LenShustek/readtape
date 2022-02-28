@@ -3,15 +3,17 @@
 
 Decode analog magnetic tape data in one of several flavors:
   -- Manchester phase encoded (PE)
-  -- NRZI (non-return-to-zero inverted) encoded
+  -- NRZI (non-return-to-zero inverted) encoded,
+     including the 6-track 100 BPI Whirlwind variant
   -- GCR group coded recording
 
-We are called once for each set of read head voltages on 9 data tracks.
+We are called once for each set of read head voltages on all data tracks.
 
 Each track is processed independently, so that head and data skew
 (especially for PE and GCR, which are self-clocking) is irrelevant.
 We look for relative minima and maxima of the head voltage that
-represent the downward and upward flux transitions.
+represent the downward and upward flux transitions, or we
+look for when the signal crosses zero in either direction.
 
 For PE we use the timing of the transitions to reconstruct the original
 data that created the Manchester encoding: a downward flux transition
@@ -315,10 +317,10 @@ bool estden_done(void) {
 bool estden_transition(struct trkstate_t *t, double peaktime, float deltasecs) { // count a transition distance
    int delta = (int) (deltasecs / ESTDEN_BINWIDTH);  // round down to multiple of BINWIDTH
    int ndx;
-   //dlog("estden_transition %.3f usec at %.7lf\n", deltasecs*1e6, timenow);
+   //dlog("estden_transition %.3f usec at %.8lf\n", deltasecs*1e6, timenow);
    assert(deltasecs > 0, "negative delta %f usec in estden_transition", deltasecs*1e6);
    if (deltasecs > 0 && deltasecs <= ESTDEN_MAXDELTA) {
-      //if (deltasecs < 2e-6)dlog("estden_transition %f usec trk %d thispeak %.7lf tick %.1lf, lastpeak %.7lf tick %.1lf, at %.7lf tick %.1lf\n",
+      //if (deltasecs < 2e-6)dlog("estden_transition %f usec trk %d thispeak %.8lf tick %.1lf, lastpeak %.8lf tick %.1lf, at %.8lf tick %.1lf\n",
       //   deltasecs*1e6, t->trknum, peaktime, TICK(peaktime), t->t_lastpeak, TICK(t->t_lastpeak), timenow, TICK(timenow));
       for (ndx = 0; ndx < estden.binsused; ++ndx) // do we have it already?
          if (estden.deltas[ndx] == delta) break;  // yes
@@ -405,11 +407,12 @@ void init_trackstate(void) {  // initialize all track and some block state infor
       struct trkstate_t *trk = &trkstate[trknum];
       trk->trknum = trknum;
       trk->idle = true;
+      trk->v_last_raw = 0;
       //  trk->zerocross_dn_pending = trk->zerocross_up_pending = true; // allow first zerocrossing to occur from an idle track
       trk->agc_gain = 1.0;
       trk->max_agc_gain = 0.0;
       trk->min_agc_gain = FLT_MAX;
-      trk->v_avg_height = PKWW_PEAKHEIGHT; 
+      trk->v_avg_height = PKWW_PEAKHEIGHT;
       if (!doing_density_detection) init_clkavg(&trk->clkavg, 1 / (bpi*ips));
       trk->t_clkwindow = trk->clkavg.t_bitspaceavg / 2 * PARM.clk_factor; }
    if (mode == NRZI) {
@@ -434,7 +437,7 @@ void check_data_alignment(int clktrk) {
    for (int trknum = 0; trknum<ntrks; ++trknum) {
       struct trkstate_t *t = &trkstate[trknum];
       if (datacount != t->datacount && numshown<50) {
-         dlog("! at clk on trk %d, trk %d has %d databytes, not %d, at %.7lf\n", clktrk, trknum, t->datacount, datacount, timenow);
+         dlog("! at clk on trk %d, trk %d has %d databytes, not %d, at %.8lf\n", clktrk, trknum, t->datacount, datacount, timenow);
          ++numshown; } } }
 
 // the following avg height routines are new for WW, and NRZI/PE/GCR ought to use them too instead of having their own code for this
@@ -465,7 +468,7 @@ void adjust_agc(struct trkstate_t *t) { // update the automatic gain control lev
          gain = t->v_avg_height / lastheight;  		// the new gain, which could be less than 1
          gain = PARM.agc_alpha * gain + (1 - PARM.agc_alpha)*t->agc_gain;  // exponential smoothing with previous values
          if (gain > AGC_MAX_VALUE) gain = AGC_MAX_VALUE;
-         dlogtrk("trk %d adjust gain lasttop %.2f lastbot %.2f lastheight %.2f, avgheight %.2f, old gain %.2f new gain %.2f at %.7lf tick %.1lf\n",
+         dlogtrk("trk %d adjust gain lasttop %.2f lastbot %.2f lastheight %.2f, avgheight %.2f, old gain %.2f new gain %.2f at %.8lf tick %.1lf\n",
                  t->trknum, t->v_lasttop, t->v_lastbot, lastheight, t->v_avg_height, t->agc_gain, gain, timenow, TICK(timenow));
          t->agc_gain = gain;
          if (gain > t->max_agc_gain) t->max_agc_gain = gain;
@@ -483,7 +486,7 @@ void adjust_agc(struct trkstate_t *t) { // update the automatic gain control lev
             gain = t->v_avg_height / minheight;  // what gain we should use; could be less than 1
             if (gain > AGC_MAX_VALUE) gain = AGC_MAX_VALUE;
             t->agc_gain = gain;
-            // dlogtrk("adjust_gain: trk %d lastheight %.3fV, avgheight %.3f, minheight %.3f, heightndx %d, datacount %d, gain is now %.3f at %.7lf\n",
+            // dlogtrk("adjust_gain: trk %d lastheight %.3fV, avgheight %.3f, minheight %.3f, heightndx %d, datacount %d, gain is now %.3f at %.8lf\n",
             //        t->trknum, lastheight, t->v_avg_height, minheight, t->heightndx, t->datacount, gain, timenow);
             if (gain > t->max_agc_gain) t->max_agc_gain = gain;
             if (gain < t->min_agc_gain) t->min_agc_gain = gain; } } } }
@@ -504,11 +507,11 @@ void adjust_clock(struct clkavg_t *c, float delta, int trk) {  // update the bit
          + (1 - clk_alpha) * c->t_bitspaceavg; // weighting of old values
    }
    else { // *** STRATEGY 3: use a constant instead of averaging
-      assert(bpi > 0, "bpi=0 in adjust_clock at %.7lf", timenow);
+      assert(bpi > 0, "bpi=0 in adjust_clock at %.8lf", timenow);
       c->t_bitspaceavg = mode & PE+WW ? 1 / (bpi*ips) : nrzi.clkavg.t_bitspaceavg; //
    }
    if (DEBUG && trace_on && (DEBUGALL || trk == TRACETRK))
-      rlog("trk %d adjust clock of %.2f with delta %.2f uS to %.2f at %.7lf tick %.1lf\n",
+      rlog("trk %d adjust clock of %.2f with delta %.2f uS to %.2f at %.8lf tick %.1lf\n",
            trk, prevdelta*1e6, delta*1e6, c->t_bitspaceavg*1e6, timenow, TICK(timenow)); //
 }
 void force_clock(struct clkavg_t *c, float delta, int trk) { // force the clock speed
@@ -520,7 +523,7 @@ void process_transition(struct trkstate_t *t) {  // process a transition: a zero
    if (t->idle) { // we're coming out of idle
       --num_trks_idle;
       t->idle = false;
-      //dlog("trk %d is #%d not idle at %.7f tick %.1lf, AGC %.2f, v_now %f, v_lastpeak %f at %.7lf tick %.1lf, bitspaceavg %.2f\n", //
+      //dlog("trk %d is #%d not idle at %.7f tick %.1lf, AGC %.2f, v_now %f, v_lastpeak %f at %.8lf tick %.1lf, bitspaceavg %.2f\n", //
       //     t->trknum, ntrks - num_trks_idle, timenow, TICK(timenow), t->agc_gain, t->v_now,
       //     t->v_lastpeak, t->t_lastpeak, TICK(t->t_lastpeak), t->clkavg.t_bitspaceavg*1e6); //
       if (FAKE_BITS && mode == PE && t->datablock && t->datacount > 1)
@@ -530,6 +533,7 @@ void process_transition(struct trkstate_t *t) {  // process a transition: a zero
          pe_generate_fake_bits(t); } }
 
 void process_up_transition(struct trkstate_t *t) {
+   //rlog("up transition on trk %d at %.8lf\n", t->trknum, t->t_top);
    TRACE(peak, t->t_top, UPTICK, t);
    process_transition(t);
    if (doing_density_detection) {
@@ -547,6 +551,7 @@ void process_up_transition(struct trkstate_t *t) {
    t->t_lastpeak = t->t_top; }
 
 void process_down_transition(struct trkstate_t *t) {
+   //rlog("dn transition on trk %d at %.8lf\n", t->trknum, t->t_bot);
    TRACE(peak, t->t_bot, DNTICK, t);
    process_transition(t);
    if (doing_density_detection) {
@@ -564,12 +569,16 @@ void process_down_transition(struct trkstate_t *t) {
    t->t_prevlastpeak = t->t_lastpeak;
    t->t_lastpeak = t->t_bot; }
 
-//***** routines that look for a zero crossing using the trivial algorithm that assumes no jitter
+//***** routines that look for a zero crossing using trivial algorithms that assume minimal jitter *****
 
-// We keep track of the maximum excursions above or below zero, and make sure that
-// it is larger than ZEROCROSS_PEAK before we are willing to record a zero crossing.
+// In this algorithm we keep track of the maximum excursions above or below zero, and make sure
+// that it is larger than ZEROCROSS_PEAK before we are willing to record a zero crossing,
+// and that the crossing happened quickly enough to be a real transition.
 
 void lookfor_zerocrossing(struct trkstate_t *t) {
+   if (0 && t->trknum == TRACETRK && timenow >= 0.8608976)
+      rlog("zerochk: v_now=%.3f, v_top=%.3f, t_top=%.8lf, v_bot=%.3f, t_bot=%.8lf, up_pending=%d, dn_pending=%d, tnow=%.8lf\n",
+           t->v_now, t->v_top, t->t_top, t->v_bot, t->t_bot, t->zerocross_up_pending, t->zerocross_dn_pending, timenow);
    if (t->v_now > 0) { // voltage is above zero
       t->zerocross_dn_pending = false;  // cancel any pending down transition
       if (t->v_top < t->v_now) {  // new maximum above zero
@@ -582,7 +591,7 @@ void lookfor_zerocrossing(struct trkstate_t *t) {
                process_up_transition(t); } }
       if (t->v_prev < 0 && t->v_bot < -ZEROCROSS_PEAK) { // just crossed zero going up after a big down peak
          t->t_top = timenow; // remember this as a possible zero crossing up
-         //rlog("trk %d zerocross up pending at %.7lf, v_bot %.3f\n", t->trknum, timenow, t->v_bot);
+         //if (t->trknum == TRACETRK) rlog("trk %d zerocross up pending at %.8lf, v_bot %.3f\n", t->trknum, timenow, t->v_bot);
          t->zerocross_up_pending = true; } }
    else if (t->v_now < 0) { // voltage is below zero
       t->zerocross_up_pending = false; // cancel any pending up transition
@@ -596,15 +605,49 @@ void lookfor_zerocrossing(struct trkstate_t *t) {
                process_down_transition(t); } }
       if (t->v_prev > 0 && t->v_top > ZEROCROSS_PEAK ) { // just crossed zero going down after a big up peak
          t->t_bot = timenow; // remember this as a possible zero crossing down
-         //rlog("trk %d zerocross dn pending at %.7lf, v_top %.3f\n", t->trknum, timenow, t->v_top);
+         //if (t->trknum == TRACETRK) rlog("trk %d zerocross dn pending at %.8lf, v_top %.3f\n", t->trknum, timenow, t->v_top);
          t->zerocross_dn_pending = true; } }
    t->v_prev = t->v_now; }
+
+// We use this different algorithm for detecting zero crossings after we have differentiated a
+// relatively clean signal, when small deltas are forced to be zero.
+
+void lookfor_differentiated_zerocrossing(struct trkstate_t *t) {
+   if (t->v_now > 0) { // voltage is above zero
+      if (t->v_top < t->v_now)  t->v_top = t->v_now;  // new maximum above zero
+      if (t->zerocross_up_pending) { // we were waiting for zerocrossing up and just got it
+         t->t_top = t->t_firstzero > 0 // we saw one or more actual zeros
+                    ? (t->t_firstzero + t->t_lastzero)/2  // so pick the center time of all of them
+                    : timenow - sample_deltat/2; // otherwise use the midpoint of the 2 samples that straddle (could interpolate)
+         t->zerocross_up_pending = false;
+         t->t_firstzero = 0;
+         process_up_transition(t); }
+      if (t->v_now > ZEROCROSS_PEAK) { // we're high enough to wait for a zerocrossing down
+         t->zerocross_dn_pending = true;
+         t->t_firstzero = 0;
+         t->v_bot = 0; } }
+   else if (t->v_now < 0) { // voltage is below zero
+      if (t->v_bot > t->v_now)  t->v_bot = t->v_now;  // new minimum below zero
+      if (t->zerocross_dn_pending) { // we were waiting for zerocrossing down and just got it
+         t->t_bot = t->t_firstzero > 0  // we saw one or more actual zeros
+                    ? (t->t_firstzero + t->t_lastzero)/2  // so pick the center time of all of them
+                    : timenow - sample_deltat/2; // otherwise use the midpoint of the 2 samples that straddle (could interpolate)
+         t->zerocross_dn_pending = false;
+         t->t_firstzero = 0;
+         process_down_transition(t); }
+      if (t->v_now < -ZEROCROSS_PEAK) {  // we're low enough to wait for a zerocrossing up
+         t->zerocross_up_pending = true;
+         t->t_firstzero = 0;
+         t->v_top = 0; } }
+   else { // we have (another?) true zero: keep track of the first and last of them
+      t->t_lastzero = timenow;
+      if (t->t_firstzero == 0) t->t_firstzero = timenow; } }
 
 //****** routines that look for a peak using the moving-window algorithm
 
 void show_window(struct trkstate_t *t) { // for debugging
-   rlog("trk %d window at %.7lf after adding %f, left=%d, right=%d:\n",
-        t->trknum, timenow, t->v_now, t->pkww_left, t->pkww_right);
+   rlog("trk %d window at %.8lf after adding %f, left=%d, right=%d, countdown=%d:\n",
+        t->trknum, timenow, t->v_now, t->pkww_left, t->pkww_right, t->pkww_countdown);
    for (int ndx = t->pkww_left; ; ) {
       rlog(" %f", t->pkww_v[ndx]);
       if (t->pkww_v[ndx] == t->pkww_minv) rlog("m");
@@ -618,7 +661,7 @@ extern bool rereading; //TEMP
 double refine_peak (struct trkstate_t *t, float val, bool top, float required_rise) {
    // we see the shape of a peak (bottom or top) in this track's window
 
-   //if (rereading) dlog("trk %d peak %d at %.7lf tick %.1lf\n", t->trknum, top, timenow, TICK(timenow));
+   //if (rereading) dlog("trk %d peak %d at %.8lf tick %.1lf\n", t->trknum, top, timenow, TICK(timenow));
    int left_distance = 1;
    int ndx, nextndx, prevndx = -1;
    float time_adjustment = 0;
@@ -652,7 +695,7 @@ double refine_peak (struct trkstate_t *t, float val, bool top, float required_ri
             //if (time_adjustment != 0)
             //   dlogtrk("trk %d peak adjust by %4.1f, leftdst %d, rise %.3fV, AGC %.2f, left %.3fV, peak %.3fV, right %.3fV\n",
             //        t->trknum, time_adjustment, left_distance, required_rise, t->agc_gain, t->pkww_v[prevndx], val, t->pkww_v[nextndx]);
-            //dlogtrk("trk %d peak of %.3fV at %.7lf tick %.1lf found at %.7lf tick %.1lf, AGC %.2f\n",
+            //dlogtrk("trk %d peak of %.3fV at %.8lf tick %.1lf found at %.8lf tick %.1lf, AGC %.2f\n",
             //     t->trknum, val, time, TICK(time), timenow, TICK(timenow), t->agc_gain);
             //show_window(t);//
          }
@@ -663,7 +706,7 @@ double refine_peak (struct trkstate_t *t, float val, bool top, float required_ri
       if (ndx == t->pkww_right) break;
       prevndx = ndx;
       if (++ndx >= pkww_width) ndx = 0; }
-   fatal( "Can't find max or min %f in trk %d window at time %.7lf", val, t->trknum, timenow);
+   fatal( "Can't find max or min %f in trk %d window at time %.8lf", val, t->trknum, timenow);
    return 0; }
 
 void lookfor_peak(struct trkstate_t *t) {
@@ -691,7 +734,7 @@ void lookfor_peak(struct trkstate_t *t) {
          if (++ndx >= pkww_width) ndx = 0; }
       t->pkww_maxv = maxv;
       t->pkww_minv = minv; }
-   //if (t->trknum == TRACETRK) show_window(t);
+   //if (t->trknum == TRACETRK && timenow >= 0.8609906 && timenow <= 0.8609927) show_window(t);
 
    if (t->pkww_countdown) {  // if we're waiting for a previous peak to exit the window
       --t->pkww_countdown; } // don't look a the shape within the window yet
@@ -702,15 +745,15 @@ void lookfor_peak(struct trkstate_t *t) {
       // and t->agc_gain to track shortterm variations. We do the same for the min_peak test.
       float required_rise = PARM.pkww_rise * (t->v_avg_height / (float)PKWW_PEAKHEIGHT) / t->agc_gain;  // how much of a voltage rise constitutes a peak
       float required_min = PARM.min_peak * (t->v_avg_height / (float)PKWW_PEAKHEIGHT) / t->agc_gain; // the minimum peak for this track
-      if (0) dlogtrk("trk %d at %.7lf tick %.1f req rise %.3f, avg height %.2f, AGC %.2f, left %.3fV right %.3fV max %.3fV min %.3fV\n",
-                           t->trknum, timenow, TICK(timenow), required_rise, t->v_avg_height, t->agc_gain,
-                           t->pkww_v[t->pkww_left], t->pkww_v[t->pkww_right], t->pkww_maxv, t->pkww_minv);
+      if (0) dlogtrk("trk %d at %.8lf tick %.1f req rise %.3f, avg height %.2f, AGC %.2f, left %.3fV right %.3fV max %.3fV min %.3fV\n",
+                        t->trknum, timenow, TICK(timenow), required_rise, t->v_avg_height, t->agc_gain,
+                        t->pkww_v[t->pkww_left], t->pkww_v[t->pkww_right], t->pkww_maxv, t->pkww_minv);
       if (t->pkww_maxv > t->pkww_v[t->pkww_left] + required_rise
             && t->pkww_maxv > t->pkww_v[t->pkww_right] + required_rise  // the max is a lot higher than the left and right sides
             && (required_min == 0 || t->pkww_maxv > required_min)) {  // and it's higher than the min peak, if given
          t->v_top = t->pkww_maxv;  // which means we hit a top peak
          t->t_top = refine_peak(t, t->pkww_maxv, true, required_rise);
-         dlogtrk("trk %d top of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, req min %.3f, avg ht %.3f, AGC %.2f at %.7lf tick %.1f, found %.7lf tick %.1f\n",
+         dlogtrk("trk %d top of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, req min %.3f, avg ht %.3f, AGC %.2f at %.8lf tick %.1f, found %.8lf tick %.1f\n",
                  t->trknum, t->v_top,
                  t->pkww_maxv - t->pkww_v[t->pkww_left], t->pkww_maxv - t->pkww_v[t->pkww_right], required_rise, required_min,
                  t->v_avg_height, t->agc_gain, TIMETICK(t->t_top), TIMETICK(timenow));
@@ -721,7 +764,7 @@ void lookfor_peak(struct trkstate_t *t) {
                && (required_min == 0 || t->pkww_minv < -required_min)) { // and it's lower than the min peak, if given
          t->v_bot = t->pkww_minv;  //so we hit a bottom peak
          t->t_bot = refine_peak(t, t->pkww_minv, false, required_rise);
-         dlogtrk("trk %d bot of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, req min %.3f, avg ht %.3f, AGC %.2f at %.7lf tick %.1f, found %.7lf tick %.1f\n",
+         dlogtrk("trk %d bot of %.3fV, left rise %.3f, right rise %.3f, req rise %.3f, req min %.3f, avg ht %.3f, AGC %.2f at %.8lf tick %.1f, found %.8lf tick %.1f\n",
                  t->trknum, t->v_bot,
                  t->pkww_v[t->pkww_left] - t->pkww_minv, t->pkww_v[t->pkww_right] - t->pkww_minv, required_rise, required_min,
                  t->v_avg_height, t->agc_gain, TIMETICK(t->t_bot), TIMETICK(timenow));
@@ -778,8 +821,9 @@ enum bstate_t process_sample(struct sample_t *sample) {
          //if (t->trknum == TRACETRK) show_window(t);
          break; }
 
-      if (find_zeros)
-         lookfor_zerocrossing(t);
+      if (find_zeros) {
+         if (do_differentiate) lookfor_differentiated_zerocrossing(t);
+         else lookfor_zerocrossing(t); }
       else lookfor_peak(t);
 
       if (mode == PE && !t->idle && t->t_lastpeak != 0 && timenow - t->t_lastpeak > t->clkavg.t_bitspaceavg * PE_IDLE_FACTOR) {
@@ -787,7 +831,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
          // (NRZI track data, on the other hand, is allowed to be idle indefinitely.)
          t->v_lastpeak = t->v_now;
          TRACE(clkdet, timenow, DNTICK, t)
-         dlogtrk("trk %d became idle at %.7lf, %d idle, AGC %.2f, last peak at %.7lf, bitspaceavg %.2f usec, datacount %d\n", //
+         dlogtrk("trk %d became idle at %.8lf, %d idle, AGC %.2f, last peak at %.8lf, bitspaceavg %.2f usec, datacount %d\n", //
                  trknum, timenow, num_trks_idle + 1, t->agc_gain, t->t_lastpeak, t->clkavg.t_bitspaceavg*1e6, t->datacount);
          t->idle = true;
          if (++num_trks_idle >= ntrks) {
@@ -797,7 +841,7 @@ enum bstate_t process_sample(struct sample_t *sample) {
             && timenow > t->t_lastpeak + GCR_IDLE_THRESH * t->clkavg.t_bitspaceavg) { // if no peaks for too long
          t->datablock = false; // then we're at the end of the block for this track
          t->idle = true;
-         dlog("trk %d becomes idle, %d idle at %.7lf tick %.1lf, AGC %.2f, v_now %f, t_lastpeak %.7lf v_lastpeak %f, bitspaceavg %.2f\n", //
+         dlog("trk %d becomes idle, %d idle at %.8lf tick %.1lf, AGC %.2f, v_now %f, t_lastpeak %.8lf v_lastpeak %f, bitspaceavg %.2f\n", //
               t->trknum, num_trks_idle + 1, timenow, TICK(timenow), t->agc_gain, t->v_now, t->t_lastpeak, t->v_lastpeak, t->clkavg.t_bitspaceavg*1e6);
          //show_track_datacounts("at idle");
          if (++num_trks_idle >= ntrks) { // and maybe for all tracks

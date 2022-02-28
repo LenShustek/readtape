@@ -58,12 +58,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "decoder.h"
 
 static byte buffer[MAXLINE];
-static int linecnt, numrecords, numerrors, numwarnings,numerrorsandwarnings, numtapemarks;
+static int bufcnt, bufstart, numrecords, numerrors, numwarnings,numerrorsandwarnings, numtapemarks;
 static long long int numbytes;
 static bool txtfile_isopen = false;
 static FILE *txtf;
 
-//----------- stuff starting here used to be identical to what's in dumptap
+//---- stuff starting here used to be identical to what's in dumptap, but isn't anymore
 
 static byte EBCDIC[256] = {/* EBCDIC to ASCII */
    /*0x*/ ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
@@ -118,7 +118,7 @@ static byte Flexowriter_Code[64] = {
 static char *chartype_options[] = { " ", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-sixbit", "-SDS", "-SDSM", "-flexo" };
 static char *numtype_options[] = { " ", "-hex", "-octal", "-octal2" };
 
-static void output_char(byte ch) {
+static void output_char(byte ch, bool oddbyte) {
    fprintf(txtf, "%c",
            txtfile_chartype == ASC ? (isprint(ch) ? ch & 0x7f : ' ')
            : txtfile_chartype == SIXBIT ? ((ch & 0x3f) + 32)
@@ -127,20 +127,20 @@ static void output_char(byte ch) {
            : txtfile_chartype == BUR ? Burroughs_Internal_Code[ch & 0x3f]
            : txtfile_chartype == SDS ? SDS_Internal_Code[ch & 0x3f]
            : txtfile_chartype == SDSM ? SDS_Magtape_Code[ch & 0x3f]
-           : txtfile_chartype == FLEXO ? Flexowriter_Code[ch & 0x3f]
+           : txtfile_chartype == FLEXO ? Flexowriter_Code[(oddbyte ? ch : ch>>2) & 0x3f] // use the high and low 6 bits of a 16-bit word
            : '?'); };
 
-//----------- stuff ending here used to be identical to what's in dumptap
+//---- stuff ending here used to be identical to what's in dumptap, but isn't anymore
 
-static void output_chars(void) { // output characters for "linecnt" bytes
-   int nmissingbytes = txtfile_linesize - linecnt;
+static void output_chars(void) { // output characters for "bufcnt" bytes
+   int nmissingbytes = txtfile_linesize - bufcnt;
    int nspaces = txtfile_dataspace ? nmissingbytes / txtfile_dataspace : 0;
    // for short lines, space out for missing bytes
    if (txtfile_numtype == HEX) nspaces += nmissingbytes * 2; // "xx"
    else /* OCT, OCt2 */ nspaces += nmissingbytes * 3; // "ooo"
    for (int i = 0; i < nspaces; ++i) fprintf(txtf, " "); // space out to character area
    if (txtfile_dataspace == 0) fprintf(txtf, "  ");
-   for (int i = 0; i < linecnt; ++i) output_char(buffer[i]); };
+   for (int i = 0; i < bufcnt; ++i) output_char(buffer[i], (bufstart+i)&1); };
 
 static void txtfile_open(void) { // create <base>.<options>.txt file for interpreted data
    char filename[MAXPATH];
@@ -180,26 +180,26 @@ void txtfile_outputrecord(void) {
            result->errcount * result->warncount > 0 ? 'X' : // show X for both errors and warnings
            result->errcount > 0 ? '!' : // show ! for errors only
            result->warncount > 0 ? '?' : ' ', length); // show ? for warnings only
-   linecnt = 0;
+   bufcnt = bufstart = 0;
    for (int i = 0; i < length; ++i) { // discard the parity bit track and write all the data bits
       byte ch = (byte)(data[i] >> 1);
       byte ch2 = (byte)(data[i+1] >> 1); // in case, for OCT2, we are doing two bytes at once
-      if (linecnt >= txtfile_linesize
+      if (bufcnt >= txtfile_linesize
             || txtfile_linefeed && ch == 0x0a) { // start a new line
          if (txtfile_doboth) output_chars();
          fprintf(txtf, "\n       ");
-         linecnt = 0; }
-      buffer[linecnt++] = ch; // save the byte for doing character interpretation
+         bufcnt = 0; bufstart = i; }
+      buffer[bufcnt++] = ch; // save the byte for doing character interpretation
       if (txtfile_numtype == HEX) fprintf(txtf, "%02X", ch);
       else if (txtfile_numtype == OCT || i == length-1) fprintf(txtf, "%03o", ch);   // for 8-bit octal data, or an odd 16-bit byte
       else if (txtfile_numtype == OCT2) { // do this byte and the next byte together
          fprintf(txtf, "%06o", ((uint16_t)ch << 8) | ch2);
-         buffer[linecnt++] = ch2; // save another byte for character interpretation
+         buffer[bufcnt++] = ch2; // save another byte for character interpretation
          ++i; }
       if (txtfile_numtype != NONUM) {
-         if (txtfile_dataspace > 0 && linecnt % txtfile_dataspace == 0)
+         if (txtfile_dataspace > 0 && bufcnt % txtfile_dataspace == 0)
             fprintf(txtf, " "); } // extra space between groups of numeric data
-      else output_char(ch); // only doing characters, not numbers
+      else output_char(ch, i&1); // only doing characters, not numbers
    }
    if (txtfile_doboth) output_chars(); // do the buffered-up characters whose numerics we did
    fprintf(txtf, "\n"); }
@@ -208,11 +208,17 @@ void txtfile_close(void) {
    if (txtfile_isopen) {
       fprintf(txtf, "end of file\n\n");
       fprintf(txtf, "there were %d data blocks with %s bytes, and %d tapemarks\n", numrecords, longlongcommas(numbytes), numtapemarks);
-      if (numerrorsandwarnings > 0) fprintf(txtf, "%d block(s) with errors and warnings were marked with a X before the length\n", numerrorsandwarnings);
-      if (numerrors > 0) fprintf(txtf, "%d block(s) with errors were marked with a ! before the length\n", numerrors);
+      if (numerrorsandwarnings > 0) fprintf(txtf, numerrorsandwarnings == 1 ?
+                                               "%d block with both errors and warnings was marked with a X before the length\n" :
+                                               "%d blocks with both errors and warnings were marked with a X before the length\n", numerrorsandwarnings);
+      if (numerrors > 0) fprintf(txtf, numerrors == 1 ?
+                                    "%d block with errors was marked with a ! before the length\n" :
+                                    "%d blocks with errors were marked with a ! before the length\n", numerrors);
       else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had errors\n");
-      if (numwarnings > 0) fprintf(txtf, "%d block(s) with warnings were marked with a ? before the length\n", numwarnings);
-      else if (numerrorsandwarnings == 0) fprintf(txtf, "no block had warnings\n");
+      if (numwarnings > 0) fprintf(txtf, numwarnings == 1 ?
+                                      "%d block with warnings was marked with a ? before the length\n" :
+                                      "%d blocks with warnings were marked with a ? before the length\n", numwarnings);
+      else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had warnings\n");
       fclose(txtf);
       txtfile_isopen = false; } }
 

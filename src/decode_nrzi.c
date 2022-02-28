@@ -41,7 +41,7 @@ void nrzi_postprocess(void) {
    if (result->minbits > 2) {
       for (int i = 0; i < result->minbits - (ntrks == 7 ? 1 : 2); ++i) {  // count parity errors, and check the CRC/LRC at the end
          if (parity(data[i]) != expected_parity) {
-            dlog("parity err in nrzi_postprocess() at index %d data %03X time %.7lf tick %.1lf\n",
+            dlog("parity err in nrzi_postprocess() at index %d data %03X time %.8lf tick %.1lf\n",
                  i, data[i], data_time[i], TICK(data_time[i]));
             ++result->vparity_errs; }
          lrc ^= data[i];
@@ -81,7 +81,7 @@ void nrzi_end_of_block(void) {
       if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain;
       if (result->alltrk_min_agc_gain > t->min_agc_gain) result->alltrk_min_agc_gain = t->min_agc_gain; }
    result->avg_bit_spacing = avg_bit_spacing / ntrks;
-   dlog("NRZI end of block %d, min %d max %d, avgbitspacing %f uS at %.7lf tick %.1lf\n",
+   dlog("NRZI end of block %d, min %d max %d, avgbitspacing %f uS at %.8lf tick %.1lf\n",
         numblks+1, result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow, TICK(timenow));
    // see what we think this is, based on the length
    if ( // maybe it's a tapemark, which is pretty bizarre
@@ -89,7 +89,7 @@ void nrzi_end_of_block(void) {
       (result->minbits == 2 && ntrks == 7 && data[0] == 0x1e && data[1] == 0x1e)) { // 7trk: trks 8421, then 8421
       result->blktype = BS_TAPEMARK; }
    else if (result->maxbits <= NRZI_MIN_BLOCK) {  // too small, but not tapemark: just noise
-      dlog("   detected noise block of length %d at %.7lf\n", result->maxbits, timenow);
+      dlog("   detected noise block of length %d at %.8lf\n", result->maxbits, timenow);
       result->blktype = BS_NOISE; }
    else if (result->maxbits - result->minbits > NRZI_MAX_MISMATCH) {  // very different number of bits in different tracks
       if (verbose_level & VL_TRACKLENGTHS) show_track_datacounts("*** trkmismatched block");
@@ -122,7 +122,7 @@ void nrzi_correct_error(int last_complete_byte) {
       data_faked[last_complete_byte] |= mask;
       ++block.results[block.parmset].corrected_bits;
       block.results[block.parmset].faked_tracks |= mask;
-      dlog("corrected track %d at byte %d because its AGC is %.2f and the next highest is %.2f, at time %.7lf tick %.1lf\n",
+      dlog("corrected track %d at byte %d because its AGC is %.2f and the next highest is %.2f, at time %.8lf tick %.1lf\n",
            badtrk, last_complete_byte, highest, next_highest, timenow, TICK(timenow)); //
    }
    //else dlog("not corrected\n");
@@ -134,22 +134,22 @@ void nrzi_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a NRZI b
    t->t_lastbit = t_bit;
    if (t->datacount == 0) {
       t->t_firstbit = t_bit; // record time of first bit in the datablock
-      //assert(t->v_top > t->v_bot, "v_top < v_bot in nrzi_addbit at %.7lf", t_bit);
+      //assert(t->v_top > t->v_bot, "v_top < v_bot in nrzi_addbit at %.8lf", t_bit);
       t->max_agc_gain = t->agc_gain; }
 #if 0 // we use the predefined value
    if (t->v_avg_height == 0 && bit == 1) { // make our first estimate of the peak-to-peak height
       t->v_avg_height = 2 * (max(abs(t->v_bot), abs(t->v_top))); // starting avg peak-to-peak is twice the first top or bottom
       if (t->trknum == TRACETRK)
-         dlog("trk %d first avg height %.2f (v_top %.2f, v_bot %.2f) when adding %d at %.7lf\n", t->trknum, t->v_avg_height, t->v_top, t->v_bot, bit, t_bit); }
+         dlog("trk %d first avg height %.2f (v_top %.2f, v_bot %.2f) when adding %d at %.8lf\n", t->trknum, t->v_avg_height, t->v_top, t->v_bot, bit, t_bit); }
 #endif
    if (!nrzi.datablock) { // this is the begining of data for this block
       nrzi.t_lastclock = t_bit - nrzi.clkavg.t_bitspaceavg; // fake the previous bit timing
       nrzi.t_last_midbit = nrzi.t_lastclock + PARM.midbit*nrzi.clkavg.t_bitspaceavg;
-      dlog("trk %d starts the data blk at %.7lf tick %.1lf, agc=%f, clkavg=%.2f\n",
+      dlog("trk %d starts the data blk at %.8lf tick %.1lf, agc=%f, clkavg=%.2f\n",
            t->trknum, t_bit, TICK(t_bit), t->agc_gain, nrzi.clkavg.t_bitspaceavg*1e6);
       nrzi.datablock = true; }
    if (trace_on)
-      dlog (" [add a %d to %d bytes on trk %d at %.7lf tick %.1lf, lastpeak %.7lf tick %.1lf; now: %.7lf tick %.1lf, bitspacing %.2f, agc %.2f]\n",
+      dlog (" [add a %d to %d bytes on trk %d at %.8lf tick %.1lf, lastpeak %.8lf tick %.1lf; now: %.8lf tick %.1lf, bitspacing %.2f, agc %.2f]\n",
             bit, t->datacount, t->trknum, t_bit, TICK(t_bit),  t->t_lastpeak, TICK(t->t_lastpeak),
             timenow, TICK(timenow), nrzi.clkavg.t_bitspaceavg*1e6, t->agc_gain);
    uint16_t mask = 1 << (ntrks - 1 - t->trknum);  // update this track's bit in the data array
@@ -174,8 +174,8 @@ void nrzi_bot(struct trkstate_t *t) { // detected a bottom
    if (PEAK_STATS && nrzi.t_lastclock != 0 && nrzi.datablock && nrzi.post_counter == 0)
       record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_bot - nrzi.t_lastclock), t->trknum);
    if (t->t_bot < nrzi.t_last_midbit && nrzi.post_counter == 0) {
-      dlog("---trk %d bot of %.2fV at %.7lf tick %.1lf found at %.7lf tick %.1lf is %.2lfuS before midbit at %.7lf tick %.1f\n"
-           "    lastclock %.7lf tick %.1f, AGC %.2f, bitspace %.2f, datacnt %d\n",
+      dlog("---trk %d bot of %.2fV at %.8lf tick %.1lf found at %.8lf tick %.1lf is %.2lfuS before midbit at %.8lf tick %.1f\n"
+           "    lastclock %.8lf tick %.1f, AGC %.2f, bitspace %.2f, datacnt %d\n",
            t->trknum, t->v_bot, t->t_bot, TICK(t->t_bot), timenow, TICK(timenow), (nrzi.t_last_midbit - t->t_bot)*1e6,
            nrzi.t_last_midbit, TICK(nrzi.t_last_midbit), nrzi.t_lastclock, TICK(nrzi.t_lastclock), t->agc_gain, nrzi.clkavg.t_bitspaceavg*1e6, t->datacount);
       ++block.results[block.parmset].missed_midbits; }
@@ -189,13 +189,13 @@ void nrzi_top(struct trkstate_t *t) {  // detected a top
    if (PEAK_STATS && nrzi.t_lastclock != 0 && nrzi.datablock && nrzi.post_counter == 0)
       record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_top - nrzi.t_lastclock), t->trknum);
    if (t->t_top < nrzi.t_last_midbit && nrzi.post_counter == 0) {
-      dlog("---trk %d top of %.2fV at %.7lf tick %.1lf found at %.7lf tick %.1lf is %.2lfuS before midbit at %.7lf tick %.1f\n"
-           "    lastclock %.7lf tick %.1f, AGC %.2f, bitspace %.2f, datacnt %d\n",
+      dlog("---trk %d top of %.2fV at %.8lf tick %.1lf found at %.8lf tick %.1lf is %.2lfuS before midbit at %.8lf tick %.1f\n"
+           "    lastclock %.8lf tick %.1f, AGC %.2f, bitspace %.2f, datacnt %d\n",
            t->trknum, t->v_top, t->t_top, TICK(t->t_top), timenow, TICK(timenow), (nrzi.t_last_midbit - t->t_top)*1e6,
            nrzi.t_last_midbit, TICK(nrzi.t_last_midbit), nrzi.t_lastclock, TICK(nrzi.t_lastclock), t->agc_gain, nrzi.clkavg.t_bitspaceavg*1e6, t->datacount);
       ++block.results[block.parmset].missed_midbits; }
    nrzi_addbit(t, 1, t->t_top); // add a data 1
-   if (t->v_top <= t->v_bot) dlog("!!! top trk %d vtop %.2f less than vbot %.2f at %.7lf tick %.1lf\n", t->trknum, t->v_top, t->v_bot, timenow, TICK(timenow));
+   if (t->v_top <= t->v_bot) dlog("!!! top trk %d vtop %.2f less than vbot %.2f at %.8lf tick %.1lf\n", t->trknum, t->v_top, t->v_bot, timenow, TICK(timenow));
    if (NRZI_RESET_SPEED && !nrzi.reset_speed && t->datacount == 2) { // reset speed based on the first low-to-high transition we see
       nrzi.clkavg.t_bitspaceavg = (float)(t->t_top - t->t_bot);
       for (int i = 0; i < CLKRATE_WINDOW; ++i) nrzi.clkavg.t_bitspacing[i] = nrzi.clkavg.t_bitspaceavg;
@@ -210,7 +210,7 @@ void nrzi_top(struct trkstate_t *t) {  // detected a top
    else if (t->peakcount > AGC_ENDBASE) { // we're beyond the first set of peaks and have some peak-to-peak history
       if (t->v_avg_height_count) { // if the is the first time we've gone beyond
          t->v_avg_height = t->v_avg_height_sum / t->v_avg_height_count; // then compute avg peak-to-peak voltage
-         dlogtrk("trk %d avg peak-to-peak after %d transitions is %.2fV at %.7lf\n",  t->trknum, AGC_ENDBASE-AGC_STARTBASE, t->v_avg_height, timenow);
+         dlogtrk("trk %d avg peak-to-peak after %d transitions is %.2fV at %.8lf\n",  t->trknum, AGC_ENDBASE-AGC_STARTBASE, t->v_avg_height, timenow);
          assert(t->v_avg_height>0, "avg peak-to-peak voltage isn't positive");
          t->v_avg_height_count = 0; }
       else adjust_agc(t); // otherwise adjust AGC
@@ -225,7 +225,7 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
    double left_edge = nrzi.t_last_midbit;  // the left edge of the window for a peak
    double right_edge = nrzi.t_lastclock + (1 + PARM.midbit) * nrzi.clkavg.t_bitspaceavg; // the right edge
    nrzi.t_last_midbit = right_edge; // the new last midbit position
-   if (DEBUG && trace_on) dlog("zerocheck: postctr %d, left %.7lf tick %.1lf, right %.7lf tick %.1lf, at %.7lf tick %.1lf\n",
+   if (DEBUG && trace_on) dlog("zerocheck: postctr %d, left %.8lf tick %.1lf, right %.8lf tick %.1lf, at %.8lf tick %.1lf\n",
                                   nrzi.post_counter, left_edge, TICK(left_edge), right_edge, TICK(right_edge), timenow, TICK(timenow));
    if (nrzi.post_counter == 0 // if we're not at the end of the block yet, or
          || nrzi.post_counter == 3 // 7trk LRC, or 9trk CRC
@@ -265,7 +265,7 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
             if (DEBUG) oldavg = nrzi.clkavg.t_bitspaceavg;
             adjust_clock(&nrzi.clkavg, delta, 0);  // adjust the clock rate based on the average position
             if (DEBUG && trace_on)
-               dlog("adjust clk at %.7lf tick %.1lf with delta %.2fus into avg %.2fus making %.2fus, avg pos %.7lf tick %.1lf, adj pos %.7lf tick %.1lf\n", //
+               dlog("adjust clk at %.8lf tick %.1lf with delta %.2fus into avg %.2fus making %.2fus, avg pos %.8lf tick %.1lf, adj pos %.8lf tick %.1lf\n", //
                     timenow, TICK(timenow), delta*1e6, oldavg*1e6, nrzi.clkavg.t_bitspaceavg*1e6,
                     avg_pos, TICK(avg_pos), adjusted_pos, TICK(adjusted_pos)); //
          }
@@ -273,7 +273,7 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
          if (nrzi.post_counter) ++nrzi.post_counter; //in the post-block: must have been CRC or LRC
          if (DEBUG && trace_on && parity(data[last_complete_byte]) != expected_parity) TRACE(parerr, timenow, UPTICK, NULLP);
          //if (DEBUG && !doing_deskew && nrzi.post_counter == 0 && parity(data[last_complete_byte]) != expected_parity) {
-         //   dlog("parity err at datacount %d at %.7lf; AGC ", last_complete_byte, timenow);
+         //   dlog("parity err at datacount %d at %.8lf; AGC ", last_complete_byte, timenow);
          //   for (int i = 0; i < ntrks; ++i) dlog("%d: %.1f, ", i, trkstate[i].agc_gain);
          //   dlog("\n"); }
 #if CORRECT
@@ -283,7 +283,7 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
       else { // no transitions on any track
          if (numlaterbits == 0) { // no transition on any track, and no later bits coming
             if (nrzi.post_counter == 0) { // we must be right at the end of the block
-               dlog("start postcounter, trk 0 count %d at %.7lf tick %.1lf\n", trkstate[0].datacount, timenow, TICK(timenow));
+               dlog("start postcounter, trk 0 count %d at %.8lf tick %.1lf\n", trkstate[0].datacount, timenow, TICK(timenow));
                nrzi_deletebits(); // delete all the zero bits we just added as we enter the post-block phase
                nrzi.post_counter = 1; }
             else ++nrzi.post_counter; // no transitions at the LRC or CRC: it must be all zeros, which is legal!

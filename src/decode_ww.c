@@ -48,36 +48,38 @@ void ww_init_blockstate(void) { // what we can initialize before a new block
    data[0] = 0; // needs to start at zero because we record only one bits, but not zero bits
 }
 
-bool ww_chk_databit(double clkendtime, enum wwtrk_t type, uint16_t bitmask) {
-   // check for a data pulse start on this track in one bittime before this clock end
+int ww_chk_databit(double clkendtime, enum wwtrk_t type, uint16_t bitmask) {
+   // check for a data pulse start on this track in one bit time before this clock end
+   // return 0 if we don't have this track, 1 for a 1-bit, and 2 for a 0-bit
+   // that means OR of the results from the primary and alternate tracks is 3 if they are both present and differ
    int trk = ww_type_to_trk[type];
-   if (trk >= 0) { // if we have a track for this type
-      assert(trk < ntrks, "bad trk in ww_chk_databit: %d", trk);
-      struct trkstate_t *t = &trkstate[trk];
-      if (t->t_lastpulsestart > clkendtime - ww.clkavg.t_bitspaceavg && t->t_lastpulsestart < clkendtime) {
-         // if there was a pulse end between the last two clock pulse starts,
-         // record a 1 for this track type during this clock interval
-         if (0 && !doing_deskew) rlog("  add 1 trk %d mask %X datacount %d, bit time "TIMEFMT", clockpulseend %.7f tick %.1lf\n",
-                                         trk, bitmask, ww.datacount, TIMETICK(t->t_lastpulsestart), TIMETICK(clkendtime));
-         data[ww.datacount] |= bitmask;
-         return true; } }
-   return false; }
+   if (trk < 0) return 0; // we don't have this track
+   assert(trk < ntrks, "bad trk in ww_chk_databit: %d", trk);
+   struct trkstate_t *t = &trkstate[trk];
+   if (t->t_lastpulsestart > clkendtime - ww.clkavg.t_bitspaceavg && t->t_lastpulsestart < clkendtime) {
+      // if there was a pulse end between the last two clock pulse starts,
+      // record a 1 for this track type during this clock interval
+      if (0 && !doing_deskew) rlog("  add 1 trk %d mask %X datacount %d, bit time "TIMEFMT", clockpulseend %.7f tick %.1lf\n",
+                                      trk, bitmask, ww.datacount, TIMETICK(t->t_lastpulsestart), TIMETICK(clkendtime));
+      data[ww.datacount] |= bitmask;
+      return 1; }
+   return 2; }
 
 void ww_chk_databits(double clkendtime) { // check for data pulse starts that occurred between clock pulse ends
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
    bool got_priMSB, got_priLSB;
    if (0 && !doing_deskew) rlog("chk bits, datacount %d, clockpulseend "TIMEFMT", timenow "TIMEFMT"\n",
                                    ww.datacount, TIMETICK(clkendtime), TIMETICK(timenow));
-   if ((got_priMSB = ww_chk_databit(clkendtime, WWTRK_PRIMSB, 0x02)) != ww_chk_databit(clkendtime, WWTRK_ALTMSB, 0x02)) {
-      ++result->ww_missing_onebit;  // if both MSB tracks don't agree, flag a warning
+   if (((got_priMSB = ww_chk_databit(clkendtime, WWTRK_PRIMSB, 0x02)) | ww_chk_databit(clkendtime, WWTRK_ALTMSB, 0x02)) == 3) {
+      ++result->ww_missing_onebit;   // if both MSB tracks are there and they don't agree, flag a warning
       if (verbose_level & VL_WARNING_DETAIL && !doing_deskew) {
          if (!got_priMSB)
             rlog("  missing primary MSB   at "TIMEFMT", last pri pulse end "TIMEFMT", bitspacing %.1f\n",
                  TIMETICK(clkendtime), TIMETICK(trkstate[ww_type_to_trk[WWTRK_PRIMSB]].t_lastpulseend), ww.clkavg.t_bitspaceavg * 1e6);
          else  rlog("  missing alternate MSB at "TIMEFMT", last alt pulse end "TIMEFMT", bitspacing %.1f\n",
                        TIMETICK(clkendtime), TIMETICK(trkstate[ww_type_to_trk[WWTRK_ALTMSB]].t_lastpulseend), ww.clkavg.t_bitspaceavg * 1e6); } }
-   if ((got_priLSB = ww_chk_databit(clkendtime, WWTRK_PRILSB, 0x01)) != ww_chk_databit(clkendtime, WWTRK_ALTLSB, 0x01)) {
-      ++result->ww_missing_onebit;  // if both LSB tracks don't agree, flag a warning
+   if (((got_priLSB = ww_chk_databit(clkendtime, WWTRK_PRILSB, 0x01)) | ww_chk_databit(clkendtime, WWTRK_ALTLSB, 0x01)) ==3) {
+      ++result->ww_missing_onebit;  // if both LSB tracks are there and they don't agree, flag a warning
       if (verbose_level & VL_WARNING_DETAIL && !doing_deskew) {
          if (!got_priLSB)
             rlog("  missing primary LSB   at "TIMEFMT", last pri pulse end "TIMEFMT", bitspacing %.1f\n",
@@ -157,7 +159,7 @@ void ww_end_of_block(void) {
 
 void ww_blockmark(void) { // detected a block mark: a bit in the odd channel and nowhere else
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
-   //rlog("blockmark at %.7lf\n", timenow);
+   //rlog("blockmark at %.8lf\n", timenow);
    result->blktype = BS_TAPEMARK;
    ww.blockmark_queued = false; }
 
@@ -168,7 +170,9 @@ void ww_pulse_start(struct trkstate_t *t, double t_pulse_start) { // detected th
    adjust_agc(t);
    t->t_lastpulsestart = t_pulse_start;
    if (wwtype == WWTRK_PRICLK || wwtype == WWTRK_ALTCLK) { // if it's a clock track
-      ww.datablock = true;  // we're in a data block
+      if (!ww.datablock) {
+         block.t_blockstart = t_pulse_start; // just starting a data block
+         ww.datablock = true; }
       ww.t_lastclkpulsestart = t_pulse_start;
       if (wwtype == WWTRK_PRICLK) ww.t_lastpriclkpulsestart = t_pulse_start;
       if (wwtype == WWTRK_ALTCLK) ww.t_lastaltclkpulsestart = t_pulse_start;
@@ -223,7 +227,9 @@ void ww_pulse_end(struct trkstate_t *t, double t_pulse_end) { // detected the se
       if (ww.t_lastclkpulsestart == 0  // if we have no clock (and so not in a data block)
             && t_pulse_end - ww.t_lastblockmark > ww.clkavg.t_bitspaceavg) { // and it's not close to the last blockmark
          ww.t_lastblockmark = t_pulse_end;  // then it must be a blockmark
+         block.t_blockstart = t_pulse_end - ww.clkavg.t_bitspaceavg / 2; // that started about a half bit ago
          ww_blockmark(); } } }
+
 
 // Whirlwind tapes vary in the flux transition polarity. Most often the negative pulse comes first, then the positive.
 // But sometimes it's the opposite, and sometimes it changes mid-tape!
@@ -238,7 +244,7 @@ void set_flux_direction(int trknum, enum flux_direction_t direction) {
    if (flux_direction_current != direction) {
       if (flux_direction_current != FLUX_AUTO) ++num_flux_polarity_changes;  // polarity changed mid-tape!
       flux_direction_current = direction;
-      rlog("  the flux direction was set to %s based on a peak on track %d at time %.7lf\n\n",
+      rlog("  the flux direction was set to %s based on a peak on track %d at time %.8lf\n\n",
            direction == FLUX_NEG ? "negative" : "positive", trknum, timenow);
       dlog("    timenow "TIMEFMT", lastpeak "TIMEFMT", bitspaceavg %.2f\n",
            TIMETICK(timenow), TIMETICK(ww.t_lastpeak), ww.clkavg.t_bitspaceavg*1e6f); } }

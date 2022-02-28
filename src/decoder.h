@@ -32,8 +32,8 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 #define unknown 0xff
 
 #define DEBUG false                // generate debugging output?
-#define DEBUGALL false             // for track debugging when trace is on: for all tracks?
-#define TRACETRK 5                 // if not, which track gets special attention?
+#define DEBUGALL true              // for track debugging when trace is on: for all tracks?
+#define TRACETRK 3                 // if not, which track gets special attention?
 
 #define TRACEFILE (true & DEBUG)   // if DEBUG, are we also creating trace file?
 #define TRACEALL true              // are we plotting all analog waveforms? Otherwise just one, TRACETRK
@@ -45,6 +45,7 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 #define DESKEW_STDDEV_WARNING 0.03     // fraction of a bit to warn about largest peak std deviation too big
 #define CORRECT true                // add code to do data correction if -correct?
 #define GCR_PARMSCAN false          // scan for optimal GCR parameters?
+#define SHOW_TAP_OFFSET true        // show .tap file offset in the log
 
 #define DLOG_LINE_LIMIT 20000     // limit for debugging output
 
@@ -129,6 +130,9 @@ enum wwtrk_t { // Whirlwind track types
 #define PKWW_MAX_WIDTH   50         // the peak-detect moving window maximum width, in number of samples
 #define PKWW_PEAKHEIGHT  4.0f       // the assumed peak-to-peak (2x top or bot height) voltage for the pkww_rise parameter
 
+#define DIFFERENTIATE_THRESHOLD 0.05f   // differentiation delta must be greater than this, otherwise use 0
+#define DIFFERENTIATE_SCALE 0.4f        // volts per sample to scale sample delta
+
 #define ZEROCROSS_PEAK   0.2f       // for zerocrossing, the minimum peak excursion before we consider a zero crossing
 #define ZEROCROSS_SLOPE  1.5f       // the maximum time, in bits, for the required peak to be attained after a zero crossing
 
@@ -158,7 +162,7 @@ enum wwtrk_t { // Whirlwind track types
 
 #define TICK(x) ((x - torigin) / sample_deltat - 1)
 #define TIMETICK(x) x,((x - torigin) / sample_deltat - 1)
-#define TIMEFMT "%.7lf tick %.1lf"
+#define TIMEFMT "%.8lf tick %.1lf"
 
 // verbose (-v...) flags
 #define VL_BLKSTATUS 0x01          // summary block-by-block status (devault for -v)
@@ -187,6 +191,7 @@ struct clkavg_t { // structure for keeping track of clock rate
 
 struct trkstate_t {  // track-by-track decoding state
    int trknum;             // which track number 0..8, where 8=P
+   float v_last_raw;       // last raw voltage, before differentiating
    float v_now;            // current voltage
    float v_prev;           // previous voltage
 
@@ -204,6 +209,8 @@ struct trkstate_t {  // track-by-track decoding state
    double t_prevlastpeak;  // time of the one before that
    bool zerocross_up_pending; // we have a potential zero crossing up pending at t_top
    bool zerocross_dn_pending; // we have a potential zero crossing down pending at t_bot
+   double t_firstzero;        // the time of the first zero
+   double t_lastzero;         // the time of the last zero
    float t_peakdelta;      // GCR: delta time between most recent peaks or zero crossings
    float t_peakdeltaprev;  // GCR: the previous delta time between peaks or zero crossings
    double t_lastpulsestart; // Whirlwind: the last time we saw a flux transition for pulse start
@@ -320,6 +327,7 @@ struct blkstate_t {  // state of the block, when we're done
    int parmset;         // which parameter set we are currently using
    bool window_set;     // have we decided on the peak-detection window size?
    bool endblock_done;  // have we done end-of-block processing?
+   double t_blockstart; // the time when the block started
    struct results_t {      // the results from the various parameter sets, in order
       enum bstate_t blktype;     // the ending state of the block
       int minbits, maxbits;      // the min/max bits of all the tracks
@@ -413,7 +421,7 @@ void txtfile_close(void);
 extern enum mode_t mode;
 extern enum wwtrk_t ww_trk_to_type[MAXTRKS];
 extern int ww_type_to_trk[WWTRK_NUMTYPES];
-extern bool verbose, quiet, multiple_tries, tap_format, do_correction, labels;
+extern bool verbose, quiet, multiple_tries, tap_format, do_correction, do_differentiate, labels;
 extern bool deskew, doing_deskew, skew_given, doing_density_detection, find_zeros;
 extern bool trace_on, trace_start;
 extern bool hdr1_label, reverse_tape, invert_data, autoinvert_data;

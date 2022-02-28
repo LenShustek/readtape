@@ -16,7 +16,7 @@ The start and end of the graph is controlled by code at the bottom of this file.
 The trace data is buffered before being written to the file so that we can
 "rewrite history" for events that are discovered late. That happens, for
 example, because the moving-window algorithm for peak detection finds
-the peaks several clock ticks after they actually happen.
+the peaks several clock ticks after they actually happened.
 
 *******************************************************************************
 Copyright (C) 2018, 2019, Len Shustek
@@ -179,7 +179,7 @@ void trace_close(void) {
    if (trace_on) {
       trace_on = false;
       trace_done = true;
-      dlog("-----> trace stopped with %d lines at %.7lf tick %.1lf\n", trace_lines, timenow, TICK(timenow)); }
+      dlog("-----> trace stopped with %d lines at %.8lf tick %.1lf\n", trace_lines, timenow, TICK(timenow)); }
    if (tracef) {
       int ndx, count;
       if (traceblk.num_entries < TRACE_DEPTH) {
@@ -196,10 +196,10 @@ void trace_event(enum trace_names_t tracenum, double time, float tickdirection, 
    // Record an event within the list of buffered events.
    if (trace_on) {
       //rlog("adding %s=%.1f at %.8lf tick %.1f\n", tracevals[tracenum].name, tickdirection, time, TICK(time));
-      assert(time <= timenow, "trace event \"%s\" at %.7lf too new at %.7lf", tracevals[tracenum].name, time, timenow);
+      assert(time <= timenow, "trace event \"%s\" at %.8lf too new at %.8lf", tracevals[tracenum].name, time, timenow);
       bool event_found = time > traceblk.time_newest - TRACE_DEPTH * traceblk.deltat;
       if (!event_found) trace_dump();
-      assert(event_found, "trace event \"%s\" at %.7lf too old, at %.7lf", tracevals[tracenum].name, time, timenow);
+      assert(event_found, "trace event \"%s\" at %.8lf too old, at %.8lf", tracevals[tracenum].name, time, timenow);
       // find the right spot in the historical event list
       int ndx = traceblk.ndx_next - 1 - (int)((traceblk.time_newest - time) / traceblk.deltat + 0.999);
       if (ndx < 0) ndx += TRACE_DEPTH;
@@ -211,7 +211,7 @@ void trace_event(enum trace_names_t tracenum, double time, float tickdirection, 
       else for (int trk=0; trk<ntrks; ++trk) // it's a global event not specific to a track
             tracevals[tracenum].val[ndx][trk] = tracevals[tracenum].graphbase + tickdirection;
       //if (tracenum == trace_clkwin)
-      //   rlog("clkwin %.2f at %.7lf, tick %.1lf\n", tickdirection, time, TICK(time));//
+      //   rlog("clkwin %.2f at %.8lf, tick %.1lf\n", tickdirection, time, TICK(time));//
    } };
 
 
@@ -220,10 +220,10 @@ void trace_startstop(void) {
 
 //**** Choose a test here for turning the trace on, depending on what anomaly we're looking at...
 
-   //if (rereading
-   //if (true 
-         if (ww.datablock && numblks >= 2
-         //if (timenow >  8.35
+         //if (rereading
+         //if (true
+         //if (ww.datablock && numblks >= 2
+   if (timenow >  0.8608976
          //if (numblks >= 1478 && block.parmset == 2 && timenow > 163.863
          //if (timenow > 13.1369 && trkstate[0].datacount > 270
          //if (trkstate[TRACETRK].peakcount > 0
@@ -241,7 +241,7 @@ void trace_startstop(void) {
       trace_open();
       trace_on = true;
       torigin = timenow - sample_deltat;
-      dlog("-----> trace started at %.7lf tick %.1lf, block %d parmset %d\n",
+      dlog("-----> trace started at %.8lf tick %.1lf, block %d parmset %d\n",
            timenow, TICK(timenow), numblks+1, block.parmset); }
    if (trace_on && ++trace_lines > 5000) { //**** limit on how much trace data to collect
       trace_close(); } }
