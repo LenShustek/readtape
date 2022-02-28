@@ -1,0 +1,50 @@
+this is readtape version 3.10, compiled on Feb 28 2022 07:47:39, running on Mon Feb 28 07:47:48 2022
+  executable file: C:\data\projects\magtape_reader\bin\readtape.exe
+  command line: C:\data\projects\magtape_reader\bin\readtape -v -gcr -ips=125 -tap -ascii -differentiate -zeros analog 
+  current directory: C:\Temp no backup\tapedata\Sobey
+  this is a little-endian computer
+  For more information, see https://github.com/LenShustek/readtape
+
+reading file "analog.csv"
+the output files will be "analog.xxx"
+
+reading parmsets from file GCR.parms
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak,  pulse_adj,pkww_bitfrac,  pkww_rise,       z1pt,       z2pt,  id
+  {            1,          0,      0.015,          0,      0.500,      0.200,      0.300,      2.000,      0.200,      1.450,      2.350,   PRM}
+  {            1,         10,      0.000,          0,      0.500,      0.100,      0.600,      1.500,      0.140,      1.400,      2.300,   PRM}
+  {            1,          0,      0.020,          0,      0.500,      0.100,      0.300,      1.500,      0.140,      1.450,      2.370,   PRM}
+  {            1,          0,      0.020,          0,      0.500,      0.100,      0.300,      1.500,      0.140,      1.450,      2.400,   PRM}
+
+compile-time decoding constants:
+  minimum excursion before considering a zero crossing: 0.200V
+  maximum time in bits for the required excursion to be attained: 1.5 bit times
+  AGC maximum: 2
+  GCR idle threshold: 6.00 bits
+  derived ntrks=9 from .CSV file header
+BPI was reset to 9042 for GCR 6250
+
+execution-time configuration:
+  9 track GCR encoding, odd parity, 9042 BPI at 125 IPS (0.88 usec/bit)
+  first sample is at time 0.86054032 seconds on the tape
+  sampling rate is 12,500,000 Hz (0.08 usec), or about 11 samples per bit
+  will look for zero crossings, not peaks
+  input data order: 0(msb)1234567(lsb)p
+
+creating file "analog.tap"
+creating file "analog.ASCII.txt"
+wrote block   1, 10000 bytes, 1 try, parmset 0, max AGC 1.00, ok, avg speed 124.20 IPS at time 0.87416216, tap offset 8
+wrote block   2, 10000 bytes, 1 try, parmset 0, max AGC 1.00, ok, avg speed 124.46 IPS at time 0.88991032, tap offset 10016
+analog.tap was closed at time 0.89101192 after 20,000 data bytes were extracted from 2 blocks
+
+summary for file "analog.csv":
+  380,897 samples were processed in 0 seconds (0.000 seconds/block)
+  created 1 output file with a total of 20,020 bytes
+  decoded 0 tape marks and 2 blocks with 20,000 bytes from 0.02 seconds of tape data
+   the last block written was 0.88991032 seconds into the tape
+  0 blocks had errors, 0 had warnings, 0 had mismatched tracks, 0 had bits corrected
+
+  created statistics file "analog.peakstats.csv" from 165,150 measurements of flux transition positions
+  to graph it from Excel, open the CSV file, then: insert chart 2D line
+  the earliest peak is 1.35 usec, and the latest peak is 1.42 usec
+  that peak difference of 0.08 usec, and the largest standard deviation of 0.55 usec, are 8.9% and 62.4% of the nominal bit spacing
+  head skew is significant; you should try again with the -deskew option

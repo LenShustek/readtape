@@ -281,6 +281,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   (Thanks to Chuck Sobey for providing the GCR data that inspired it.)
 - Change max IPS from 100 to 200.
 - Change timestamp display from 7 to 8 digits, for sampling rates above 10 Mhz.
+- Fix bug introduced in 3.8: textfile shows an extra 3 characters at block end.
 - Minor log changes: always log first block; show blocks so far at tape mark.
 
 
@@ -609,6 +610,7 @@ void SayUsage (void) {
       "  -q             quiet mode (only say \"ok\" or \"bad\")",
       "  -f             take a file list from <basefilename>.txt",
       NULLP };
+   fprintf(stderr, "readtape version %s, compiled on %s %s\n", VERSION, __DATE__, __TIME__);
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]);
    fprintf(stderr, github_info); }
 

@@ -191,7 +191,9 @@ void txtfile_outputrecord(void) {
          bufcnt = 0; bufstart = i; }
       buffer[bufcnt++] = ch; // save the byte for doing character interpretation
       if (txtfile_numtype == HEX) fprintf(txtf, "%02X", ch);
-      else if (txtfile_numtype == OCT || i == length-1) fprintf(txtf, "%03o", ch);   // for 8-bit octal data, or an odd 16-bit byte
+      else if (txtfile_numtype == OCT // for 8-bit octal data
+               || (txtfile_numtype == OCT2 && i == length-1)) // or an odd last byte of 16-bit words
+         fprintf(txtf, "%03o", ch);
       else if (txtfile_numtype == OCT2) { // do this byte and the next byte together
          fprintf(txtf, "%06o", ((uint16_t)ch << 8) | ch2);
          buffer[bufcnt++] = ch2; // save another byte for character interpretation
