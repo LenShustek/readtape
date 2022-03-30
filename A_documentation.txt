@@ -229,7 +229,8 @@ I keep forgetting this stuff, so for the record, here's a terse
 description of the various tape formats we process. 
 
 *** 9-track 1600 BPI PE (phase encoded)
-- track order is P37521064, where 0=msb and P=parity
+- track order is 573P21064, where 0=msb and P=parity, and
+  5 is at the right edge looking from the top in the movement direction
 - negative flux transition is usually a 0-bit, positive a 1-bit 
   (But it might be reversed! The first transition is always a 0-bit)
 - optional flux transition as needed at the midpoint between bits
@@ -241,7 +242,8 @@ description of the various tape formats we process.
 - at load point of tape: 1600 flux reversals on track P only
 
 *** 9-track 800 BPI NRZI (non-return-to-zero inverted)
-- track order is P37521064, where 0=msb and P=parity
+- track order is 573P21064, where 0=msb and P=parity, and
+  5 is at the right edge looking from the top in the movement direction
 - either flux transition is a 1-bit, no transition is a 0-bit
 - no block preamble or postamble
 - odd parity on each byte
@@ -250,7 +252,8 @@ description of the various tape formats we process.
 - tape mark: 1-bits on tracks 3,6,7, then 8 bit times, then the same
 
 *** 7-track 200/556/800 BPI NRZI
-- track order is P012345, where 0=msb and P=parity
+- track order is P012345, where 0=msb and P=parity, and
+  5 is at the right edge looking from the top in the movement direction
 - either flux transition is a 1-bit, no transition is a 0-bit
 - no block preamble or postamble
 - odd parity on each byte for binary data, even parity for BCD text
@@ -278,7 +281,8 @@ description of the various tape formats we process.
   data block, ie within the normal bit time
   
 *** 9-track 6250 BPI GCR
-- track order is 573P21064, where 0=msb and P=parity
+- track order is 573P21064, where 0=msb and P=parity, and
+  5 is at the right edge looking from the top in the movement direction
 - bit encoding is NRZI: transition for 1-bit, none for 0-bit
 - block preamble is 80 bytes: 10101, 01111, 14x11111 in all tracks
 - then 00111 ("Mark 1") in all tracks, then data starts
@@ -742,5 +746,5 @@ not really needed anymore, and is not being kept current.
 
 L. Shustek, 10 April 2018
 L. Shustek, 17 May 2018, 8 October 2018, 22 October 2018, 4 August 2019
-             Dec 2019, Feb 2022
+             Dec 2019, Feb 2022, Mar 2022
 
