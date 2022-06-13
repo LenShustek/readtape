@@ -56,8 +56,12 @@ the readtape program won't need to be told about the non-standard order.
 V1.7         Add support for the trkorder header extension for Whirlwind.
              Add -invert and -reverse options.
              Switch to providing only <basefilename>, like for readtape.
+
 28 Feb 2020, L. Shustek, allow IPS up to 200
 V1.8
+
+2 Jun 2022, L. Shustek, add -graph option
+V1.9        Create a <basefilename>.csvtbin.log file
 
 
 --- FUTURE VERSION IDEAS ---
@@ -68,7 +72,7 @@ V1.8
   independent way to find out the size of the file and how far we're read.)
 
 ******************************************************************************/
-#define VERSION "1.8"
+#define VERSION "1.9"
 /******************************************************************************
 Copyright (C) 2018,2019,2022 Len Shustek
 
@@ -106,13 +110,15 @@ typedef unsigned char byte;
 #define MINTRKS 5
 #define PREREAD_COUNT 1000000
 
-FILE *inf, *outf;
+FILE *inf, *outf, *graphf, *logf;
 char *basefilename;
-char infilename[MAXPATH], outfilename[MAXPATH];
+char infilename[MAXPATH], outfilename[MAXPATH], graphfilename[MAXPATH], logfilename[MAXPATH];
 long long int num_samples = 0;
 uint64_t total_time = 0;
 unsigned skip_samples = 0, subsample = 1;
 unsigned ntrks = 9;
+unsigned int num_graph_vals = 0, graphbin = 0;
+float graphbin_max = 0;
 bool do_read = false, display_header = false, redo = false, redid = false;
 bool little_endian;
 unsigned track_permutation[MAXTRKS] = { UINT_MAX };
@@ -122,10 +128,20 @@ struct tbin_hdr_t hdr = { HDR_TAG };
 struct tbin_hdrext_trkorder_t hdrext_trkorder = { HDR_TRKORDER_TAG };
 struct tbin_dat_t dat = { DAT_TAG };
 
-static void vfatal(const char *msg, va_list args) {
-   printf("\n***FATAL ERROR: ");
+void logprintf(const char *msg, ...) {
+   va_list args;
+   va_start(args, msg);
+   va_list args2;
+   va_copy(args2, args);
+   vfprintf(stdout, msg, args);  // to the console
+   if (logf) vfprintf(logf, msg, args2); // and maybe also the log file
+   va_end(args2); }
+
+void vfatal(const char *msg, va_list args) {
+   logprintf("\n***FATAL ERROR: ");
    vprintf(msg, args);
-   printf("\n");
+   if (logf) vfprintf(logf, msg, args);
+   logprintf("\n");
    exit(99); }
 
 void assert(bool t, const char *msg, ...) {
@@ -156,6 +172,7 @@ void SayUsage(void) {
       "  -scale=n      scale the voltages by n, which can be a fraction",
       "  -maxvolts=x   expect x as the maximum plus or minus signal excursion",
       "  -redo         do it over again if maxvolts wasn't big enough",
+      "  -graph=n      create a csv file of maximum voltage excursions every n samples",
       "  -read         read tbin and create csv -- otherwise, the opposite",
       "  -showheader   just show the header info of a .tbin file, and check the data",
       "optional documentation that can be recorded in the TBIN file:",
@@ -235,7 +252,7 @@ bool parse_track_order(const char*str) { // examples: P314520, 01234567P
       strcpy(hdrext_trkorder.trkorder, str);
       ntrks = strlen(str);
       hdr.u.s.flags |= TBIN_TRKORDER_INCLUDED + TBIN_NO_REORDER;
-      printf("using Whirlwind -order=%s and ntrks=%d\n", str, ntrks);
+      logprintf("using Whirlwind -order=%s and ntrks=%d\n", str, ntrks);
       return true; }
    else {// for PE, NRZI, and GCR we reorder tracks as specified; examples: P314520, 01234567P
       if (strlen(str) != ntrks) return false;
@@ -279,6 +296,8 @@ bool parse_option(char *option) {
       printf("will skip the first %d samples\n", skip_samples); }
    else if (opt_int(arg, "SUBSAMPLE=", &subsample, 1, INT_MAX)) {
       printf("will use every %d samples\n", subsample); }
+   else if (opt_int(arg, "GRAPH=", &graphbin, 1, INT_MAX)) {
+      printf("will bin max every %d samples\n", graphbin); }
    else if (opt_key(arg, "REDO")) redo = true;
    else if (option[2] == '\0') // single-character switches
       switch (toupper(option[1])) {
@@ -408,8 +427,8 @@ void reverse8(uint64_t *pnum) {
       ((byte *)pnum)[7 - i] = x; } }
 
 void show_tm(struct tm *t, const char*msg) {
-   printf("%s: %d/%d/%d, ", msg, t->tm_mon + 1, t->tm_mday, t->tm_year + 1900);
-   printf("%dh:%dm:%ds\n", t->tm_hour, t->tm_min, t->tm_sec); }
+   logprintf("%s: %d/%d/%d, ", msg, t->tm_mon + 1, t->tm_mday, t->tm_year + 1900);
+   logprintf("%dh:%dm:%ds\n", t->tm_hour, t->tm_min, t->tm_sec); }
 
 char *modename(enum mode_t mode) {
    return mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : "not specified"; }
@@ -432,25 +451,25 @@ void read_tbin(void) {
    assert(hdr.u.s.format == TBIN_FILE_FORMAT, "bad file format version: %d", hdr.u.s.format);
    assert(hdr.u.s.tbinhdrsize == sizeof(hdr), "bad hdr size: %d, not %d", hdr.u.s.tbinhdrsize, sizeof(hdr));
    ntrks = hdr.u.s.ntrks;
-   printf("file format %d, ntrks %d, encoding %s, max %.2fV, bpi %.2f, ips %.2f, sample delta %.2f usec\n",
-          hdr.u.s.format, hdr.u.s.ntrks, modename(hdr.u.s.mode), hdr.u.s.maxvolts,
-          hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta / 1e3);
-   printf("the track ordering was%s given when the .tbin file was created\n", hdr.u.s.flags & TBIN_NO_REORDER ? " not" : "");
-   printf("description: %s\n", hdr.descr);
-   if (hdr.u.s.time_written.tm_year > 0)   printf("created on:   %s", asctime(&hdr.u.s.time_written));
-   if (hdr.u.s.time_read.tm_year > 0)      printf("read on:      %s", asctime(&hdr.u.s.time_read));
-   if (hdr.u.s.time_converted.tm_year > 0) printf("converted on: %s", asctime(&hdr.u.s.time_converted));
-   if (hdr.u.s.flags & TBIN_INVERTED) printf("the data was inverted\n");
-   if (hdr.u.s.flags & TBIN_REVERSED) printf("the tape might have been read or written backwards\n");
+   logprintf("file format %d, ntrks %d, encoding %s, max %.2fV, bpi %.2f, ips %.2f, sample delta %.2f usec\n",
+             hdr.u.s.format, hdr.u.s.ntrks, modename(hdr.u.s.mode), hdr.u.s.maxvolts,
+             hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta / 1e3);
+   logprintf("the track ordering was%s given when the .tbin file was created\n", hdr.u.s.flags & TBIN_NO_REORDER ? " not" : "");
+   logprintf("description: %s\n", hdr.descr);
+   if (hdr.u.s.time_written.tm_year > 0)   logprintf("created on:   %s", asctime(&hdr.u.s.time_written));
+   if (hdr.u.s.time_read.tm_year > 0)      logprintf("read on:      %s", asctime(&hdr.u.s.time_read));
+   if (hdr.u.s.time_converted.tm_year > 0) logprintf("converted on: %s", asctime(&hdr.u.s.time_converted));
+   if (hdr.u.s.flags & TBIN_INVERTED) logprintf("the data was inverted\n");
+   if (hdr.u.s.flags & TBIN_REVERSED) logprintf("the tape might have been read or written backwards\n");
    if (hdr.u.s.flags & TBIN_TRKORDER_INCLUDED) { // optional trkorder heaader extension?
       assert(fread(&hdrext_trkorder, sizeof(hdrext_trkorder), 1, inf) == 1, "can't read trkorder header extension");
       assert(strcmp(hdrext_trkorder.tag, HDR_TRKORDER_TAG) == 0, "had trkorder header extension tag");
       assert(hdr.u.s.mode == WW, "trkorder header extension included with non-Whirlwind file");
-      printf("the Whirlwind tracks were specified as -order=%s\n", hdrext_trkorder.trkorder); }
+      logprintf("the Whirlwind tracks were specified as -order=%s\n", hdrext_trkorder.trkorder); }
    assert(fread(&dat, sizeof(dat), 1, inf) == 1, "can't read dat");
    assert(strcmp(dat.tag, DAT_TAG) == 0, "bad dat tag");
    if (!little_endian) reverse8(&dat.tstart); // convert to big endian if necessary
-   printf("%d bits/sample, data start time is %.6lf seconds\n", dat.sample_bits, (double)dat.tstart / 1e9);
+   logprintf("%d bits/sample, data start time is %.6lf seconds\n", dat.sample_bits, (double)dat.tstart / 1e9);
    assert(dat.sample_bits == 16, "Sorry, we only support 16-bit voltage samples");
    if (!display_header) {
       fprintf(outf, "'%s\nTime, ", hdr.descr); // first line is description, second is column headings
@@ -459,7 +478,7 @@ void read_tbin(void) {
    uint64_t timenow = dat.tstart;
    int16_t data[MAXTRKS];
    if (skip_samples > 0) {
-      printf("skipping %d samples\n", skip_samples);
+      logprintf("skipping %d samples\n", skip_samples);
       while (skip_samples--) {
          assert(fread(data, 2, ntrks, inf) == ntrks, "endfile with %d samples left to skip", skip_samples);
          timenow += hdr.u.s.tdelta; } }
@@ -486,7 +505,7 @@ void read_tbin(void) {
          fprintf(outf, "\n"); }
       ++num_samples;
       update_progress_count(); }
-   printf("\n"); };
+   logprintf("\n"); };
 
 void write_tbin_hdr(void) {
    // create and write the ID block
@@ -519,7 +538,7 @@ void csv_preread(void) {
    fgets(line, MAXLINE, inf);
    unsigned int numcommas = 0;
    for (int i = 0; line[i]; ++i) if (line[i] == ',') ++numcommas;
-   if (numcommas != ntrks) printf("*** WARNING *** file has %d columns of data, but ntrks=%d\n", numcommas, ntrks);
+   if (numcommas != ntrks) logprintf("*** WARNING *** file has %d columns of data, but ntrks=%d\n", numcommas, ntrks);
    float maxvolts = 0;
    while (fgets(line, MAXLINE, inf) && ++linecounter < PREREAD_COUNT) {
       line[MAXLINE - 1] = 0;
@@ -534,19 +553,19 @@ void csv_preread(void) {
          if (voltage < 0) voltage = -voltage;
          if (maxvolts < voltage) maxvolts = voltage; } }
    maxvolts = ((float)(int)((maxvolts+0.55f)*10.0f))/10.0f; // add 0.5V and round to nearest 0.1V
-   printf("after %s samples, the sample delta is %.2lf usec (%u nsec), samples start at %.6lf seconds, and the rounded-up maximum voltage is %.1fV\n",
-          intcommas(linecounter), (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart/1e9, maxvolts);
+   logprintf("after %s samples, the sample delta is %.2lf usec (%u nsec), samples start at %.6lf seconds, and the rounded-up maximum voltage is %.1fV\n",
+             intcommas(linecounter), (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart/1e9, maxvolts);
    if (subsample > 1) {
       dat.tstart += (subsample - 1) * hdr.u.s.tdelta;
       hdr.u.s.tdelta *= subsample;
-      printf("for subsampling every %d samples, we adjusted the delta to %.2lf usec (%u nsec), and the sample start to %.6lf seconds\n",
-             subsample, (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart / 1e9); }
+      logprintf("for subsampling every %d samples, we adjusted the delta to %.2lf usec (%u nsec), and the sample start to %.6lf seconds\n",
+                subsample, (double)hdr.u.s.tdelta / 1e3, hdr.u.s.tdelta, (double)dat.tstart / 1e9); }
    if (hdr.u.s.maxvolts == 0) // maxvolts= wasn't given
       hdr.u.s.maxvolts = maxvolts;
    else if (hdr.u.s.maxvolts < maxvolts) {
-      printf("maxvolts was increased from %.1f to %.1f\n", hdr.u.s.maxvolts, maxvolts);
+      logprintf("maxvolts was increased from %.1f to %.1f\n", hdr.u.s.maxvolts, maxvolts);
       hdr.u.s.maxvolts = maxvolts; }
-   else printf("we used maxvolts=%.1f\n", hdr.u.s.maxvolts);
+   else logprintf("we used maxvolts=%.1f\n", hdr.u.s.maxvolts);
    fclose(inf); // close and reopen to reposition at the start
    assert(fopen(infilename, "r"), "can't reopen input file \"%s\"", infilename); }
 
@@ -561,7 +580,7 @@ void write_tbin(void) {
       fgets(line, MAXLINE, inf);
       uint64_t sample_time = dat.tstart;
       if (skip_samples > 0) {
-         printf("skipping %d samples\n", skip_samples);
+         logprintf("skipping %d samples\n", skip_samples);
          for (unsigned int cnt = 0; cnt < skip_samples; ++cnt) {
             assert(fgets(line, MAXLINE, inf), "endfile with %d lines left to skip\n", skip_samples - cnt);
             sample_time += hdr.u.s.tdelta; } }
@@ -587,6 +606,9 @@ void write_tbin(void) {
             //printf("%6d %9.5f, ", sample, fsample);
             if (fsample < minvolts) minvolts = fsample;
             if (fsample > maxvolts) maxvolts = fsample;
+            if (graphbin && tries == 0) {
+               float abs_sample = fsample < 0 ? -fsample : fsample;
+               if (abs_sample > graphbin_max) graphbin_max = abs_sample; }
             if (sample <= -32767) {
                sample = -32767; ++count_toosmall; }
             if (sample >= 32767) {
@@ -598,21 +620,25 @@ void write_tbin(void) {
          sample_time += hdr.u.s.tdelta;
          total_time += hdr.u.s.tdelta;
          ++num_samples;
+         if (graphbin && tries == 0 && ++num_graph_vals >= graphbin) {
+            fprintf(graphf, "%lld, %f\n", num_samples, graphbin_max);
+            graphbin_max = 0;
+            num_graph_vals = 0; }
          update_progress_count(); }
 done:
       output2(0x8000); // end marker
-      printf("\ndone; minimum voltage was %.1fV, maximum voltage was %.1fV\n", minvolts, maxvolts);
+      logprintf("\ndone; minimum voltage was %.1fV, maximum voltage was %.1fV\n", minvolts, maxvolts);
       if (count_toobig)
-         printf("*** WARNING ***  %s samples were too big\n", longlongcommas(count_toobig));
+         logprintf("*** WARNING ***  %s samples were too big\n", longlongcommas(count_toobig));
       if (count_toosmall)
-         printf("*** WARNING ***  %s samples were too small\n", longlongcommas(count_toosmall));
+         logprintf("*** WARNING ***  %s samples were too small\n", longlongcommas(count_toosmall));
       if (count_toobig || count_toosmall) {
          if (!redo) {
-            printf("you should specify -maxvolts=%.1f\n", max(maxvolts, -minvolts) + 0.1);
+            logprintf("you should specify -maxvolts=%.1f\n", max(maxvolts, -minvolts) + 0.1);
             return; // don't do it a second time
          }
          hdr.u.s.maxvolts = ((float)(int)((max(maxvolts, -minvolts) + 0.15)*10.0f)) / 10.0f; // add .1V and round to .1V
-         printf("redoing the conversion with -maxvolts=%.1f\n", hdr.u.s.maxvolts);
+         logprintf("redoing the conversion with -maxvolts=%.1f\n", hdr.u.s.maxvolts);
          redid = true;
          num_samples = progress_count = 0;
          total_time = 0;
@@ -649,48 +675,66 @@ int main(int argc, char *argv[]) {
    basefilename = argv[argnext];
    assert(argnext == argc-1, "unknown stuff: %s", argv[argnext + 1]);
 
+   strncpy(logfilename, basefilename, MAXPATH - 15); logfilename[MAXPATH - 15] = 0;
+   strcat(logfilename, ".csvtbin.log");
+   logf = fopen(logfilename, "w");
+   assert(logf, "file create failed for %s", logfilename);
+   fprintf(logf, "CSVTBIN version %s compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+   logprintf("command line: ");
+   for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
+      logprintf("%s ", argv[i]);
+   logprintf("\n");
+
    strncpy(infilename, basefilename, MAXPATH - 10); infilename[MAXPATH - 10] = 0;
    strcat(infilename, do_read ? ".tbin": ".csv");
-   printf("opening  %s\n", infilename);
+   logprintf("opening  %s\n", infilename);
    inf = fopen(infilename, do_read ? "rb" : "r");
    assert(inf, "unable to open input file %s", infilename);
 
    if (!do_read) {
       strncpy(outfilename, basefilename, MAXPATH - 10); outfilename[MAXPATH - 10] = 0;
       strcat(outfilename, do_read ? ".csv" : ".tbin");
-      printf("creating %s\n", outfilename);
+      logprintf("creating %s\n", outfilename);
       outf = fopen(outfilename, do_read ? "w" : "wb");
-      assert(outf, "file create failed for %s", outfilename); }
+      assert(outf, "file create failed for %s", outfilename);
+
+      if (graphbin) {
+         strncpy(graphfilename, basefilename, MAXPATH - 12); graphfilename[MAXPATH - 12] = 0;
+         strcat(graphfilename, ".graph.csv");
+         logprintf("creating %s\n", graphfilename);
+         graphf = fopen(graphfilename, "w");
+         assert(graphf, "file create failed for %s", graphfilename); } }
 
    if (track_permutation[0] == UINT_MAX) { // no input value permutation was given
       if (!do_read && !(hdr.u.s.flags & TBIN_TRKORDER_INCLUDED)) {
-         printf("WARNING: using the default track ordering, and marking the .tbin file to show it wasn't given\n");
+         logprintf("WARNING: using the default track ordering, and marking the .tbin file to show it wasn't given\n");
          hdr.u.s.flags |= TBIN_NO_REORDER; }
       for (unsigned i = 0; i < ntrks; ++i) track_permutation[i] = i; // create default
    }
    if (!display_header) {
-      printf("%s track order: ", do_read ? "output" : "input");
+      logprintf("%s track order: ", do_read ? "output" : "input");
       if (hdr.u.s.flags & TBIN_TRKORDER_INCLUDED)
-         printf(hdrext_trkorder.trkorder);
+         logprintf(hdrext_trkorder.trkorder);
       else {
          for (unsigned i = 0; i < ntrks; ++i)
-            if (track_permutation[i] == ntrks - 1) printf("p");
-            else printf("%d", track_permutation[i]); }
-      printf("\n");
-      if (hdr.u.s.flags & TBIN_INVERTED) printf("the data will be inverted\n");
-      if (hdr.u.s.flags & TBIN_REVERSED) printf("the tape might have been read or written backwards\n"); }
+            if (track_permutation[i] == ntrks - 1) logprintf("p");
+            else logprintf("%d", track_permutation[i]); }
+      logprintf("\n");
+      if (hdr.u.s.flags & TBIN_INVERTED) logprintf("the data will be inverted\n");
+      if (hdr.u.s.flags & TBIN_REVERSED) logprintf("the tape might have been read or written backwards\n"); }
 
    if (scalefactor != 1.0f)
-      printf("input voltages will be scaled by %f\n", scalefactor);
+      logprintf("input voltages will be scaled by %f\n", scalefactor);
 
    time_t start_time = time(NULL);
    if (do_read) read_tbin();
    else write_tbin();
 
-   printf("%s samples representing %.3lf tape seconds were processed in %.1f seconds\n",
-          longlongcommas(num_samples), (float)total_time / 1e9, difftime(time(NULL), start_time));
+   logprintf("%s samples representing %.3lf tape seconds were processed in %.1f seconds\n",
+             longlongcommas(num_samples), (float)total_time / 1e9, difftime(time(NULL), start_time));
    fclose(inf);
    if (outf) fclose(outf);
+   if (graphf) fclose(graphf);
    return 0; };
 
 //*
