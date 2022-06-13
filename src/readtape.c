@@ -282,12 +282,25 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 - Change max IPS from 100 to 200.
 - Change timestamp display from 7 to 8 digits, for sampling rates above 10 Mhz.
 - Fix bug introduced in 3.8: textfile shows an extra 3 characters at block end.
-- Minor log changes: always log first block; show blocks so far at tape mark.
+- Minor log changes: always log first/last blocks; show blocks so far at tape mark.
+
+*** 18 April 2022, L. Shustek, V3.11
+- Add the -ADAGE and -ADAGETAPE character sets for the Adage Graphics Terminal
+- Allow the LRC for 7-track tapes to be 3-5 characters after the block, not just 4,
+  because that's what Adage did, contrary to the spec.
+- Have octal display in the textfile show only 2 octal digits when there are 7 tracks or fewer
+
+*** 12 June 2022, L. Shustek, V3.12
+- Add the -revparity=n option to reverse the expected parity for label records.
+- Experiment with aborting NRZI end-block processing when spurious 1-bits are found,
+  to avoid creating bogus records. It's only occasionally successful, though.
+- Experiment with incrementally adjusting the head skew at the end of each block
+  if -adjskew is specified. It needs work, though, and isn't currently useful.
 
 
  TODO:
-
-- Log the last block? Harder than the first block; perhaps just say the time.
+ - add an option to use even parity for small (?) blocks and odd parity for big blocks,
+   for 7-track binary tapes with 80-character BCD labels
 - support reading Saleae binary export files;
   see https://support.saleae.com/faq/technical-faq/data-export-format-analog-binary
   (But .tbin is still smaller and faster, so have csvtbin do that conversion too?)
@@ -308,17 +321,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.10"
+#define VERSION "3.12"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
             physically   ntrk-1..0    uint16_t data[]
- 6-track WW   CMLcml?      mlcMLC       MLP (best)     MLMLMLML (from 4 consecutive tape characters)
+ 6-track WW   CMLcml      mlcMLC       MLP (best)     MLMLMLML (from 4 consecutive tape characters)
  7-track     P012345      012345P       012345P        [P]012345
  9-track   573P21064     01234567P     01234567P      [P]01234567
 
  (For Whirlwind, which redundantly encodes 2 bits of data in each tape character,
-  M=MSB, L=LSB, and the parity bit in memory is bogus.)
+  M=MSB, L=LSB, and the parity bit in memory is bogus. Also note that the order
+  on the tape can be different, depending on which drive wrote the tape!)
 
  Permutation from the "on tape" sequence to the "memory here" sequence
  is done by appropriately connecting the logic analyzer probes as
@@ -332,6 +346,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  Note that the Qualstar 1052 9-track tape deck orders the tracks
  weirdly on the PC board as P37521064, which is not the physical track
  order, but their labels on the board are correct.
+
+ TIP: If you have the CSV file but not the Salae data file, use BeSpice Wave to view it.
+ AnalogFlavor, http://www.analogflavor.com/en/bespice/bespice-wave/
+ (download the free trial from the MS app store, https://www.microsoft.com/en-us/p/bespicewave/9pg67lv956hh
+ because the msi-installed one from AnalogFlavor's website fails loading big CSV files)
 
  code portability assumptions:
    - int is at least 32 bits
@@ -446,7 +465,7 @@ int verbose_level = 0, debug_level = 0;
 bool baseoutfilename_given = false;
 bool filelist = false, tap_format = false;
 bool tbin_file = false, do_txtfile = false, labels = true;
-bool multiple_tries = false, deskew = false, skew_given = false, add_parity = false;
+bool multiple_tries = false, deskew = false, adjdeskew = false, skew_given = false, add_parity = false;
 bool invert_data = false, autoinvert_data = false, reverse_tape = false;
 bool doing_deskew = false, doing_density_detection = false, doing_summary = false;
 bool do_correction = false, find_zeros = false, do_differentiate = false;
@@ -454,7 +473,8 @@ enum flux_direction_t flux_direction_requested = FLUX_NEG, flux_direction_curren
 bool set_ntrks_from_order = false;
 bool hdr1_label = false;
 bool little_endian;
-byte expected_parity = 1;
+byte specified_parity = 1, expected_parity = 1;
+int revparity = 0;
 int ww_type_to_trk[WWTRK_NUMTYPES]; // which track number each Whirlwind type is assigned to (primary/alternate clock/msb/lsb)
 enum wwtrk_t ww_trk_to_type[MAXTRKS];
 char *wwtracktype_names[WWTRK_NUMTYPES] = {
@@ -576,6 +596,7 @@ void SayUsage (void) {
       "  -zeros         base decoding on zero crossings instead of peaks",
       "  -differentiate do simple delta differentiation of the input data",
       "  -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)",
+      "  -revparity=n   reverse parity for blocks up to n bytes long",
       "  -invert        invert the data so positive peaks are negative and vice versa",
       "  -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block",
       "  -reverse       reverse bits in a word and words in a block (Whirlwind only)",
@@ -593,7 +614,7 @@ void SayUsage (void) {
       "  -nolabels      don't try to decode IBM standard tape labels",
       "  -textfile      create an interpreted .<options>.txt file from the data",
       "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
-      "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo",
+      "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo -adage -adagetape",
       "                   characters per line: -linesize=nn",
       "                   space every n bytes of data: -dataspace=n",
       "                   make LF or CR start a new line: -linefeed",
@@ -604,9 +625,9 @@ void SayUsage (void) {
       "  -m             try multiple ways to decode a block",
       "  -nm            don't try multiple ways to decode a block",
       "  -v[n]          verbose mode [level n, default is 1]",
-#if DEBUG               
+#if DEBUG
       "  -d[n]          debug mode [level n, default is 1]",
-#endif                  
+#endif
       "  -q             quiet mode (only say \"ok\" or \"bad\")",
       "  -f             take a file list from <basefilename>.txt",
       NULLP };
@@ -759,7 +780,8 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_int(arg, "D", &debug_level, 0, 255)) ;
 #endif
    else if (opt_key(arg, "TAP")) tap_format = true;
-   else if (opt_key(arg, "EVEN")) expected_parity = 0;
+   else if (opt_key(arg, "EVEN")) specified_parity = expected_parity = 0;
+   else if (opt_int(arg, "REVPARITY=", &revparity, 0, INT_MAX));
    else if (opt_key(arg, "INVERT")) invert_data = true;
    else if (opt_key(arg, "FLUXDIR=POS")) flux_direction_requested = FLUX_POS;
    else if (opt_key(arg, "FLUXDIR=NEG")) flux_direction_requested = FLUX_NEG;
@@ -767,6 +789,7 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "REVERSE")) reverse_tape = true;
 #if DESKEW
    else if (opt_key(arg, "DESKEW")) deskew = true;
+   else if (opt_key(arg, "ADJSKEW")) adjdeskew = true;
    else if (opt_str(arg, "SKEW=", &str)
             && parse_skew(str)) deskew = skew_given = true;
 #endif
@@ -790,6 +813,8 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "SIXBIT")) txtfile_chartype = SIXBIT;
    else if (opt_key(arg, "SDSM")) txtfile_chartype = SDSM;
    else if (opt_key(arg, "SDS")) txtfile_chartype = SDS;
+   else if (opt_key(arg, "ADAGE")) txtfile_chartype = ADAGE;
+   else if (opt_key(arg, "ADAGETAPE")) txtfile_chartype = ADAGETAPE;
    else if (opt_key(arg, "FLEXO")) txtfile_chartype = FLEXO;
    else if (opt_int(arg, "LINESIZE=", &txtfile_linesize, 4, MAXLINE));
    else if (opt_int(arg, "DATASPACE=", &txtfile_dataspace, 0, MAXLINE));
@@ -1055,7 +1080,8 @@ void got_datablock(bool badblock) { // decoded a tape block
                if (result->ww_missing_onebit) rlog("missing 1-bit, ");
                if (result->ww_missing_clock) rlog("missing clk, "); }
             if (SHOW_TAP_OFFSET) rlog("avg speed %.2f IPS at time %.8lf, tap offset %lld\n", 1 / (result->avg_bit_spacing * bpi), timenow, numoutbytes);
-            else rlog("avg speed %.2f IPS at time %.8lf\n", 1 / (result->avg_bit_spacing * bpi), timenow); }
+            else rlog("avg speed %.2f IPS at time %.8lf\n", 1 / (result->avg_bit_spacing * bpi), timenow); 
+            if (!verbose && numblks == 0) rlog("(subsequent good blocks will not be shown because -v wasn't specified)\n"); }
          if (result->track_mismatch) {
             //rlog("   WARNING: tracks mismatched, with lengths %d to %d\n", result->minbits, result->maxbits);
             ++numblks_trksmismatched; }
@@ -1070,6 +1096,7 @@ void got_datablock(bool badblock) { // decoded a tape block
          numdatabytes += length;
          ++numfileblks;
          ++numblks; } }
+   if (adjdeskew && mode == NRZI) adjust_deskew(nrzi.clkavg.t_bitspaceavg);
    save_file_position(&blockstart, "after block done"); // remember the file position for the start of the next block
 //log("got valid block %d, file pos %s at %.8lf\n", numblks, longlongcommas(blockstart.position), timenow);
 };
@@ -1666,10 +1693,10 @@ bool process_file(int argc, char *argv[]) {
                goto done; } }
          assert(false, "block state error in process_file()\n"); }
 
-done:
-      if (DEBUG && block.tries > 1) show_decode_status();
-      if (multiple_tries) dlog("  chose parmset %d as best after %d tries\n", block.parmset, block.tries);
+   done:;
       struct results_t *result = &block.results[block.parmset];
+      if (DEBUG && block.tries > 1) show_decode_status();
+      if (multiple_tries) dlog("  chose parmset %d as best after %d tries, type %s\n", block.parmset, block.tries, bs_names[result->blktype]);
 
       if (result->blktype != BS_NOISE) {
          ++PARM.chosen;  // count times that this parmset was chosen to be used
@@ -1829,7 +1856,7 @@ int main(int argc, char *argv[]) {
                  numfiles, numfiles != 1 ? "s" : "", longlongcommas(numoutbytes));
             rlog("  decoded %d tape marks and %d blocks with %s bytes from %.2lf seconds of tape data\n",
                  numtapemarks, numblks, longlongcommas(numdatabytes), timenow - data_start_time);
-            if (last_block_time) rlog("   the last block written was %.8lf seconds into the tape\n", last_block_time);
+            if (last_block_time) rlog("  the last block written was %.8lf seconds into the tape\n", last_block_time);
             rlog("  %d block%s had errors, %d had warnings", numblks_err, numblks_err != 1 ? "s" : "", numblks_warn);
             if (mode != WW) rlog(", %d had mismatched tracks, %d had bits corrected", numblks_trksmismatched, numblks_corrected);
             if (mode == NRZI) rlog(", %d had midbit timing errors", numblks_midbiterrs);

@@ -125,11 +125,20 @@ int peak_counts[MAXTRKS][PEAK_STATS_NUMBUCKETS];
 int peak_trksums[MAXTRKS]; // all counts other than at the two extremes
 bool peak_stats_initialized = false;
 
+float peak_block_deviation[MAXTRKS]; // avg deviation from the expected peak, for adjdeskew
+int peak_block_counts[MAXTRKS];
+
+void reset_peak_blockcounts(void) {
+   memset(peak_block_deviation, 0, sizeof(peak_block_deviation));
+   memset(peak_block_counts, 0, sizeof(peak_block_counts)); }
+
+
 void record_peakstat(float bitspacing, float peaktime, int trknum) {
    if (!peak_stats_initialized) { // first time: set range for statistics
       peak_stats_leftbin = peak_stats_binwidth = 0;
       memset(peak_counts, 0, sizeof(peak_counts));
       memset(peak_trksums, 0, sizeof(peak_trksums));
+      reset_peak_blockcounts();
       // we want bins for a half bit time below the expected peak(s), and a half bit time above
       float range = bitspacing *
                     (mode == NRZI ? 1.0f
@@ -156,7 +165,12 @@ void record_peakstat(float bitspacing, float peaktime, int trknum) {
    else if (bucket >= PEAK_STATS_NUMBUCKETS) ++peak_counts[trknum][PEAK_STATS_NUMBUCKETS - 1];
    else { // not one of the extremes
       ++peak_counts[trknum][bucket];
-      ++peak_trksums[trknum]; } }
+      ++peak_trksums[trknum];
+      if (adjdeskew) {  // keep track of the average deviations of this track's peaks for this block
+         // This is the semi-naive incremental average calculation: A(n+1) = A(n) + (V(n+1) - A(n)) / (n+1)
+         // For a more sophisticated algorithm, see the code for my microammeter.
+         ++peak_block_counts[trknum];
+         peak_block_deviation[trknum] = peak_block_deviation[trknum] + ((peaktime - bitspacing) - peak_block_deviation[trknum]) / peak_block_counts[trknum]; } } }
 
 void output_peakstats(const char *name) { // Create an Excel .CSV file with flux transition position statistics
    FILE *statsf;
@@ -287,6 +301,23 @@ void skew_display_history(int trknum) {
       if (++ndx >= skew_delaycnt[trknum]) ndx = 0; }
    while (ndx != skew[trknum].ndx_next);
    rlog("\n"); }
+
+// The following code to implement adjdeskew is experimental and doesn't work yet
+void adjust_deskew(float bitspacing) { // slowly adjust the deskew based on the peaks we saw in the previous block
+#define ADJ_DESKEW_THRESHOLD 0.1f  // fraction of a bit that the average needs to exceed
+   // This can only be called when we expect no peaks in the near future
+   for (int trknum = 0; trknum < ntrks; ++trknum) {
+      float deviation = peak_block_deviation[trknum];
+      rlog("trk %d deviation is %.2f usec of bitspacing %.2f usec", trknum, deviation*1e6, bitspacing*1e6);
+      if (deviation < ADJ_DESKEW_THRESHOLD * bitspacing && skew_delaycnt[trknum] > 0) {
+         --skew_delaycnt[trknum];
+         rlog(", skew reduced to %d", skew_delaycnt[trknum]); }
+      else if (deviation > ADJ_DESKEW_THRESHOLD * bitspacing && skew_delaycnt[trknum] < MAXSKEWSAMP) {
+         ++skew_delaycnt[trknum];
+         rlog(", skew increased to %d",skew_delaycnt[trknum]); }
+      rlog("\n"); }
+   reset_peak_blockcounts(); // get ready for next block
+}
 #endif
 
 /***********************************************************************************************************************
@@ -396,6 +427,7 @@ void init_trackstate(void) {  // initialize all track and some block state infor
    num_trks_idle = ntrks;
    block.window_set = false;
    block.endblock_done = false;
+   expected_parity = specified_parity;
    if (mode == GCR) gcr_preprocess();
    init_trackpeak_state();
    memset(&block.results[block.parmset], 0, sizeof(struct results_t));
@@ -422,6 +454,13 @@ void init_trackstate(void) {  // initialize all track and some block state infor
       memset(&ww, 0, sizeof(ww));
       if (!doing_density_detection) init_clkavg(&ww.clkavg, 1 / (bpi*ips)); } }
 
+void set_expected_parity(int blklength) {
+   expected_parity =
+      blklength > 0 && blklength == revparity ? 1 - specified_parity
+      : specified_parity;
+   //rlog("set_expected_parity(%d) = %d, revparity %d specified_parity %d\n",
+   //  blklength, expected_parity, revparity, specified_parity);
+}
 
 void show_track_datacounts (char *msg) {
    rlog("%s\n", msg);
@@ -468,8 +507,8 @@ void adjust_agc(struct trkstate_t *t) { // update the automatic gain control lev
          gain = t->v_avg_height / lastheight;  		// the new gain, which could be less than 1
          gain = PARM.agc_alpha * gain + (1 - PARM.agc_alpha)*t->agc_gain;  // exponential smoothing with previous values
          if (gain > AGC_MAX_VALUE) gain = AGC_MAX_VALUE;
-         dlogtrk("trk %d adjust gain lasttop %.2f lastbot %.2f lastheight %.2f, avgheight %.2f, old gain %.2f new gain %.2f at %.8lf tick %.1lf\n",
-                 t->trknum, t->v_lasttop, t->v_lastbot, lastheight, t->v_avg_height, t->agc_gain, gain, timenow, TICK(timenow));
+         //dlogtrk("trk %d adjust gain lasttop %.2f lastbot %.2f lastheight %.2f, avgheight %.2f, old gain %.2f new gain %.2f at %.8lf tick %.1lf\n",
+         //        t->trknum, t->v_lasttop, t->v_lastbot, lastheight, t->v_avg_height, t->agc_gain, gain, timenow, TICK(timenow));
          t->agc_gain = gain;
          if (gain > t->max_agc_gain) t->max_agc_gain = gain;
          if (gain < t->min_agc_gain) t->min_agc_gain = gain; } }
@@ -510,10 +549,10 @@ void adjust_clock(struct clkavg_t *c, float delta, int trk) {  // update the bit
       assert(bpi > 0, "bpi=0 in adjust_clock at %.8lf", timenow);
       c->t_bitspaceavg = mode & PE+WW ? 1 / (bpi*ips) : nrzi.clkavg.t_bitspaceavg; //
    }
-   if (DEBUG && trace_on && (DEBUGALL || trk == TRACETRK))
-      rlog("trk %d adjust clock of %.2f with delta %.2f uS to %.2f at %.8lf tick %.1lf\n",
-           trk, prevdelta*1e6, delta*1e6, c->t_bitspaceavg*1e6, timenow, TICK(timenow)); //
-}
+   //if (DEBUG && trace_on && (DEBUGALL || trk == TRACETRK))
+      //rlog("trk %d adjust clock of %.2f with delta %.2f uS to %.2f at %.8lf tick %.1lf\n",
+      //     trk, prevdelta*1e6, delta*1e6, c->t_bitspaceavg*1e6, timenow, TICK(timenow)); //
+   }
 void force_clock(struct clkavg_t *c, float delta, int trk) { // force the clock speed
    for (int i = 0; i < CLKRATE_WINDOW; ++i) c->t_bitspacing[i] = delta;
    c->t_bitspaceavg = delta; }

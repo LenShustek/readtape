@@ -1,3 +1,4 @@
+/* 
 READTAPE: A program to recover data from old computer magnetic tapes 
 
 OVERVIEW 
@@ -98,6 +99,7 @@ options:
   -zeros         base decoding on zero crossings instead of peaks
   -differentiate do simple delta differentiation of the input data
   -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)
+  -revparity=n   reverse parity for blocks that are n bytes long
   -invert        invert the data so positive peaks are negative and vice versa
   -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block
   -reverse       reverse bits in a word and words in a block (Whirlwind only)
@@ -114,7 +116,7 @@ options:
   -nolabels      don't try to decode IBM standard tape labels
   -textfile      create an interpreted .<options>.txt file from the data
                    numeric options: -hex -octal (bytes) -octal2 (16-bit words)
-                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo
+                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo -adage
                    characters per line: -linesize=nn
                    space every n bytes of data: -dataspace=n
                    make LF or CR start a new line: -linefeed
@@ -260,7 +262,9 @@ description of the various tape formats we process.
   (For IBM 729, spaces in memory (0) are converted to 0x10 on tape, 
   to avoid having BCD text create no transitions on any tracks.)
 - LRC character is 4 character times after the end of the block, and
-  it could have bad parity; no CRC character
+  it could have bad parity, which means that it could be 0 and not appear.
+  (For Adage Graphics Terminals, it is 5 characters times after the end.)
+- no CRC character
 - tape mark: 1-bits on tracks 8,4,2,1, then 4 bit times, then the same
 
 *** 6-track 100 BPI NRZI Whirlwind tapes
@@ -748,3 +752,4 @@ L. Shustek, 10 April 2018
 L. Shustek, 17 May 2018, 8 October 2018, 22 October 2018, 4 August 2019
              Dec 2019, Feb 2022, Mar 2022
 
+*/

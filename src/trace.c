@@ -86,7 +86,8 @@ struct {    // the trace history buffer for things other than events, which are 
    int datacount[TRACE_DEPTH];
    float agc_gain[TRACE_DEPTH];
    float bitspaceavg[TRACE_DEPTH];
-   float t_peakdelta[TRACE_DEPTH]; //
+   float t_peakdelta[TRACE_DEPTH];
+   uint16_t data[TRACE_DEPTH]; //
 }
 traceblk = {0 };
 
@@ -120,8 +121,8 @@ void trace_writeline(int ndx) {  // write out one buffered trace line
                   tracevals[i].val[ndx][TRACETRK] != tracevals[i].graphbase)
                tracevals[i].lastval = tracevals[i].val[ndx][TRACETRK];
             if ( !(tracevals[i].flags & T_SHOWTRK)) fprintf(tracef, "%f, ", tracevals[i].lastval); } }
-      fprintf(tracef, ", %d, %.2f, %.2f, %.2f\n", // do the extra-credit stuff
-              traceblk.datacount[ndx], traceblk.agc_gain[ndx], traceblk.bitspaceavg[ndx]*1e6, traceblk.t_peakdelta[ndx]*1e6); } }
+      fprintf(tracef, ", %d, %.2f, %.2f, %.2f, '%03X\n", // do the extra-credit stuff
+              traceblk.datacount[ndx], traceblk.agc_gain[ndx], traceblk.bitspaceavg[ndx]*1e6, traceblk.t_peakdelta[ndx]*1e6, traceblk.data[ndx]); } }
 
 void trace_newtime(double time, float deltat, struct sample_t *sample, struct trkstate_t *t) {
    // Create a new timestamped entry in the trace history buffer.
@@ -142,6 +143,7 @@ void trace_newtime(double time, float deltat, struct sample_t *sample, struct tr
       traceblk.agc_gain[traceblk.ndx_next] = t->agc_gain;
       traceblk.bitspaceavg[traceblk.ndx_next] = mode ==NRZI ? nrzi.clkavg.t_bitspaceavg : t->clkavg.t_bitspaceavg;
       traceblk.t_peakdelta[traceblk.ndx_next] = t->t_peakdelta;
+      traceblk.data[traceblk.ndx_next] = data[t->datacount];
       for (int i = 0; tracevals[i].name != NULLP; ++i) // all other named trace values are defaulted
          for (int trk=0; trk<ntrks; ++trk)
             tracevals[i].val[traceblk.ndx_next][trk] = tracevals[i].graphbase;
@@ -171,9 +173,9 @@ void trace_open (void) {
                tracevals[i].val[j][trk] = tracevals[i].graphbase;
          tracevals[i].lastval = tracevals[i].graphbase; }
       fprintf(tracef, "  , T%d datacount, T%d AGC gain, ", TRACETRK, TRACETRK);
-      if (mode == NRZI) fprintf(tracef, "bitspaceavg");
+      if (mode == NRZI) fprintf(tracef, "bitspaceavg,");
       else fprintf(tracef, "T%d bitspaceavg,", TRACETRK);
-      fprintf(tracef, "T%d peak deltaT\n", TRACETRK); } }
+      fprintf(tracef, "T%d peak deltaT, data\n", TRACETRK); } }
 
 void trace_close(void) {
    if (trace_on) {
@@ -220,10 +222,10 @@ void trace_startstop(void) {
 
 //**** Choose a test here for turning the trace on, depending on what anomaly we're looking at...
 
-         //if (rereading
-         //if (true
-         //if (ww.datablock && numblks >= 2
-   if (timenow >  0.8608976
+   //if (rereading
+   //if (true
+   //if (ww.datablock && numblks >= 2
+   if (timenow > 4.79216
          //if (numblks >= 1478 && block.parmset == 2 && timenow > 163.863
          //if (timenow > 13.1369 && trkstate[0].datacount > 270
          //if (trkstate[TRACETRK].peakcount > 0
@@ -243,7 +245,7 @@ void trace_startstop(void) {
       torigin = timenow - sample_deltat;
       dlog("-----> trace started at %.8lf tick %.1lf, block %d parmset %d\n",
            timenow, TICK(timenow), numblks+1, block.parmset); }
-   if (trace_on && ++trace_lines > 5000) { //**** limit on how much trace data to collect
+   if (trace_on && ++trace_lines > 10000) { //**** limit on how much trace data to collect
       trace_close(); } }
 
 

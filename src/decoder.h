@@ -33,11 +33,11 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 
 #define DEBUG false                // generate debugging output?
 #define DEBUGALL true              // for track debugging when trace is on: for all tracks?
-#define TRACETRK 3                 // if not, which track gets special attention?
+#define TRACETRK 6                 // if not, which track gets special attention?
 
 #define TRACEFILE (true & DEBUG)   // if DEBUG, are we also creating trace file?
 #define TRACEALL true              // are we plotting all analog waveforms? Otherwise just one, TRACETRK
-#define TRACESCALE 2.f             // scaling factor for voltages on the trace graph
+#define TRACESCALE 1.f //2.f             // scaling factor for voltages on the trace graph
 
 #define PEAK_STATS true             // accumulate peak timing statistics?
 #define DESKEW (true & PEAK_STATS)  // also add code for optional track deskewing?
@@ -94,7 +94,7 @@ typedef unsigned char byte;
 
 #define MAXSKEWSAMP 50     // maximum track skew amount in number of samples
 #define MAXSKEWBLKS 100    // maximum blocks to preprocess to calibrate skew
-#define MINSKEWTRANS 500   // the minumum number of transitions we would like to base skew calibration on
+#define MINSKEWTRANS 1000  // the minumum number of transitions we would like to base skew calibration on
 
 // Here are lots of of parameters that control the decoding algorithm.
 // Some of these are defaults or maxima, for which the currently used values are in the parms_t structure.
@@ -370,12 +370,14 @@ void show_track_datacounts(char *);
 void init_trackstate(void);
 void init_trackpeak_state(void);
 void init_blockstate(void);
+void set_expected_parity(int blklength);
 void adjust_clock(struct clkavg_t *c, float delta, int trk);
 void force_clock(struct clkavg_t *c, float delta, int trk);
 void adjust_agc(struct trkstate_t *t);
 void accumulate_avg_height(struct trkstate_t *t);
 void compute_avg_height(struct trkstate_t *t);
 void record_peakstat(float bitspacing, float peaktime, int trknum);
+void adjust_deskew(float bitspacing);
 enum bstate_t process_sample(struct sample_t *);
 void gcr_top(struct trkstate_t *t);
 void gcr_bot(struct trkstate_t *t);
@@ -422,10 +424,11 @@ extern enum mode_t mode;
 extern enum wwtrk_t ww_trk_to_type[MAXTRKS];
 extern int ww_type_to_trk[WWTRK_NUMTYPES];
 extern bool verbose, quiet, multiple_tries, tap_format, do_correction, do_differentiate, labels;
-extern bool deskew, doing_deskew, skew_given, doing_density_detection, find_zeros;
+extern bool deskew, adjdeskew, doing_deskew, skew_given, doing_density_detection, find_zeros;
 extern bool trace_on, trace_start;
 extern bool hdr1_label, reverse_tape, invert_data, autoinvert_data;
-extern byte expected_parity;
+extern byte expected_parity, specified_parity;
+extern int revparity;
 extern enum flux_direction_t flux_direction_requested, flux_direction_current;
 extern int dlog_lines, verbose_level, debug_level;
 extern double timenow, torigin;
@@ -447,7 +450,7 @@ extern char baseoutfilename[], baseinfilename[];
 
 // must match arrays in textfile.c
 enum txtfile_numtype_t { NONUM, HEX, OCT, OCT2 };
-enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR, SIXBIT, SDS, SDSM, FLEXO };
+enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR, SIXBIT, SDS, SDSM, FLEXO, ADAGE, ADAGETAPE };
 
 extern enum txtfile_numtype_t txtfile_numtype;
 extern enum txtfile_chartype_t txtfile_chartype;

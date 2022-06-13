@@ -6,19 +6,28 @@ and/or characters in ASCII, EBCDIC, BCD, Burroughs BIC, or DEC SixBit code,
 in the style of an old-fashioned memory dump.
 
 This is derived from the standalong program "dumptap" from May 2018,
-which does the same for SIMH .tap format files.
+which does the same for SIMH .tap format files but hasn't been kept
+up-to-date.
 
 See readtape.c for the unified change log and other info.
 
 The command-line options which apply to this module are:
-      -hex          hex 8-bit numeric data
-      -octal        octal 6-bit numeric data
+      -hex          hex 8-bit numeric byte data
+      -octal        octal 6-bit numeric byte data
+      -octal2       octal 12-bit numeric word data
+
       -ascii        ASCII 8-bit characters
       -ebcdic       IBM EBCDIC 8-bit characters
       -bcd          IBM 1401 BCD 6-bit characters
       -b5500        Burroughs B5500 Internal Code 6-bit characters
       -sixbit       DEC SixBit code (ASCII-32)
+      -SDS          Scientific Data Systems memory characters
+      -SDSM         Scientific Data Systems magtape characters
+      -flexo        Frieden Flexowriter terminal characters
+
       -linesize=nn  each line shows nn bytes
+      -dataspace=n  insert a space between every n bytes of data
+      -linefeed     make LF or CR start a new line
 
 The default is 80 ASCII characters per line and no numeric data.
 If the options are "-octal -b5500 -linesize=20", the output looks like this:
@@ -112,21 +121,35 @@ static byte Flexowriter_Code[64] = {
    /*0o*/ ' ', ' ', 'e', '8', ' ', '|', 'a', '3', ' ', '=', 's', '4', 'i', '+', 'u', '2', // only true blank is o10, others were #
    /*2o*/ '.', '.', 'd', '5', 'r', 'l', 'j', '7', 'n', ',', 'f', '6', 'c', '-', 'k', ' ', // . is <color>
    /*4o*/ 't', ' ', 'z', '.', 'l', '.', 'w', ' ', 'h', '.', 'y', ' ', 'p', ' ', 'q', ' ', // . is \h, \t, \n
-   /*60*/ 'o', '.', 'b', ' ', 'g', ' ', '9', ' ','m', '.', 'x', ' ', 'v', '.', '0', ' ' }; // . is <stop>, <upper>, <lower>, blank is <null>
+   /*60*/ 'o', '.', 'b', ' ', 'g', ' ', '9', ' ', 'm', '.', 'x', ' ', 'v', '.', '0', ' ' }; // . is <stop>, <upper>, <lower>, blank is <null>
+
+static byte Adage_code[64] = { // Adage AGT; http://bitsavers.org/pdf/adage/agt/Adage_AGT_Programmers_Reference_Manual_Volume_I_196907.pdf, p41
+   /*0o*/ ' ', '%', 'c', '!', '&', '*', ':', '_', '+', 't', '?', '"', '\'', 'r', '(', ')', //0 might be [, 2 might be ] instead of cent-sign; t=tab r=CR
+   /*2o*/ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ';', '=', ',', '-', '.', '/',
+   /*4o*/ ' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+   /*60*/ 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '$', '#', '@', '+', 'b' }; // this + is +-, b=backspace
+
+static byte Adagetape_code[64] = { // Adage AGT magtape; http://bitsavers.org/pdf/adage/agt/Adage_AGT_Programmers_Reference_Manual_Volume_I_196907.pdf, p387
+   /*0o*/ ' ', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '"', ' ', ' ', ' ', ' ',
+   /*2o*/ 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
+   /*4o*/ 'W', 'X', 'Y', 'Z', 'u', '@', '%', ']', 'I', 'J', 'K', 'L', 'M', 'N', ' ', ' ', // u is uparrow
+   /*60*/ '+', '-', '*', '/', '.', '(', ')', ',', '=', '&', ':', ' ', '$', '#', ' ', 'r' }; // r is CR
 
 // must correspond to enums in decoder.h
-static char *chartype_options[] = { " ", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-sixbit", "-SDS", "-SDSM", "-flexo" };
+static char *chartype_options[] = { " ", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-sixbit", "-SDS", "-SDSM", "-flexo", "-adage", "-adagetape" };
 static char *numtype_options[] = { " ", "-hex", "-octal", "-octal2" };
 
 static void output_char(byte ch, bool oddbyte) {
    fprintf(txtf, "%c",
            txtfile_chartype == ASC ? (isprint(ch) ? ch & 0x7f : ' ')
-           : txtfile_chartype == SIXBIT ? ((ch & 0x3f) + 32)
+           : txtfile_chartype == SIXBIT ? ((ch & 0x3f) + 32)  // the 64 characters of ASCII starting at 32
            : txtfile_chartype == EBC ? EBCDIC[ch]
            : txtfile_chartype == BCD ? BCD1401[ch & 0x3f]
            : txtfile_chartype == BUR ? Burroughs_Internal_Code[ch & 0x3f]
            : txtfile_chartype == SDS ? SDS_Internal_Code[ch & 0x3f]
            : txtfile_chartype == SDSM ? SDS_Magtape_Code[ch & 0x3f]
+           : txtfile_chartype == ADAGE ? Adage_code[ch & 0x3f]
+           : txtfile_chartype == ADAGETAPE ? Adagetape_code[ch & 0x3f]
            : txtfile_chartype == FLEXO ? Flexowriter_Code[(oddbyte ? ch : ch>>2) & 0x3f] // use the high and low 6 bits of a 16-bit word
            : '?'); };
 
@@ -136,7 +159,7 @@ static void output_chars(void) { // output characters for "bufcnt" bytes
    int nmissingbytes = txtfile_linesize - bufcnt;
    int nspaces = txtfile_dataspace ? nmissingbytes / txtfile_dataspace : 0;
    // for short lines, space out for missing bytes
-   if (txtfile_numtype == HEX) nspaces += nmissingbytes * 2; // "xx"
+   if (txtfile_numtype == HEX || ntrks <= 7) nspaces += nmissingbytes * 2; // "xx" or "oo"
    else /* OCT, OCt2 */ nspaces += nmissingbytes * 3; // "ooo"
    for (int i = 0; i < nspaces; ++i) fprintf(txtf, " "); // space out to character area
    if (txtfile_dataspace == 0) fprintf(txtf, "  ");
@@ -181,7 +204,7 @@ void txtfile_outputrecord(void) {
            result->errcount > 0 ? '!' : // show ! for errors only
            result->warncount > 0 ? '?' : ' ', length); // show ? for warnings only
    bufcnt = bufstart = 0;
-   for (int i = 0; i < length; ++i) { // discard the parity bit track and write all the data bits
+   for (int i = 0; i < length; ++i) { // discard the parity bit track and write only the data bits
       byte ch = (byte)(data[i] >> 1);
       byte ch2 = (byte)(data[i+1] >> 1); // in case, for OCT2, we are doing two bytes at once
       if (bufcnt >= txtfile_linesize
@@ -193,7 +216,7 @@ void txtfile_outputrecord(void) {
       if (txtfile_numtype == HEX) fprintf(txtf, "%02X", ch);
       else if (txtfile_numtype == OCT // for 8-bit octal data
                || (txtfile_numtype == OCT2 && i == length-1)) // or an odd last byte of 16-bit words
-         fprintf(txtf, "%03o", ch);
+         fprintf(txtf, ntrks <= 7 ? "%02o" : "%03o", ch); // 2 chars for 6- or 7-track, otherwise 3 chars
       else if (txtfile_numtype == OCT2) { // do this byte and the next byte together
          fprintf(txtf, "%06o", ((uint16_t)ch << 8) | ch2);
          buffer[bufcnt++] = ch2; // save another byte for character interpretation

@@ -39,7 +39,14 @@ void nrzi_postprocess(void) {
    result->vparity_errs = 0;
    int crc = 0, lrc = 0;
    if (result->minbits > 2) {
-      for (int i = 0; i < result->minbits - (ntrks == 7 ? 1 : 2); ++i) {  // count parity errors, and check the CRC/LRC at the end
+      /* The bytes at the end are complicated:
+                        at data index:  minbits-3  minbits-2   minbits-1
+         For 9-track, at post_counter:     2          3           7
+                         we collected:  CRC early    CRC         LRC
+         For 7-track, at post_counter:     2          3           4
+                         we collected:  LRC early    LRC         LRC late
+      */
+      for (int i = 0; i < result->minbits-3; ++i) {  // count parity errors, and check the CRC/LRC at the end
          if (parity(data[i]) != expected_parity) {
             dlog("parity err in nrzi_postprocess() at index %d data %03X time %.8lf tick %.1lf\n",
                  i, data[i], data_time[i], TICK(data_time[i]));
@@ -51,18 +58,20 @@ void nrzi_postprocess(void) {
          crc >>= 1;
          if (lsb) crc |= 0x100; }
       crc ^= 0x1af; // invert all except C2 and C4; note that the CRC could be zero if the number of data bytes is odd
-      if (ntrks == 9) lrc ^= crc;  // LRC inlcudes the CRC (the manual doesn't say that!)
-      result->crc = data[result->minbits - 2];
-      result->lrc = data[result->minbits - 1];
       if (ntrks == 9) { // only 9-track tapes have CRC
+         lrc ^= crc;  // LRC inlcudes the CRC (the manual doesn't say that!)
+         result->crc = data[result->minbits-2] | data[result->minbits-3];
+         result->lrc = data[result->minbits-1];
          if (crc != result->crc) {
             ++result->crc_errs;
             dlog("crc is %03X, should be %03X\n", result->crc, crc); } }
+      else { // ntrks == 7
+         result->lrc = data[result->minbits-3] | data[result->minbits-2] | data[result->minbits-1]; }
       if (lrc != result->lrc) {
          ++result->lrc_errs;
          dlog("lrc is %03X, should be %03X\n", result->lrc, lrc); }
-      result->minbits -= ntrks == 9 ? 2 : 1;  // don't include CRC (if present) and LRC in the data
-      result->maxbits -= ntrks == 9 ? 2 : 1; } }
+      result->minbits -= 3;  // don't count those extra bytes at the end
+      result->maxbits -= 3; } }
 
 void nrzi_end_of_block(void) {
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
@@ -80,6 +89,7 @@ void nrzi_end_of_block(void) {
       if (t->datacount < result->minbits) result->minbits = t->datacount;
       if (result->alltrk_max_agc_gain < t->max_agc_gain) result->alltrk_max_agc_gain = t->max_agc_gain;
       if (result->alltrk_min_agc_gain > t->min_agc_gain) result->alltrk_min_agc_gain = t->min_agc_gain; }
+   set_expected_parity(result->maxbits-3); // -3 for the postblock LRC; see nrzi_postprocess()
    result->avg_bit_spacing = avg_bit_spacing / ntrks;
    dlog("NRZI end of block %d, min %d max %d, avgbitspacing %f uS at %.8lf tick %.1lf\n",
         numblks+1, result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow, TICK(timenow));
@@ -162,11 +172,12 @@ void nrzi_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a NRZI b
          nrzi.t_lastclock = t_bit - 2 * nrzi.clkavg.t_bitspaceavg; // tweak when we thought the clock before last was
    } }
 
-void nrzi_deletebits(void) {
+void nrzi_deletebits(int howmany) {
+   dlog("deleting %d bits at postcounter %d\n", howmany, nrzi.post_counter);
    for (int trknum = 0; trknum < ntrks; ++trknum) {
       struct trkstate_t *t = &trkstate[trknum];
-      assert(t->datacount > 0, "bad NRZI data count");
-      --t->datacount; } }
+      assert(t->datacount >= howmany, "bad NRZI data count");
+      t->datacount -= howmany; } }
 
 void nrzi_bot(struct trkstate_t *t) { // detected a bottom
    //if (trace_on) dlog("trk %d bot at %.7f tick %.1lf, agc %.2f\n",
@@ -227,10 +238,14 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
    nrzi.t_last_midbit = right_edge; // the new last midbit position
    if (DEBUG && trace_on) dlog("zerocheck: postctr %d, left %.8lf tick %.1lf, right %.8lf tick %.1lf, at %.8lf tick %.1lf\n",
                                   nrzi.post_counter, left_edge, TICK(left_edge), right_edge, TICK(right_edge), timenow, TICK(timenow));
-   if (nrzi.post_counter == 0 // if we're not at the end of the block yet, or
-         || nrzi.post_counter == 3 // 7trk LRC, or 9trk CRC
+   if (nrzi.post_counter <= 1 // if we're not committed to end-of-block processing, or
+         || nrzi.post_counter == 2 //   early position for 7trk LRC or 9trk CRC
+         || nrzi.post_counter == 3 // correct position for 7trk LRC or 9trk CRC
+         || (nrzi.post_counter == 4 && ntrks == 7) // late positions for 7trk LRC, which Adage did, contrary to the spec
          || (nrzi.post_counter == 7 && ntrks == 9) // 9trk LRC
+         // See nrzi_postprocess() for how we interpret the ending bytes)
       ) {  // then process this bit interval
+      if (nrzi.post_counter) ++nrzi.post_counter; //in the post-block: move to the next phase
       double avg_pos = 0;
       int last_complete_byte = 0;
       for (int trknum = 0; trknum < ntrks; ++trknum) {
@@ -252,6 +267,9 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
             else  nrzi_addbit(t, 0, nrzi.t_lastclock + nrzi.clkavg.t_bitspaceavg); // otherwise just add the zero
          } } // for all tracks
       if (numbits > 0) { // at least one track had a flux transition at the last clock
+         if (nrzi.post_counter == 2) { // if we had just barely started the end of block
+            nrzi.post_counter = 0; // cancel it; the all zeroes must be from be a bit error in this block
+            dlog("cancelling postcounter at %.8lf tick %.1lf\n", timenow, TICK(timenow)); }
          avg_pos /= numbits;  // compute the average of the peak locations
          TRACE(avgpos, avg_pos, UPTICK, NULLP);
          double expected_pos, adjusted_pos;
@@ -270,8 +288,10 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
                     avg_pos, TICK(avg_pos), adjusted_pos, TICK(adjusted_pos)); //
          }
          nrzi.t_lastclock = adjusted_pos;  // use it as the last clock position
-         if (nrzi.post_counter) ++nrzi.post_counter; //in the post-block: must have been CRC or LRC
          if (DEBUG && trace_on && parity(data[last_complete_byte]) != expected_parity) TRACE(parerr, timenow, UPTICK, NULLP);
+         if (DEBUG && trace_on) {
+            dlog(" byte %d is %03X, parity %s\n", last_complete_byte, data[last_complete_byte],
+                 parity(data[last_complete_byte]) == expected_parity ? "ok" : "bad"); }
          //if (DEBUG && !doing_deskew && nrzi.post_counter == 0 && parity(data[last_complete_byte]) != expected_parity) {
          //   dlog("parity err at datacount %d at %.8lf; AGC ", last_complete_byte, timenow);
          //   for (int i = 0; i < ntrks; ++i) dlog("%d: %.1f, ", i, trkstate[i].agc_gain);
@@ -281,18 +301,20 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
 #endif
       }
       else { // no transitions on any track
-         if (numlaterbits == 0) { // no transition on any track, and no later bits coming
-            if (nrzi.post_counter == 0) { // we must be right at the end of the block
-               dlog("start postcounter, trk 0 count %d at %.8lf tick %.1lf\n", trkstate[0].datacount, timenow, TICK(timenow));
-               nrzi_deletebits(); // delete all the zero bits we just added as we enter the post-block phase
-               nrzi.post_counter = 1; }
-            else ++nrzi.post_counter; // no transitions at the LRC or CRC: it must be all zeros, which is legal!
+         //if (numlaterbits == 0) { // and no later bits coming
+         if (nrzi.post_counter == 0) { // we might be starting the end of the block
+            dlog("start postcounter, trk 0 count %d at %.8lf tick %.1lf\n", trkstate[0].datacount, timenow, TICK(timenow));
+            //nrzi_deletebits(1); // delete all the zero bits we just added as we enter the post-block phase
+            nrzi.post_counter = 1; }
+         else if (nrzi.post_counter == 2) { // for the second time we got no transition on any track
+            nrzi_deletebits(2);  // remove both sets of zeros
          }
          nrzi.t_lastclock += nrzi.clkavg.t_bitspaceavg; // compute a hypothetical last clock position
       } }
-   else { // we're into the post-block area, and not at the CRC or LRC
+   else { // we're well into the post-block area, and not at the CRC or LRC
       assert(nrzi.post_counter > 0, "post counter zero in nrzi_zerocheck");
       ++nrzi.post_counter; // we're not processing this interval; just count past it
+      //dlog("incremented postcounter to %d\n", nrzi.post_counter);
       nrzi.t_lastclock += nrzi.clkavg.t_bitspaceavg; // and advance the hypothetical last clock position
    }
    if (nrzi.post_counter > 8) nrzi_end_of_block(); }

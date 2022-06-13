@@ -81,6 +81,7 @@ void pe_end_of_block(void) { // All/most tracks have just become idle. See if we
       if (t->datacount > result->maxbits) result->maxbits = t->datacount;
       if (t->datacount < result->minbits) result->minbits = t->datacount; }
    result->avg_bit_spacing = avg_bit_spacing / ntrks;
+   set_expected_parity(result->maxbits);
 
    if (result->maxbits == 0) {
       dlog("   detected noise block at %.8lf\n", timenow);

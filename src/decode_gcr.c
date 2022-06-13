@@ -701,6 +701,7 @@ void gcr_end_of_block(void) {
    //rlog("\n");
    dlog("GCR end of block, min %d max %d, avgbitspacing %.2f uS at %.8lf tick %.1lf\n",
         result->minbits, result->maxbits, result->avg_bit_spacing*1e6, timenow, TICK(timenow));
+   set_expected_parity(result->maxbits);
    if (result->maxbits <= 10) {
       if (verbose_level & VL_ATTEMPTS) rlog("   detected noise block of length %d at %.8lf\n", result->maxbits, timenow);
       result->blktype = BS_NOISE; }

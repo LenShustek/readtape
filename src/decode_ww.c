@@ -127,6 +127,7 @@ void ww_assemble_data(void) { // assemble the array of 2-bit characters into byt
    if (fabs(ww.clkavg.t_bitspaceavg - target_bitspace) / target_bitspace > WW_MAX_CLK_VARIATION) ++result->ww_speed_err; }
 
 void ww_end_of_block(void) {
+   set_expected_parity(0);
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
    if (!doing_deskew) dlog("end of block at "TIMEFMT", datalength %d, lastclkpulseend "TIMEFMT" bitspaceavg %.1f\n",
                               TIMETICK(timenow), ww.datacount, TIMETICK(ww.t_lastclkpulseend), ww.clkavg.t_bitspaceavg*1e6);
