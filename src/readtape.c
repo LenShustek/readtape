@@ -296,6 +296,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   to avoid creating bogus records. It's only occasionally successful, though.
 - Experiment with incrementally adjusting the head skew at the end of each block
   if -adjskew is specified. It needs work, though, and isn't currently useful.
+- Add -cdcdisplay and -cdcfield as character decodings
+- Fix tapemark decoding, which we broke maybe in V3.11
 
 
  TODO:
@@ -614,7 +616,8 @@ void SayUsage (void) {
       "  -nolabels      don't try to decode IBM standard tape labels",
       "  -textfile      create an interpreted .<options>.txt file from the data",
       "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
-      "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo -adage -adagetape",
+      "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM",
+      "                        -flexo -adage -adagetape -CDC_display -CDC_field",
       "                   characters per line: -linesize=nn",
       "                   space every n bytes of data: -dataspace=n",
       "                   make LF or CR start a new line: -linefeed",
@@ -816,6 +819,8 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "ADAGE")) txtfile_chartype = ADAGE;
    else if (opt_key(arg, "ADAGETAPE")) txtfile_chartype = ADAGETAPE;
    else if (opt_key(arg, "FLEXO")) txtfile_chartype = FLEXO;
+   else if (opt_key(arg, "CDC_DISPLAY")) txtfile_chartype = CDC_DISPLAY;
+   else if (opt_key(arg, "CDC_FIELD")) txtfile_chartype = CDC_FIELD;
    else if (opt_int(arg, "LINESIZE=", &txtfile_linesize, 4, MAXLINE));
    else if (opt_int(arg, "DATASPACE=", &txtfile_dataspace, 0, MAXLINE));
    else if (opt_key(arg, "LINEFEED")) txtfile_linefeed = true;
@@ -1446,7 +1451,9 @@ bool process_file(int argc, char *argv[]) {
       for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
          rlog("%s ", argv[i]);
       rlog("\n");
+#if defined(_WIN32)
       rlog("  current directory: %s\n", _getcwd(line, MAXLINE));
+#endif
       rlog("  this is a %s-endian computer\n", little_endian ? "little" : "big");
       rlog("  %s", github_info);
       rlog("\nreading file \"%s\"\n", indatafilename);

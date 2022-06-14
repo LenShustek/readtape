@@ -24,6 +24,8 @@ The command-line options which apply to this module are:
       -SDS          Scientific Data Systems memory characters
       -SDSM         Scientific Data Systems magtape characters
       -flexo        Frieden Flexowriter terminal characters
+      -adage        Adage Graphics Terminal
+      -adagetape    Adage Graphics Terminal mag tape
 
       -linesize=nn  each line shows nn bytes
       -dataspace=n  insert a space between every n bytes of data
@@ -135,23 +137,29 @@ static byte Adagetape_code[64] = { // Adage AGT magtape; http://bitsavers.org/pd
    /*4o*/ 'W', 'X', 'Y', 'Z', 'u', '@', '%', ']', 'I', 'J', 'K', 'L', 'M', 'N', ' ', ' ', // u is uparrow
    /*60*/ '+', '-', '*', '/', '.', '(', ')', ',', '=', '&', ':', ' ', '$', '#', ' ', 'r' }; // r is CR
 
+static byte CDC_display_code[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-*/()$= ,.#[]:\"_!&\'?<>@\\^;";
+static byte CDC_field_code[] = "@[]#^ ABCDEFGHIJKLMNOPQRSTUVWXYZ)-+<=>&$*(%:?!,\\0123456789';/.o~";
+
 // must correspond to enums in decoder.h
-static char *chartype_options[] = { " ", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-sixbit", "-SDS", "-SDSM", "-flexo", "-adage", "-adagetape" };
+static char *chartype_options[] = { " ", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-sixbit", "-SDS", "-SDSM", "-flexo",
+                                    "-adage", "-adagetape", "-CDC_display", "-CDC_field" };
 static char *numtype_options[] = { " ", "-hex", "-octal", "-octal2" };
 
 static void output_char(byte ch, bool oddbyte) {
    fprintf(txtf, "%c",
-           txtfile_chartype == ASC ? (isprint(ch) ? ch & 0x7f : ' ')
-           : txtfile_chartype == SIXBIT ? ((ch & 0x3f) + 32)  // the 64 characters of ASCII starting at 32
-           : txtfile_chartype == EBC ? EBCDIC[ch]
-           : txtfile_chartype == BCD ? BCD1401[ch & 0x3f]
-           : txtfile_chartype == BUR ? Burroughs_Internal_Code[ch & 0x3f]
-           : txtfile_chartype == SDS ? SDS_Internal_Code[ch & 0x3f]
-           : txtfile_chartype == SDSM ? SDS_Magtape_Code[ch & 0x3f]
-           : txtfile_chartype == ADAGE ? Adage_code[ch & 0x3f]
-           : txtfile_chartype == ADAGETAPE ? Adagetape_code[ch & 0x3f]
-           : txtfile_chartype == FLEXO ? Flexowriter_Code[(oddbyte ? ch : ch>>2) & 0x3f] // use the high and low 6 bits of a 16-bit word
-           : '?'); };
+           txtfile_chartype == BCD ? BCD1401[ch & 0x3f] :
+           txtfile_chartype == EBC ? EBCDIC[ch] :
+           txtfile_chartype == ASC ? (isprint(ch) ? ch & 0x7f : ' ') :
+           txtfile_chartype == BUR ? Burroughs_Internal_Code[ch & 0x3f] :
+           txtfile_chartype == SIXBIT ? ((ch & 0x3f) + 32) :  // the 64 characters of ASCII starting at 32
+           txtfile_chartype == SDS ? SDS_Internal_Code[ch & 0x3f] :
+           txtfile_chartype == SDSM ? SDS_Magtape_Code[ch & 0x3f] :
+           txtfile_chartype == FLEXO ? Flexowriter_Code[(oddbyte ? ch : ch>>2) & 0x3f] : // use the high and low 6 bits of a 16-bit word
+           txtfile_chartype == ADAGE ? Adage_code[ch & 0x3f] :
+           txtfile_chartype == ADAGETAPE ? Adagetape_code[ch & 0x3f] :
+           txtfile_chartype == CDC_DISPLAY ? CDC_display_code[ch & 0x3f] :
+           txtfile_chartype == CDC_FIELD ? CDC_field_code[ch & 0x3f] :
+           '?'); };
 
 //---- stuff ending here used to be identical to what's in dumptap, but isn't anymore
 
@@ -166,6 +174,8 @@ static void output_chars(void) { // output characters for "bufcnt" bytes
    for (int i = 0; i < bufcnt; ++i) output_char(buffer[i], (bufstart+i)&1); };
 
 static void txtfile_open(void) { // create <base>.<options>.txt file for interpreted data
+   assert(sizeof(CDC_display_code) == 65, "CDC_display_code bad");
+   assert(sizeof(CDC_field_code) == 65, "CDC_field_code bad");
    char filename[MAXPATH];
    snprintf(filename, MAXPATH, "%s.%s%s%s.txt", baseoutfilename,
             numtype_options[txtfile_numtype] + 1,

@@ -450,7 +450,7 @@ extern char baseoutfilename[], baseinfilename[];
 
 // must match arrays in textfile.c
 enum txtfile_numtype_t { NONUM, HEX, OCT, OCT2 };
-enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR, SIXBIT, SDS, SDSM, FLEXO, ADAGE, ADAGETAPE };
+enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR, SIXBIT, SDS, SDSM, FLEXO, ADAGE, ADAGETAPE, CDC_DISPLAY, CDC_FIELD };
 
 extern enum txtfile_numtype_t txtfile_numtype;
 extern enum txtfile_chartype_t txtfile_chartype;
