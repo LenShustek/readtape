@@ -38,14 +38,24 @@ For 800 BPI NRZI tapes read at 50 IPS, the Saleae 781 KHz rate works well.
 
 But the CSV files can be huge -- many tens of gigabytes for a few 
 minutes of recording -- so for archival purposes we've defined a binary 
-compressed "TBIN" format, and I wrote a utility program that can convert 
-between CSV and TBIN. The "readtape" decoding program can read either 
-format. The compression using TBIN is about 10:1, and it speeds up 
+compressed "TBIN" format, and I wrote the utility program "csvtbin" that 
+can convert between CSV and TBIN. The "readtape" decoding program can read
+either format. The compression using TBIN is about 10:1, and it speeds up 
 decoding by about 2x. 
+
+The output of the decoding can include:
+ - a log file
+ - multiple binary files of the reconstructed data separated at filemarks, or
+ - one SIMH .tap file that encodes data and filemarks
+     (see http://simh.trailing-edge.com/docs/simh_magtape.pdf)
+ - a text file in various formats of readable numeric and character interpretation
+ - a CSV file with data showing peak dispersion after track deskewing
+ - a CSV file, in DEBUG mode, that recreates one or all tracks of data
+    with information about the state of the decoding, like peaks detected
 
 We so far support 7-track NRZI format, 9-track NRZI, PE, GCR formats, and,
 most recently, the bizarre 6-track tapes that were written on the vacuum-
-tube Whirlwind I computer. The museum has over a hundred of them, and we
+tube Whirlwind I computer. The museum has over a hundred of those, and we
 have had remarkable success (about 95%) in recovering data and programs 
 that have been unread and unexamined for fifty years. 
 
@@ -63,7 +73,8 @@ that have been unread and unexamined for fifty years.
  example_01.pdf         An example of a really bad block we can decode
  flux_transition_dispersion.jpg  A graph showing the effect of head skew
  VCF_Aug2020_01.pdf     The slide show about the project
- 
+ src\readtape.c         The main source file, which also has the complete change
+                        log and notes about the internal program structure
 ---READTAPE source code
 
  src\readtape.c          main program: options, file handling, and block processing
@@ -78,18 +89,20 @@ that have been unread and unexamined for fifty years.
  src\textfile.c          interpreted text dump of the data
  src\ibmlabels.c         IBM 9-track standard label (SL) interpretation
  src\trace.c             create debugging output and spreadsheet graphs
+ src\tapread.c           a .tap file reader in support of the -tapread option
  
 ---UTILITY PROGRAMS
 
  src\csvtbin.c           a program for converting between CSV and TBIN files
- src\dumptap.c           a program for dumping SIMH .tap files, one of the output formats
+ src\dumptap.c           a deprecated program for dumping SIMH .tap files
                          (but this functionality, expanded, is now an option in readtape)
 ---BINARIES
- bin\readtape.exe        Windows 64-bit executable
- bin\csvtbin.exe         Windows 64-bit executable
+ bin\readtape.exe        readtape Windows 64-bit (x64) executable
+ bin\csvtbin.exe         csvtbin Windows 64-bit (x64) executable
  
 ---TEST DATA
  examples\README.txt     a directory with test magnetic tape data and decodes
+                         and batch files to run them automatically
  
 *** Thanks to: 
  - Paul Pierce for the original inspiration of his similar work 10+ years ago.
@@ -101,5 +114,5 @@ that have been unread and unexamined for fifty years.
 Len Shustek
  6 Feb 2018
 17 May 2018, 27 May 2018, 8 Oct 2018
- 4 Aug 2019, 29 Dec 2019, 28 Feb 2022
+ 4 Aug 2019, 29 Dec 2019, 28 Feb 2022, 21 Jun 2022
 
