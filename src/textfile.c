@@ -5,15 +5,18 @@ Create an interpreted text file from the data with numbers in hex or octal,
 and/or characters in ASCII, EBCDIC, BCD, Burroughs BIC, or DEC SixBit code,
 in the style of an old-fashioned memory dump.
 
-This is derived from the standalong program "dumptap" from May 2018,
+This was derived from the standalong program "dumptap" from May 2018,
 which does the same for SIMH .tap format files but hasn't been kept
-up-to-date.
+up-to-date. This readtape program now has a -tapread option that
+does the same thing: interprets a SIMH .tap file without having to
+recreate it by reading and decoding the original tape data.
 
 See readtape.c for the unified change log and other info.
 
-The command-line options which apply to this module are:
+The readtape command-line options which apply to this module are:
       -hex          hex 8-bit numeric byte data
-      -octal        octal 6-bit numeric byte data
+      -octal        octal numeric byte data 
+                    (2 digits for 6- and 7-tracks, otherwise 3 digits)
       -octal2       octal 12-bit numeric word data
 
       -ascii        ASCII 8-bit characters
@@ -26,16 +29,22 @@ The command-line options which apply to this module are:
       -flexo        Frieden Flexowriter terminal characters
       -adage        Adage Graphics Terminal
       -adagetape    Adage Graphics Terminal mag tape
+      -CDC          CDC 7-track 6-bit code
+      -Univac       UNIVAC 7-track 6-bit code
 
       -linesize=nn  each line shows nn bytes
       -dataspace=n  insert a space between every n bytes of data
-      -linefeed     make LF or CR start a new line
+      -linefeed     make an ASCII linefeed start a new line
 
 The default is 80 ASCII characters per line and no numeric data.
-If the options are "-octal -b5500 -linesize=20", the output looks like this:
 
-  file:basefilename.interp.txt
-  options: -HEX -B5500 -LINESIZE=20
+As an example, if the options are "-octal -b5500 -linesize=20",
+the output looks like this:
+
+  file basefilename.hex.B5500.txt
+  was created by readtape version 3.4 on Sat Nov 18 17:01:02 2018
+  using text options -hex -B5500 -linesize=20
+
      80: 6043212225436060004364422562606000232162   LABEL  0LUKES  0CAS
          6360606000000106110005010001061100050300  T   0016905101690530
          0000000000000000000000000000000000000000  00000000000000000000
@@ -48,7 +57,7 @@ Blocks with warnings are indicated by a '?' before the length
 Blocks with both are indicated by a 'X" before the length
 
 *******************************************************************************
-Copyright (C) 2018,2019 Len Shustek
+Copyright (C) 2018,2019,2022 Len Shustek
 
 The MIT License (MIT): Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated documentation files
@@ -74,7 +83,8 @@ static long long int numbytes;
 static bool txtfile_isopen = false;
 static FILE *txtf;
 
-//---- stuff starting here used to be identical to what's in dumptap, but isn't anymore
+//---- stuff starting here used to be identical to what's in dumptap, but isn't anymore;
+//---- in any case dumptap is rendered obsolete by the -tapread option of readtape
 
 static byte EBCDIC[256] = {/* EBCDIC to ASCII */
    /*0x*/ ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
@@ -137,12 +147,14 @@ static byte Adagetape_code[64] = { // Adage AGT magtape; http://bitsavers.org/pd
    /*4o*/ 'W', 'X', 'Y', 'Z', 'u', '@', '%', ']', 'I', 'J', 'K', 'L', 'M', 'N', ' ', ' ', // u is uparrow
    /*60*/ '+', '-', '*', '/', '.', '(', ')', ',', '=', '&', ':', ' ', '$', '#', ' ', 'r' }; // r is CR
 
-static byte CDC_display_code[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-*/()$= ,.#[]:\"_!&\'?<>@\\^;";
-static byte CDC_field_code[] = "@[]#^ ABCDEFGHIJKLMNOPQRSTUVWXYZ)-+<=>&$*(%:?!,\\0123456789';/.o~";
+static byte CDC_code[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-*/()$= ,.#[]:\"_!&\'?<>@\\^;";
+typedef char CDC_ok [sizeof(CDC_code) == 65];
+static byte Univac_code[] = "@[]#^ ABCDEFGHIJKLMNOPQRSTUVWXYZ)-+<=>&$*(%:?!,\\0123456789';/.o~";
+typedef char Univac_ok [sizeof(Univac_code) == 65];
 
 // must correspond to enums in decoder.h
 static char *chartype_options[] = { " ", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-sixbit", "-SDS", "-SDSM", "-flexo",
-                                    "-adage", "-adagetape", "-CDC_display", "-CDC_field" };
+                                    "-adage", "-adagetape", "-CDC", "-Univac" };
 static char *numtype_options[] = { " ", "-hex", "-octal", "-octal2" };
 
 static void output_char(byte ch, bool oddbyte) {
@@ -157,8 +169,8 @@ static void output_char(byte ch, bool oddbyte) {
            txtfile_chartype == FLEXO ? Flexowriter_Code[(oddbyte ? ch : ch>>2) & 0x3f] : // use the high and low 6 bits of a 16-bit word
            txtfile_chartype == ADAGE ? Adage_code[ch & 0x3f] :
            txtfile_chartype == ADAGETAPE ? Adagetape_code[ch & 0x3f] :
-           txtfile_chartype == CDC_DISPLAY ? CDC_display_code[ch & 0x3f] :
-           txtfile_chartype == CDC_FIELD ? CDC_field_code[ch & 0x3f] :
+           txtfile_chartype == CDC ? CDC_code[ch & 0x3f] :
+           txtfile_chartype == UNIVAC ? Univac_code[ch & 0x3f] :
            '?'); };
 
 //---- stuff ending here used to be identical to what's in dumptap, but isn't anymore
@@ -173,9 +185,7 @@ static void output_chars(void) { // output characters for "bufcnt" bytes
    if (txtfile_dataspace == 0) fprintf(txtf, "  ");
    for (int i = 0; i < bufcnt; ++i) output_char(buffer[i], (bufstart+i)&1); };
 
-static void txtfile_open(void) { // create <base>.<options>.txt file for interpreted data
-   assert(sizeof(CDC_display_code) == 65, "CDC_display_code bad");
-   assert(sizeof(CDC_field_code) == 65, "CDC_field_code bad");
+void txtfile_open(void) { // create <base>.<options>.txt file for interpreted data
    char filename[MAXPATH];
    snprintf(filename, MAXPATH, "%s.%s%s%s.txt", baseoutfilename,
             numtype_options[txtfile_numtype] + 1,
@@ -183,12 +193,15 @@ static void txtfile_open(void) { // create <base>.<options>.txt file for interpr
             chartype_options[txtfile_chartype] + 1);
    assert((txtf = fopen(filename, "w")) != NULLP, "can't open interpreted text file \"%s\"", filename);
    rlog("creating file \"%s\"\n", filename);
-   fprintf(txtf, "file: %s\n", filename);
-   fprintf(txtf, "options: %s %s%s -linesize=%d",
+   fprintf(txtf, "file %s\n", filename);
+   time_t time_now;
+   time_now = time(NULL);
+   fprintf(txtf, "created by readtape%s version %s on %s", tap_read ? " -tapread" : "", version_string, ctime(&time_now));
+   fprintf(txtf, "using text options %s %s%s -linesize=%d",
            numtype_options[txtfile_numtype], chartype_options[txtfile_chartype],
            txtfile_linefeed ? " -newline" : "", txtfile_linesize);
    if (txtfile_dataspace) fprintf(txtf, " -dataspace=%d", txtfile_dataspace);
-   fprintf(txtf, "\n");
+   fprintf(txtf, "\n\n");
    numrecords = numerrors = numwarnings =numerrorsandwarnings = numtapemarks = 0;
    numbytes = 0;
    txtfile_isopen = true; }
@@ -198,21 +211,22 @@ void txtfile_tapemark(void) {
    ++numtapemarks;
    fprintf(txtf, "tape mark\n"); }
 
-void txtfile_outputrecord(void) {
-   int length = block.results[block.parmset].minbits;
-   struct results_t *result = &block.results[block.parmset];
+void txtfile_erasegap(void) {
+   if (!txtfile_isopen) txtfile_open();
+   fprintf(txtf, "erased gap\n"); }
 
+void txtfile_outputrecord(int length, int errs, int warnings) {
    if (!txtfile_isopen) txtfile_open();
    ++numrecords;
    numbytes += length;
-   if (result->errcount * result->warncount > 0) ++numerrorsandwarnings;
+   if (errs * warnings > 0) ++numerrorsandwarnings;
    else {
-      if (result->errcount > 0) ++numerrors;
-      if (result->warncount > 0) ++numwarnings; }
+      if (errs > 0) ++numerrors;
+      if (warnings > 0) ++numwarnings; }
    fprintf(txtf, "%c%4d: ",
-           result->errcount * result->warncount > 0 ? 'X' : // show X for both errors and warnings
-           result->errcount > 0 ? '!' : // show ! for errors only
-           result->warncount > 0 ? '?' : ' ', length); // show ? for warnings only
+           errs * warnings > 0 ? 'X' : // show X for both errors and warnings
+           errs > 0 ? '!' : // show ! for errors only
+           warnings > 0 ? '?' : ' ', length); // show ? for warnings only
    bufcnt = bufstart = 0;
    for (int i = 0; i < length; ++i) { // discard the parity bit track and write only the data bits
       byte ch = (byte)(data[i] >> 1);

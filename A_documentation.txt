@@ -117,10 +117,11 @@ options:
   -textfile      create an interpreted .<options>.txt file from the data
                    numeric options: -hex -octal (bytes) -octal2 (16-bit words)
                    character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo
-                         -adage -adagetape -cdc_display -cdc_field
+                         -adage -adagetape -CDC -Univac
                    characters per line: -linesize=nn
                    space every n bytes of data: -dataspace=n
                    make LF or CR start a new line: -linefeed
+  -tapread       just read a SIMH .tap file to produce a textfile
   -outf=bbb      use bbb as the <basefilename> for output files
   -outp=ppp      otherwise use ppp as an optional prepended path for output files
   -sumt=sss      append a text summary of results to text file sss

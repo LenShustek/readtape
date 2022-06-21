@@ -41,7 +41,7 @@ void nrzi_postprocess(void) {
       /* The bytes at the end are as follows:
              minbits- 9   8   7   6     5    4      3   2   1
          for 9-track: xx  00  00  crc?  crc  crc?   00  00  LRC
-         for 7-trakc: xx  00  00  lrc?  lrc  lrc?   00  00  00
+         for 7-track: xx  00  00  lrc?  lrc  lrc?   00  00  00
       The xxx? entries are early and late positions that violate spec but which we've seen.
       */
       if (ntrks == 9) {
@@ -97,7 +97,7 @@ void nrzi_end_of_block(void) {
    if ( // maybe it's a tapemark, which is pretty bizarre
       result->minbits == 9 // the initial 1-bit plus 8 bits of post-block
       && (ntrks == 9 && data[0] == 0x26 && data[8] == 0x26  // 9 trk: trks 367, then 7 bits of zeros, then 367
-          ||  ntrks == 7 && data[0] == 0x1e && data[4] == 0x1e)) { // 7trk: trks 8421, then 3 bits of zeros, then 8421
+          ||  ntrks == 7 && data[0] == 0x1e && (data[3] == 0x1e || data[4] == 0x1e))) { // 7trk: trks 8421, then 2 or 3 bits of zeros, then 8421
       result->blktype = BS_TAPEMARK; }
    else if (result->maxbits <= NRZI_MIN_BLOCK) {  // too small, but not tapemark: just noise
       dlog("   detected noise block of length %d at %.8lf\n", result->maxbits, timenow);
@@ -158,6 +158,7 @@ void nrzi_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a NRZI b
       nrzi.t_last_midbit = nrzi.t_lastclock + PARM.midbit*nrzi.clkavg.t_bitspaceavg;
       dlog("trk %d starts the data blk at %.8lf tick %.1lf, agc=%f, clkavg=%.2f\n",
            t->trknum, t_bit, TICK(t_bit), t->agc_gain, nrzi.clkavg.t_bitspaceavg*1e6);
+      block.t_blockstart = timenow;
       nrzi.datablock = true; }
    if (trace_on)
       dlog (" [add a %d to %d bytes on trk %d at %.8lf tick %.1lf, lastpeak %.8lf tick %.1lf; now: %.8lf tick %.1lf, bitspacing %.2f, agc %.2f]\n",
@@ -181,8 +182,8 @@ void nrzi_deletebits(int howmany) {
       t->datacount -= howmany; } }
 
 void nrzi_bot(struct trkstate_t *t) { // detected a bottom
-   //if (trace_on) dlog("trk %d bot at %.7f tick %.1lf, agc %.2f\n",
-   //                      t->trknum, t->t_bot, TICK(t->t_bot), t->agc_gain);
+   if (trace_on) dlog("trk %d bot at %.7f tick %.1lf, agc %.2f\n",
+                         t->trknum, t->t_bot, TICK(t->t_bot), t->agc_gain);
    if (PEAK_STATS && nrzi.t_lastclock != 0 && nrzi.datablock && nrzi.post_counter == 0)
       record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_bot - nrzi.t_lastclock), t->trknum);
    if (t->t_bot < nrzi.t_last_midbit && nrzi.post_counter == 0) {
@@ -196,8 +197,8 @@ void nrzi_bot(struct trkstate_t *t) { // detected a bottom
       adjust_agc(t); }
 
 void nrzi_top(struct trkstate_t *t) {  // detected a top
-   //if (trace_on) dlog("trk %d top at %.7f tick %.1lf, agc %.2f\n",
-   //                      t->trknum, t->t_top, TICK(t->t_top), t->agc_gain);
+   if (trace_on) dlog("trk %d top at %.7f tick %.1lf, agc %.2f\n",
+                         t->trknum, t->t_top, TICK(t->t_top), t->agc_gain);
    if (PEAK_STATS && nrzi.t_lastclock != 0 && nrzi.datablock && nrzi.post_counter == 0)
       record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_top - nrzi.t_lastclock), t->trknum);
    if (t->t_top < nrzi.t_last_midbit && nrzi.post_counter == 0) {

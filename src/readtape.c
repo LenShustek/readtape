@@ -299,6 +299,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 - Add -cdcdisplay and -cdcfield as character decodings
 - Fix tapemark decoding, which we broke maybe in V3.11
 
+*** 20 June 2022, L. Shustek, V3.13
+- Change -cdcdisplay to -cdc, and -cdcfield to -univac.
+- Add -tapread option to only read .tap files and do text/numeric decoding.
+- Relax timing for NRZI tapemark detection.
+
 
  TODO:
  - add an option to use even parity for small (?) blocks and odd parity for big blocks,
@@ -323,7 +328,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.12"
+#define VERSION "3.13"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -441,7 +446,7 @@ process_sample, return block status
 #include "decoder.h"
 
 // file names and handles
-FILE *inf, *outf, *rlogf, *summf;
+FILE *inf, *outf, *rlogf = NULL, *summf;
 char baseinfilename[MAXPATH];  // (could have a prepended path)
 char baseoutfilename[MAXPATH] = { 0 };
 char outpathname[MAXPATH] = { 0 };
@@ -455,6 +460,7 @@ int numblks_goodmultiple = 0, numblks_unusable = 0, numblks_corrected = 0;
 int numblks_limit = INT_MAX;
 int numfiles = 0, numtapemarks = 0, num_flux_polarity_changes = 0;
 long long lines_in = 0, numdatabytes = 0, numoutbytes = 0;
+long long numsamples = 0;
 
 // statistics for a particular output file
 int numfileblks;
@@ -465,7 +471,7 @@ long long numfilebytes;
 bool logging = true, verbose = false, quiet = false;
 int verbose_level = 0, debug_level = 0;
 bool baseoutfilename_given = false;
-bool filelist = false, tap_format = false;
+bool filelist = false, tap_format = false, tap_read = false;
 bool tbin_file = false, do_txtfile = false, labels = true;
 bool multiple_tries = false, deskew = false, adjdeskew = false, skew_given = false, add_parity = false;
 bool invert_data = false, autoinvert_data = false, reverse_tape = false;
@@ -501,6 +507,7 @@ enum txtfile_chartype_t txtfile_chartype = NOCHAR;
 int txtfile_linesize = 0, txtfile_dataspace = 0;
 bool txtfile_doboth;
 bool txtfile_linefeed = false;
+char version_string[] = { VERSION };
 
 int starting_parmset = 0;
 time_t start_time;
@@ -617,10 +624,11 @@ void SayUsage (void) {
       "  -textfile      create an interpreted .<options>.txt file from the data",
       "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
       "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM",
-      "                        -flexo -adage -adagetape -CDC_display -CDC_field",
+      "                        -flexo -adage -adagetape -CDC -Univac",
       "                   characters per line: -linesize=nn",
       "                   space every n bytes of data: -dataspace=n",
       "                   make LF or CR start a new line: -linefeed",
+      "  -tapread       just read a SIMH .tap file to produce a textfile",
       "  -outf=bbb      use bbb as the <basefilename> for output files",
       "  -outp=ppp      otherwise use ppp as an optional prepended path for output files",
       "  -sumt=sss      append a text summary of results to text file sss",
@@ -783,6 +791,7 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_int(arg, "D", &debug_level, 0, 255)) ;
 #endif
    else if (opt_key(arg, "TAP")) tap_format = true;
+   else if (opt_key(arg, "TAPREAD")) tap_read = true;
    else if (opt_key(arg, "EVEN")) specified_parity = expected_parity = 0;
    else if (opt_int(arg, "REVPARITY=", &revparity, 0, INT_MAX));
    else if (opt_key(arg, "INVERT")) invert_data = true;
@@ -819,8 +828,8 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "ADAGE")) txtfile_chartype = ADAGE;
    else if (opt_key(arg, "ADAGETAPE")) txtfile_chartype = ADAGETAPE;
    else if (opt_key(arg, "FLEXO")) txtfile_chartype = FLEXO;
-   else if (opt_key(arg, "CDC_DISPLAY")) txtfile_chartype = CDC_DISPLAY;
-   else if (opt_key(arg, "CDC_FIELD")) txtfile_chartype = CDC_FIELD;
+   else if (opt_key(arg, "CDC")) txtfile_chartype = CDC;
+   else if (opt_key(arg, "UNIVAC")) txtfile_chartype = UNIVAC;
    else if (opt_int(arg, "LINESIZE=", &txtfile_linesize, 4, MAXLINE));
    else if (opt_int(arg, "DATASPACE=", &txtfile_dataspace, 0, MAXLINE));
    else if (opt_key(arg, "LINEFEED")) txtfile_linefeed = true;
@@ -936,10 +945,11 @@ char *modename(void) {
       tape block processing
 ***********************************************************************************************/
 
-struct file_position_t {   // routines to save and restore the file position and sample time
+struct file_position_t {   // routines to save and restore the file position, sample time, and number of samples
    int64_t position;
    double time;
-   int64_t time_ns; };
+   int64_t time_ns;
+   uint64_t nsamples; };
 
 #if defined(_WIN32) // there is NO WAY to do this in an OS-independent fashion!
 #define ftello _ftelli64
@@ -951,13 +961,15 @@ void save_file_position(struct file_position_t *fp, const char *msg) {
    //rlog("        at %.8lf, saving position %s %s\n", timenow, longlongcommas(fp->position), msg);
    //rlog("    save_file_position %s at %.3lf msec\n", msg, timenow*1e3);
    fp->time_ns = timenow_ns;
-   fp->time = timenow; }
+   fp->time = timenow;
+   fp->nsamples = numsamples; }
 
 void restore_file_position(struct file_position_t *fp, const char *msg) {
    //rlog("        at %.8lf, restor position %s time %.8lf %s\n", timenow, longlongcommas(fp->position), fp->time, msg);
    assert(fseeko(inf, fp->position, SEEK_SET) == 0, "fseek failed");
    timenow_ns = fp->time_ns;
-   timenow = fp->time; }
+   timenow = fp->time;
+   numsamples = fp->nsamples; }
 
 static struct file_position_t blockstart;
 
@@ -977,8 +989,10 @@ void got_tapemark(void) {
    //if (!quiet) rlog("  tapemark after block %d at file position %s time %.8lf\n", numfileblks, longlongcommas(blockstart.position), timenow);
    //if (!quiet) rlog("  tapemark after block %d at time %.8lf\n", numfileblks, timenow);
    if (!quiet) {
-      if (SHOW_TAP_OFFSET) rlog("  tapemark at time %.8lf, tap offset %lld, %d blocks written so far\n", timenow, numoutbytes, numblks);
-      else rlog("  tapemark at time %.8lf, %d blocks written so far\n", timenow, numblks); }
+      rlog("  tapemark at time %.8lf", timenow);
+      if (SHOW_TAP_OFFSET) rlog(", tap offset %lld", numoutbytes);
+      if (SHOW_NUMSAMPLES) rlog(", %lld samples", numsamples);
+      rlog(", %d blocks written so far\n", numblks); }
    if (do_txtfile) txtfile_tapemark();
    if (tap_format) {
       if (!outf) create_datafile(NULLP);
@@ -1020,7 +1034,10 @@ void got_datablock(bool badblock) { // decoded a tape block
                numoutbytes += 1; }
             output_tap_marker(length | errflag); // trailing record length
          }
-         if (do_txtfile) txtfile_outputrecord();
+         if (do_txtfile) txtfile_outputrecord(
+               block.results[block.parmset].minbits,     // length
+               block.results[block.parmset].errcount,    // # errors
+               block.results[block.parmset].warncount);  // # warnings
          if (mode == GCR) gcr_write_ecc_data(); // TEMP for GCR
 
          //if (DEBUG && (result->errcount != 0 || result->corrected_bits != 0))
@@ -1084,8 +1101,12 @@ void got_datablock(bool badblock) { // decoded a tape block
                if (result->ww_leading_clock) rlog("leading clk, ");
                if (result->ww_missing_onebit) rlog("missing 1-bit, ");
                if (result->ww_missing_clock) rlog("missing clk, "); }
-            if (SHOW_TAP_OFFSET) rlog("avg speed %.2f IPS at time %.8lf, tap offset %lld\n", 1 / (result->avg_bit_spacing * bpi), timenow, numoutbytes);
-            else rlog("avg speed %.2f IPS at time %.8lf\n", 1 / (result->avg_bit_spacing * bpi), timenow); 
+            rlog("avg speed %.2f IPS at time %.8lf", 1 / (result->avg_bit_spacing * bpi), timenow);
+            if (SHOW_START_TIME) rlog(", start %.8lf", block.t_blockstart);
+            if (SHOW_TAP_OFFSET) rlog(", tap offset %lld", numoutbytes);
+            if (SHOW_NUMSAMPLES) rlog(", %lld samples", numsamples);
+            rlog("\n");
+
             if (!verbose && numblks == 0) rlog("(subsequent good blocks will not be shown because -v wasn't specified)\n"); }
          if (result->track_mismatch) {
             //rlog("   WARNING: tracks mismatched, with lengths %d to %d\n", result->minbits, result->maxbits);
@@ -1319,6 +1340,7 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
             sample.voltage[trk] = scanfast_float(&linep);
             if (invert_data) sample.voltage[trk] = -sample.voltage[trk];
             if (do_differentiate) differentiate(&sample, trk); } }
+      ++numsamples;
       timenow = sample.time;
       if (torigin == 0) torigin = timenow; // for debugging output
 
@@ -1440,6 +1462,7 @@ bool process_file(int argc, char *argv[]) {
    if (!quiet) {
       rlog("this is readtape version %s, compiled on %s %s, running on %s",
            VERSION, __DATE__, __TIME__, ctime(&start_time)); // ctime ends with newline!
+      if (DEBUG) rlog("**** DEBUG version %s\n", TRACEFILE ? " with tracing" : "");
 #if defined(_WIN32)
       {
          char *pgmpathptr;
@@ -1700,7 +1723,7 @@ bool process_file(int argc, char *argv[]) {
                goto done; } }
          assert(false, "block state error in process_file()\n"); }
 
-   done:;
+done:;
       struct results_t *result = &block.results[block.parmset];
       if (DEBUG && block.tries > 1) show_decode_status();
       if (multiple_tries) dlog("  chose parmset %d as best after %d tries, type %s\n", block.parmset, block.tries, bs_names[result->blktype]);
@@ -1820,90 +1843,97 @@ int main(int argc, char *argv[]) {
       txtfile_doboth = txtfile_chartype != NOCHAR && txtfile_numtype != NONUM;
       if (txtfile_linesize == 0) txtfile_linesize = txtfile_doboth ? 32 : 64; }
 
-   assert(mode != WW || !multiple_tries, "Sorry, multiple decoding tries is not implemented yet for Whirlwind");
-   start_time = time(NULL);
-   if (filelist) {  // process a list of files
-      char filename[MAXPATH];
-      strncpy(filename, cmdfilename, MAXPATH - 5); filename[MAXPATH - 5] = '\0';
-      strcat(filename, ".txt");
-      FILE *listf = fopen(filename, "r");
-      assert(listf != NULLP, "Unable to open file list file \"%s\"", filename);
-      char line[MAXLINE + 1];
-      while (fgets(line, MAXLINE, listf)) {
-         line[strcspn(line, "\n")] = 0;
-         char *ptr = line;
-         if (*ptr != 0) {
-            skip_blanks(&ptr);
-            while (*ptr == '-') { // parse leading options for this file
-               char option[MAXLINE];
-               assert(getchars_to_blank(&ptr, option), "bad option string in file list: %s", ptr);
-               assert(parse_option(option), "bad option in file list: %s", option);
-               skip_blanks(&ptr); }
-            strncpy(baseinfilename, ptr, MAXPATH - 5); // copy the filename, which could include a path
-            baseinfilename[MAXPATH - 5] = '\0';
-            bool result = process_file(argc, argv);
-            printf("%s: %s\n", baseinfilename, result ? "ok" : "bad"); } } }
+   if (tap_read) {  // we are only to read and interpret a SIMH .tap file
+      assert(do_txtfile, "-tapread was specified, but no text file options were given");
+      ntrks = ntrks_specified; // so that ntrks=9 will make octal 3 characters wide
+      read_tapfile(cmdfilename);
+      txtfile_close(); }
 
-   else {  // process one file
-      strncpy(baseinfilename, cmdfilename, MAXPATH - 5);
-      baseinfilename[MAXPATH - 5] = '\0';
-      bool result = process_file(argc, argv);
-      double elapsed_time = difftime(time(NULL), start_time); // integral seconds, even though a double!
-      bool skew_ok;
-      // should move the following reports into process_file so we do it for a file list too
-      if (quiet) {
-         printf("%s: %s\n", baseinfilename, result ? "ok" : "bad"); }
-      else {
-         rlog("\n");
-         open_summary_file(); {
-            rlog("summary for file \"%s\":\n", indatafilename);
-            rlog("  %s samples were processed in %.0lf seconds (%.3lf seconds/block)\n",
-                 longlongcommas(lines_in), elapsed_time, numblks == 0 ? 0 : elapsed_time / numblks);
-            rlog("  created %d output file%s with a total of %s bytes\n",
-                 numfiles, numfiles != 1 ? "s" : "", longlongcommas(numoutbytes));
-            rlog("  decoded %d tape marks and %d blocks with %s bytes from %.2lf seconds of tape data\n",
-                 numtapemarks, numblks, longlongcommas(numdatabytes), timenow - data_start_time);
-            if (last_block_time) rlog("  the last block written was %.8lf seconds into the tape\n", last_block_time);
-            rlog("  %d block%s had errors, %d had warnings", numblks_err, numblks_err != 1 ? "s" : "", numblks_warn);
-            if (mode != WW) rlog(", %d had mismatched tracks, %d had bits corrected", numblks_trksmismatched, numblks_corrected);
-            if (mode == NRZI) rlog(", %d had midbit timing errors", numblks_midbiterrs);
+   else {  // do a real mag tape decoding
+      assert(mode != WW || !multiple_tries, "Sorry, multiple decoding tries is not implemented yet for Whirlwind");
+      start_time = time(NULL);
+      if (filelist) {  // process a list of files
+         char filename[MAXPATH];
+         strncpy(filename, cmdfilename, MAXPATH - 5); filename[MAXPATH - 5] = '\0';
+         strcat(filename, ".txt");
+         FILE *listf = fopen(filename, "r");
+         assert(listf != NULLP, "Unable to open file list file \"%s\"", filename);
+         char line[MAXLINE + 1];
+         while (fgets(line, MAXLINE, listf)) {
+            line[strcspn(line, "\n")] = 0;
+            char *ptr = line;
+            if (*ptr != 0) {
+               skip_blanks(&ptr);
+               while (*ptr == '-') { // parse leading options for this file
+                  char option[MAXLINE];
+                  assert(getchars_to_blank(&ptr, option), "bad option string in file list: %s", ptr);
+                  assert(parse_option(option), "bad option in file list: %s", option);
+                  skip_blanks(&ptr); }
+               strncpy(baseinfilename, ptr, MAXPATH - 5); // copy the filename, which could include a path
+               baseinfilename[MAXPATH - 5] = '\0';
+               bool result = process_file(argc, argv);
+               printf("%s: %s\n", baseinfilename, result ? "ok" : "bad"); } } }
+
+      else {  // process one file
+         strncpy(baseinfilename, cmdfilename, MAXPATH - 5);
+         baseinfilename[MAXPATH - 5] = '\0';
+         bool result = process_file(argc, argv);
+         double elapsed_time = difftime(time(NULL), start_time); // integral seconds, even though a double!
+         bool skew_ok;
+         // should move the following reports into process_file so we do it for a file list too
+         if (quiet) {
+            printf("%s: %s\n", baseinfilename, result ? "ok" : "bad"); }
+         else {
             rlog("\n");
-            if (mode == WW && num_flux_polarity_changes > 0) rlog("  the flux polarity changed %d time%s during decoding\n",
-                     num_flux_polarity_changes, num_flux_polarity_changes > 1 ? "s" : "");
-            if (numblks_unusable > 0) rlog("  %d blocks were unusable and were not written\n", numblks_unusable); }
-         close_summary_file();
-         if (multiple_tries) {
-            rlog("  %d good blocks had to try more than one parmset\n", numblks_goodmultiple);
-            for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
-               if (parmsetsptr[i].tried > 0) {
-                  rlog("  parmset %d was tried %4d times and used %4d times, or %5.1f%%\n",
-                       i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried); } }
+            open_summary_file(); {
+               rlog("summary for file \"%s\":\n", indatafilename);
+               rlog("  %s samples were processed in %.0lf seconds (%.3lf seconds/block)\n",
+                    longlongcommas(lines_in), elapsed_time, numblks == 0 ? 0 : elapsed_time / numblks);
+               rlog("  created %d output file%s with a total of %s bytes\n",
+                    numfiles, numfiles != 1 ? "s" : "", longlongcommas(numoutbytes));
+               rlog("  decoded %d tape marks and %d blocks with %s bytes from %.2lf seconds of tape data\n",
+                    numtapemarks, numblks, longlongcommas(numdatabytes), timenow - data_start_time);
+               if (last_block_time) rlog("  the last block written was %.8lf seconds into the tape\n", last_block_time);
+               rlog("  %d block%s had errors, %d had warnings", numblks_err, numblks_err != 1 ? "s" : "", numblks_warn);
+               if (mode != WW) rlog(", %d had mismatched tracks, %d had bits corrected", numblks_trksmismatched, numblks_corrected);
+               if (mode == NRZI) rlog(", %d had midbit timing errors", numblks_midbiterrs);
+               rlog("\n");
+               if (mode == WW && num_flux_polarity_changes > 0) rlog("  the flux polarity changed %d time%s during decoding\n",
+                        num_flux_polarity_changes, num_flux_polarity_changes > 1 ? "s" : "");
+               if (numblks_unusable > 0) rlog("  %d blocks were unusable and were not written\n", numblks_unusable); }
+            close_summary_file();
+            if (multiple_tries) {
+               rlog("  %d good blocks had to try more than one parmset\n", numblks_goodmultiple);
+               for (int i = 0; i < MAXPARMSETS; ++i) //  // show stats on all the parameter sets we tried
+                  if (parmsetsptr[i].tried > 0) {
+                     rlog("  parmset %d was tried %4d times and used %4d times, or %5.1f%%\n",
+                          i, parmsetsptr[i].tried, parmsetsptr[i].chosen, 100.*parmsetsptr[i].chosen / parmsetsptr[i].tried); } }
 #if PEAK_STATS
-         rlog("\n");
-         output_peakstats("");
-         skew_ok = skew_compute_deskew(false);
-         open_summary_file(); {
-            if (skew_ok) {
-               if (deskew) rlog("  deskewing with delays up to %.1f%% of a bit time seems to have been successful\n", deskew_max_delay_percent);
-               else rlog("  the tape data head skew is minimal\n"); }
-            else {
-               if (deskew) rlog("  deskewing with delays up to %.1f%% of a bit time wasn't entirely effective\n"
-                                   "  the tape might have been written by two different drives\n"
-                                   "  if so you should consider separating the data into those sections\n", deskew_max_delay_percent);
-               else rlog("  head skew is significant; you should try again with the -deskew option\n"); } }
-         close_summary_file();
+            rlog("\n");
+            output_peakstats("");
+            skew_ok = skew_compute_deskew(false);
+            open_summary_file(); {
+               if (skew_ok) {
+                  if (deskew) rlog("  deskewing with delays up to %.1f%% of a bit time seems to have been successful\n", deskew_max_delay_percent);
+                  else rlog("  the tape data head skew is minimal\n"); }
+               else {
+                  if (deskew) rlog("  deskewing with delays up to %.1f%% of a bit time wasn't entirely effective\n"
+                                      "  the tape might have been written by two different drives\n"
+                                      "  if so you should consider separating the data into those sections\n", deskew_max_delay_percent);
+                  else rlog("  head skew is significant; you should try again with the -deskew option\n"); } }
+            close_summary_file();
 #endif
-      } // !quiet
-      if (summcsvfilename[0]) {
-         assert((summf = fopen(summcsvfilename, "a")) != NULLP, "can't open summary file %s", summcsvfilename);
-         // the format here is odd, but it matches the spreadsheet we use to keep track of Whirlwind tape decodings
-         fprintf(summf, "=\"%s\",=\"%s\",=\"%s\",=\"%s\", %.2lf, %d, %d, %lld, %d, %d, %d,\"%c\"\n",
-                 baseinfilename,
-                 tbin_hdr.u.s.flags & TBIN_INVERTED ? "yes" : "",
-                 num_flux_polarity_changes == 0 ? (flux_direction_current == FLUX_POS ? "pos" : "neg") : "pos&neg",
-                 track_order_string, timenow - data_start_time, numtapemarks, numblks, numdatabytes,
-                 numblks_err, numblks_warn, num_flux_polarity_changes, skew_ok ? 'y' : 'n');
-         fclose(summf); } }
+         } // !quiet
+         if (summcsvfilename[0]) {
+            assert((summf = fopen(summcsvfilename, "a")) != NULLP, "can't open summary file %s", summcsvfilename);
+            // the format here is odd, but it matches the spreadsheet we use to keep track of Whirlwind tape decodings
+            fprintf(summf, "=\"%s\",=\"%s\",=\"%s\",=\"%s\", %.2lf, %d, %d, %lld, %d, %d, %d,\"%c\"\n",
+                    baseinfilename,
+                    tbin_hdr.u.s.flags & TBIN_INVERTED ? "yes" : "",
+                    num_flux_polarity_changes == 0 ? (flux_direction_current == FLUX_POS ? "pos" : "neg") : "pos&neg",
+                    track_order_string, timenow - data_start_time, numtapemarks, numblks, numdatabytes,
+                    numblks_err, numblks_warn, num_flux_polarity_changes, skew_ok ? 'y' : 'n');
+            fclose(summf); } } }
 
    return 0; }
 

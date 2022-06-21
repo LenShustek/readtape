@@ -45,7 +45,9 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 #define DESKEW_STDDEV_WARNING 0.03     // fraction of a bit to warn about largest peak std deviation too big
 #define CORRECT true                // add code to do data correction if -correct?
 #define GCR_PARMSCAN false          // scan for optimal GCR parameters?
-#define SHOW_TAP_OFFSET true        // show .tap file offset in the log
+#define SHOW_TAP_OFFSET true        // show .tap file offsetof the block in the log
+#define SHOW_NUMSAMPLES false       // show number of samples at this block in the log
+#define SHOW_START_TIME false       // show start time of block in the log
 
 #define DLOG_LINE_LIMIT 20000     // limit for debugging output
 
@@ -416,14 +418,17 @@ bool ibm_label(void);
 void create_datafile(const char *name);
 void close_file(void);
 void read_parms(void);
-void txtfile_outputrecord(void);
+void txtfile_open(void);
+void txtfile_outputrecord(int length, int numerrs, int numwarnings);
 void txtfile_tapemark(void);
+void txtfile_erasegap(void);
 void txtfile_close(void);
+void read_tapfile(const char *basefilename);
 
 extern enum mode_t mode;
 extern enum wwtrk_t ww_trk_to_type[MAXTRKS];
 extern int ww_type_to_trk[WWTRK_NUMTYPES];
-extern bool verbose, quiet, multiple_tries, tap_format, do_correction, do_differentiate, labels;
+extern bool verbose, quiet, multiple_tries, tap_format, tap_read, do_correction, do_differentiate, labels;
 extern bool deskew, adjdeskew, doing_deskew, skew_given, doing_density_detection, find_zeros;
 extern bool trace_on, trace_start;
 extern bool hdr1_label, reverse_tape, invert_data, autoinvert_data;
@@ -447,10 +452,11 @@ extern struct ww_t ww;
 extern float bpi, ips;
 extern int ntrks, num_trks_idle, numblks, numfiles, num_flux_polarity_changes, pkww_width;
 extern char baseoutfilename[], baseinfilename[];
+extern char version_string[];
 
 // must match arrays in textfile.c
 enum txtfile_numtype_t { NONUM, HEX, OCT, OCT2 };
-enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR, SIXBIT, SDS, SDSM, FLEXO, ADAGE, ADAGETAPE, CDC_DISPLAY, CDC_FIELD };
+enum txtfile_chartype_t { NOCHAR, BCD, EBC, ASC, BUR, SIXBIT, SDS, SDSM, FLEXO, ADAGE, ADAGETAPE, CDC, UNIVAC };
 
 extern enum txtfile_numtype_t txtfile_numtype;
 extern enum txtfile_chartype_t txtfile_chartype;
