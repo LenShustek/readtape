@@ -52,16 +52,24 @@ the readtape program won't need to be told about the non-standard order.
 
 17 Mar 2019, L. Shustek, add -scale option.
 
-08 Dec 2019, L. Shustek, add Whirlwind, and -subsample option
+08 Dec 2019, L. Shustek
+             Add Whirlwind, and -subsample option
 V1.7         Add support for the trkorder header extension for Whirlwind.
              Add -invert and -reverse options.
              Switch to providing only <basefilename>, like for readtape.
 
-28 Feb 2020, L. Shustek, allow IPS up to 200
-V1.8
+28 Feb 2020, L. Shustek
+V1.8         Allow IPS up to 200.
 
-2 Jun 2022, L. Shustek, add -graph option
-V1.9        Create a <basefilename>.csvtbin.log file
+2 Jun 2022,  L. Shustek
+V1.9         Add -graph option.
+             Create a <basefilename>.csvtbin.log file.
+
+20 Jun 2022, L. Shustek
+V1.10        Add -stopaft, -starttime, -endtime options to truncate files.
+             Add -stagger option to create CSV files for graphing.
+             Fix -read, broken since V1.7.
+             Remove use of max() macro.
 
 
 --- FUTURE VERSION IDEAS ---
@@ -72,7 +80,7 @@ V1.9        Create a <basefilename>.csvtbin.log file
   independent way to find out the size of the file and how far we're read.)
 
 ******************************************************************************/
-#define VERSION "1.9"
+#define VERSION "1.10"
 /******************************************************************************
 Copyright (C) 2018,2019,2022 Len Shustek
 
@@ -113,12 +121,15 @@ typedef unsigned char byte;
 FILE *inf, *outf, *graphf, *logf;
 char *basefilename;
 char infilename[MAXPATH], outfilename[MAXPATH], graphfilename[MAXPATH], logfilename[MAXPATH];
-long long int num_samples = 0;
+uint64_t num_samples = 0;
 uint64_t total_time = 0;
-unsigned skip_samples = 0, subsample = 1;
+uint64_t skip_samples = 0, stopaft = UINT64_MAX;
+float fstarttime, fendtime; // starting and ending times in floating seconds
+uint64_t starttime = 0, endtime = UINT64_MAX;  // starting and ending times in nanoseconds
+unsigned subsample = 1;
 unsigned ntrks = 9;
 unsigned int num_graph_vals = 0, graphbin = 0;
-float graphbin_max = 0;
+float graphbin_max = 0, stagger = 0;
 bool do_read = false, display_header = false, redo = false, redid = false;
 bool little_endian;
 unsigned track_permutation[MAXTRKS] = { UINT_MAX };
@@ -168,12 +179,16 @@ void SayUsage(void) {
       "                (for Whirlwind: a combination of C L M c l m and x's)",
       "  -skip=n       skip the first n samples",
       "  -subsample=n  use only every nth data sample",
+      "  -stopaft=n    stop after doing n samples",
+      "  -starttime=x  start only after sample time x",
+      "  -endtime=x    end after sample time x",
       "  -invert       invert the data so positive peaks are negative and vice versa",
       "  -scale=n      scale the voltages by n, which can be a fraction",
-      "  -maxvolts=x   expect x as the maximum plus or minus signal excursion",
+      "  -maxvolts=x   expect x as the maximum plus or minus voltage",
       "  -redo         do it over again if maxvolts wasn't big enough",
-      "  -graph=n      create a csv file of maximum voltage excursions every n samples",
-      "  -read         read tbin and create csv -- otherwise, the opposite",
+      "  -graph=n      create a <basefilename>.graph.csv file with the maximum voltage every n samples",
+      "  -read         read tbin and create csv; otherwise the opposite",
+      "  -stagger=x    if -read, stagger each track by x volts for graphing",
       "  -showheader   just show the header info of a .tbin file, and check the data",
       "optional documentation that can be recorded in the TBIN file:",
       "  -descr=txt             a description of what is on the tape",
@@ -189,6 +204,8 @@ void SayUsage(void) {
       NULL };
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]); }
 
+char *longlongcommas(uint64_t n);
+
 bool opt_key(const char* arg, const char* keyword) {
    do { // check for a keyword option
       if (toupper(*arg++) != *keyword++) return false; }
@@ -203,6 +220,19 @@ bool opt_int(const char* arg, const char* keyword, unsigned *pval, unsigned min,
    if (strlen(arg) == 0) return true;  // allow and ignore if null
    unsigned num, nch;
    if (sscanf(arg, "%u%n", &num, &nch) != 1
+         || num < min || num > max || arg[nch] != '\0') fatal("bad integer: %s", arg);
+   *pval = num;
+   return true; }
+
+bool opt_64int(const char* arg, const char* keyword, uint64_t *pval, uint64_t min, uint64_t max) {
+   do { // check for a "keyword=longlonginteger" option
+      if (toupper(*arg++) != *keyword++)
+         return false; }
+   while (*keyword);
+   if (strlen(arg) == 0) return true;  // allow and ignore if null
+   uint64_t num;
+   unsigned nch;
+   if (sscanf(arg, "%llu%n", &num, &nch) != 1
          || num < min || num > max || arg[nch] != '\0') fatal("bad integer: %s", arg);
    *pval = num;
    return true; }
@@ -287,17 +317,26 @@ bool parse_option(char *option) {
    else if (opt_flt(arg, "IPS=", &hdr.u.s.ips, 10, 200));
    else if (opt_flt(arg, "MAXVOLTS=", &hdr.u.s.maxvolts, 0.1f, 15.0f));
    else if (opt_flt(arg, "SCALE=", &scalefactor, 1e-4f, 1e+4f));
+   else if (opt_flt(arg, "STAGGER=", &stagger, 0.1f, 100.f));
    else if (opt_str(arg, "DESCR=", &str)) {
       strncpy(hdr.descr, str, sizeof(hdr.descr));
       hdr.descr[sizeof(hdr.descr) - 1] = '\0'; }
    else if (opt_dat(arg, "DATEWRITTEN=", &hdr.u.s.time_written)) ;
    else if (opt_dat(arg, "DATEREAD=", &hdr.u.s.time_read)) ;
-   else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX)) {
-      printf("will skip the first %d samples\n", skip_samples); }
+   else if (opt_64int(arg, "SKIP=", &skip_samples, 0, UINT64_MAX-1)) {
+      printf("will skip the first %s samples\n", longlongcommas(skip_samples)); }
    else if (opt_int(arg, "SUBSAMPLE=", &subsample, 1, INT_MAX)) {
       printf("will use every %d samples\n", subsample); }
+   else if (opt_64int(arg, "STOPAFT=", &stopaft, 1, UINT64_MAX-1)) {
+      printf("will stop after doing %s samples\n", longlongcommas(stopaft)); }
+   else if (opt_flt(arg, "STARTTIME=", &fstarttime, 0.01f, 1000.f)) {
+      starttime = (uint64_t)((double)fstarttime * 1e9); // in nanoseconds
+      printf("will start at sample time %.5f\n", fstarttime); }
+   else if (opt_flt(arg, "ENDTIME=", &fendtime, 0.01f, 1000.f)) {
+      endtime = (uint64_t)((double)fendtime * 1e9); // in nanoseconds
+      printf("will end at sample time %.5f\n", fendtime); }
    else if (opt_int(arg, "GRAPH=", &graphbin, 1, INT_MAX)) {
-      printf("will bin max every %d samples\n", graphbin); }
+      printf("will record the maximum excursion every %d samples\n", graphbin); }
    else if (opt_key(arg, "REDO")) redo = true;
    else if (option[2] == '\0') // single-character switches
       switch (toupper(option[1])) {
@@ -317,6 +356,7 @@ int HandleOptions(int argc, char *argv[]) {
       if (!parse_option(argv[i])) { // end of switches
          firstnonoption = i;
          break; } }
+   assert(starttime < endtime, "starttime is after endtime");
    return firstnonoption; }
 
 /********************************************************************
@@ -372,7 +412,7 @@ char *intcommas(int n) { // 32 bits
          n = n / 10; }
    return p + 1; }
 
-char *longlongcommas(long long n) { // 64 bits
+char *longlongcommas(uint64_t n) { // 64 bits
    assert(n >= 0, "bad call to longlongcommas: %ld", n);
    static char buf[26]; //max: 9,223,372,036,854,775,807
    char *p = buf + 25; int ctr = 4;
@@ -477,11 +517,17 @@ void read_tbin(void) {
       fprintf(outf, "\n"); }
    uint64_t timenow = dat.tstart;
    int16_t data[MAXTRKS];
-   if (skip_samples > 0) {
-      logprintf("skipping %d samples\n", skip_samples);
-      while (skip_samples--) {
-         assert(fread(data, 2, ntrks, inf) == ntrks, "endfile with %d samples left to skip", skip_samples);
-         timenow += hdr.u.s.tdelta; } }
+
+   if (skip_samples > 0 || starttime > 0) {
+      logprintf("skipping %d-track samples\n", ntrks);
+      uint64_t skipped = 0;
+      do {
+         assert(fread(data, 2, ntrks, inf) == ntrks, "endfile with samples left to skip");
+         timenow += hdr.u.s.tdelta;
+         ++skipped;
+         if (skip_samples > 0) --skip_samples; }
+      while (timenow < starttime || skip_samples > 0);
+      logprintf("skipped %s samples\n", longlongcommas(skipped)); }
 
    while (1) {  // write one .CSV file line for each sample we read
       assert(fread(&data[0], 2, 1, inf) == 1, "can't read data for track 0 at time %.8lf", (double)timenow / 1e9);
@@ -498,12 +544,16 @@ void read_tbin(void) {
       timenow += hdr.u.s.tdelta;
       total_time += hdr.u.s.tdelta;
       if (!display_header) {
+         float staggeramount = 0.f; // restart stagger for track 0
          for (unsigned trk = 0; trk < ntrks; ++trk) {
             float fsample = (float)data[track_permutation[trk]] / 32767 * hdr.u.s.maxvolts;
             if (hdr.u.s.flags & TBIN_INVERTED) fsample = -fsample;  // invert, if told to
+            fsample += staggeramount;
+            staggeramount += stagger;
             fprintf(outf, "%9.5f, ", fsample); }
          fprintf(outf, "\n"); }
-      ++num_samples;
+      if (++num_samples >= stopaft) break;
+      if (timenow > endtime) break;
       update_progress_count(); }
    logprintf("\n"); };
 
@@ -579,11 +629,18 @@ void write_tbin(void) {
       fgets(line, MAXLINE, inf); // first two lines in the input file are headers from Saleae
       fgets(line, MAXLINE, inf);
       uint64_t sample_time = dat.tstart;
-      if (skip_samples > 0) {
-         logprintf("skipping %d samples\n", skip_samples);
-         for (unsigned int cnt = 0; cnt < skip_samples; ++cnt) {
-            assert(fgets(line, MAXLINE, inf), "endfile with %d lines left to skip\n", skip_samples - cnt);
-            sample_time += hdr.u.s.tdelta; } }
+
+      if (skip_samples > 0 || starttime > 0) {
+         //logprintf("skipping samples\n");
+         uint64_t skipped = 0;
+         do {
+            assert(fgets(line, MAXLINE, inf), "endfile with samples left to skip\n");
+            sample_time += hdr.u.s.tdelta;
+            ++skipped;
+            if (skip_samples > 0) --skip_samples; }
+         while (sample_time < starttime || skip_samples > 0);
+         logprintf("skipped %s samples\n", longlongcommas(skipped)); }
+
       line[MAXLINE - 1] = 0;
       long long count_toosmall = 0, count_toobig = 0;
       float maxvolts = 0, minvolts = 0;
@@ -619,9 +676,10 @@ void write_tbin(void) {
          assert(fwrite(outbuf, 2, ntrks, outf) == ntrks, "can't write data sample %lld", num_samples);
          sample_time += hdr.u.s.tdelta;
          total_time += hdr.u.s.tdelta;
-         ++num_samples;
+         if (++num_samples >= stopaft) break;
+         if (sample_time > endtime) break;
          if (graphbin && tries == 0 && ++num_graph_vals >= graphbin) {
-            fprintf(graphf, "%lld, %f\n", num_samples, graphbin_max);
+            fprintf(graphf, "%llu, %f\n", num_samples, graphbin_max);
             graphbin_max = 0;
             num_graph_vals = 0; }
          update_progress_count(); }
@@ -633,11 +691,12 @@ done:
       if (count_toosmall)
          logprintf("*** WARNING ***  %s samples were too small\n", longlongcommas(count_toosmall));
       if (count_toobig || count_toosmall) {
+         float newmax = maxvolts > -minvolts ? maxvolts : -minvolts;
          if (!redo) {
-            logprintf("you should specify -maxvolts=%.1f\n", max(maxvolts, -minvolts) + 0.1);
+            logprintf("you should specify -maxvolts=%.1f\n", newmax + 0.1);
             return; // don't do it a second time
          }
-         hdr.u.s.maxvolts = ((float)(int)((max(maxvolts, -minvolts) + 0.15)*10.0f)) / 10.0f; // add .1V and round to .1V
+         hdr.u.s.maxvolts = ((float)(int)((newmax + 0.15)*10.0f)) / 10.0f; // add .1V and round to .1V
          logprintf("redoing the conversion with -maxvolts=%.1f\n", hdr.u.s.maxvolts);
          redid = true;
          num_samples = progress_count = 0;
@@ -691,19 +750,18 @@ int main(int argc, char *argv[]) {
    inf = fopen(infilename, do_read ? "rb" : "r");
    assert(inf, "unable to open input file %s", infilename);
 
-   if (!do_read) {
-      strncpy(outfilename, basefilename, MAXPATH - 10); outfilename[MAXPATH - 10] = 0;
-      strcat(outfilename, do_read ? ".csv" : ".tbin");
-      logprintf("creating %s\n", outfilename);
-      outf = fopen(outfilename, do_read ? "w" : "wb");
-      assert(outf, "file create failed for %s", outfilename);
+   strncpy(outfilename, basefilename, MAXPATH - 10); outfilename[MAXPATH - 10] = 0;
+   strcat(outfilename, do_read ? ".csv" : ".tbin");
+   logprintf("creating %s\n", outfilename);
+   outf = fopen(outfilename, do_read ? "w" : "wb");
+   assert(outf, "file create failed for %s", outfilename);
 
-      if (graphbin) {
-         strncpy(graphfilename, basefilename, MAXPATH - 12); graphfilename[MAXPATH - 12] = 0;
-         strcat(graphfilename, ".graph.csv");
-         logprintf("creating %s\n", graphfilename);
-         graphf = fopen(graphfilename, "w");
-         assert(graphf, "file create failed for %s", graphfilename); } }
+   if (graphbin) {
+      strncpy(graphfilename, basefilename, MAXPATH - 12); graphfilename[MAXPATH - 12] = 0;
+      strcat(graphfilename, ".graph.csv");
+      logprintf("creating %s\n", graphfilename);
+      graphf = fopen(graphfilename, "w");
+      assert(graphf, "file create failed for %s", graphfilename); }
 
    if (track_permutation[0] == UINT_MAX) { // no input value permutation was given
       if (!do_read && !(hdr.u.s.flags & TBIN_TRKORDER_INCLUDED)) {
