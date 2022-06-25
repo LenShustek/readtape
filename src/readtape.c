@@ -1851,8 +1851,8 @@ int main(int argc, char *argv[]) {
       if (txtfile_linesize == 0) txtfile_linesize = txtfile_doboth ? 32 : 64; }
 
    if (tap_read) {  // we are only to read and interpret a SIMH .tap file
-      //assert(do_txtfile, "-tapread was specified, but no text file options were given");
-      ntrks = ntrks_specified; // so that ntrks=9 will make octal 3 characters wide
+      ntrks = ntrks_specified; // -ntrks controls whether octal is 2 or 3 characters wide
+      if (ntrks <= 0) ntrks = 9; // assume 9 tracks (3-digit octal) if not given
       if (txtfile_linesize == 0) txtfile_linesize = 64;
       read_tapfile(cmdfilename);
       txtfile_close(); }

@@ -202,6 +202,8 @@ void txtfile_open(void) { // create <base>.<options>.txt file for interpreted da
            numtype_options[txtfile_numtype], chartype_options[txtfile_chartype],
            txtfile_linefeed ? " -newline" : "", txtfile_linesize);
    if (txtfile_dataspace) fprintf(txtf, " -dataspace=%d", txtfile_dataspace);
+   if (txtfile_numtype == NONUM && txtfile_chartype == NOCHAR)
+      fprintf(txtf, "\nno numeric or character options were given, so we will display only block sizes");
    fprintf(txtf, "\n\n");
    numrecords = numerrors = numwarnings =numerrorsandwarnings = numtapemarks = numchars = 0;
    numbytes = 0;
