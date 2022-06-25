@@ -15,7 +15,7 @@ See readtape.c for the unified change log and other info.
 
 The readtape command-line options which apply to this module are:
       -hex          hex 8-bit numeric byte data
-      -octal        octal numeric byte data 
+      -octal        octal numeric byte data
                     (2 digits for 6- and 7-tracks, otherwise 3 digits)
       -octal2       octal 12-bit numeric word data
 
@@ -78,7 +78,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "decoder.h"
 
 static byte buffer[MAXLINE];
-static int bufcnt, bufstart, numrecords, numerrors, numwarnings,numerrorsandwarnings, numtapemarks;
+static int bufcnt, bufstart, numrecords, numerrors, numwarnings, numerrorsandwarnings, numtapemarks, numchars;
 static long long int numbytes;
 static bool txtfile_isopen = false;
 static FILE *txtf;
@@ -161,7 +161,7 @@ static void output_char(byte ch, bool oddbyte) {
    fprintf(txtf, "%c",
            txtfile_chartype == BCD ? BCD1401[ch & 0x3f] :
            txtfile_chartype == EBC ? EBCDIC[ch] :
-           txtfile_chartype == ASC ? (isprint(ch) ? ch & 0x7f : ' ') :
+           txtfile_chartype == ASC ? (isprint(ch & 0x7f) ? ch & 0x7f : ' ') :
            txtfile_chartype == BUR ? Burroughs_Internal_Code[ch & 0x3f] :
            txtfile_chartype == SIXBIT ? ((ch & 0x3f) + 32) :  // the 64 characters of ASCII starting at 32
            txtfile_chartype == SDS ? SDS_Internal_Code[ch & 0x3f] :
@@ -187,10 +187,11 @@ static void output_chars(void) { // output characters for "bufcnt" bytes
 
 void txtfile_open(void) { // create <base>.<options>.txt file for interpreted data
    char filename[MAXPATH];
-   snprintf(filename, MAXPATH, "%s.%s%s%s.txt", baseoutfilename,
-            numtype_options[txtfile_numtype] + 1,
+   snprintf(filename, MAXPATH, "%s.%s%s%s%stxt", baseoutfilename,
+            numtype_options[txtfile_numtype] + 1, // +1 skips leading - or blank
             txtfile_doboth ? "." : "",
-            chartype_options[txtfile_chartype] + 1);
+            chartype_options[txtfile_chartype] + 1, // +1 skips leading - or blank
+            txtfile_numtype != NONUM || txtfile_chartype != NOCHAR ? "." : "");
    assert((txtf = fopen(filename, "w")) != NULLP, "can't open interpreted text file \"%s\"", filename);
    rlog("creating file \"%s\"\n", filename);
    fprintf(txtf, "file %s\n", filename);
@@ -202,18 +203,20 @@ void txtfile_open(void) { // create <base>.<options>.txt file for interpreted da
            txtfile_linefeed ? " -newline" : "", txtfile_linesize);
    if (txtfile_dataspace) fprintf(txtf, " -dataspace=%d", txtfile_dataspace);
    fprintf(txtf, "\n\n");
-   numrecords = numerrors = numwarnings =numerrorsandwarnings = numtapemarks = 0;
+   numrecords = numerrors = numwarnings =numerrorsandwarnings = numtapemarks = numchars = 0;
    numbytes = 0;
    txtfile_isopen = true; }
 
-void txtfile_tapemark(void) {
+void txtfile_message (const char *msg) {
    if (!txtfile_isopen) txtfile_open();
-   ++numtapemarks;
-   fprintf(txtf, "tape mark\n"); }
+   if (numchars > 0) {
+      fprintf(txtf, "\n");
+      numchars = 0; }
+   fprintf(txtf, msg); }
 
-void txtfile_erasegap(void) {
-   if (!txtfile_isopen) txtfile_open();
-   fprintf(txtf, "erased gap\n"); }
+void txtfile_tapemark(void) {
+   ++numtapemarks;
+   txtfile_message("tape mark\n"); }
 
 void txtfile_outputrecord(int length, int errs, int warnings) {
    if (!txtfile_isopen) txtfile_open();
@@ -223,38 +226,46 @@ void txtfile_outputrecord(int length, int errs, int warnings) {
    else {
       if (errs > 0) ++numerrors;
       if (warnings > 0) ++numwarnings; }
-   fprintf(txtf, "%c%4d: ",
-           errs * warnings > 0 ? 'X' : // show X for both errors and warnings
-           errs > 0 ? '!' : // show ! for errors only
-           warnings > 0 ? '?' : ' ', length); // show ? for warnings only
-   bufcnt = bufstart = 0;
-   for (int i = 0; i < length; ++i) { // discard the parity bit track and write only the data bits
-      byte ch = (byte)(data[i] >> 1);
-      byte ch2 = (byte)(data[i+1] >> 1); // in case, for OCT2, we are doing two bytes at once
-      if (bufcnt >= txtfile_linesize
-            || txtfile_linefeed && ch == 0x0a) { // start a new line
-         if (txtfile_doboth) output_chars();
-         fprintf(txtf, "\n       ");
-         bufcnt = 0; bufstart = i; }
-      buffer[bufcnt++] = ch; // save the byte for doing character interpretation
-      if (txtfile_numtype == HEX) fprintf(txtf, "%02X", ch);
-      else if (txtfile_numtype == OCT // for 8-bit octal data
-               || (txtfile_numtype == OCT2 && i == length-1)) // or an odd last byte of 16-bit words
-         fprintf(txtf, ntrks <= 7 ? "%02o" : "%03o", ch); // 2 chars for 6- or 7-track, otherwise 3 chars
-      else if (txtfile_numtype == OCT2) { // do this byte and the next byte together
-         fprintf(txtf, "%06o", ((uint16_t)ch << 8) | ch2);
-         buffer[bufcnt++] = ch2; // save another byte for character interpretation
-         ++i; }
-      if (txtfile_numtype != NONUM) {
-         if (txtfile_dataspace > 0 && bufcnt % txtfile_dataspace == 0)
-            fprintf(txtf, " "); } // extra space between groups of numeric data
-      else output_char(ch, i&1); // only doing characters, not numbers
-   }
-   if (txtfile_doboth) output_chars(); // do the buffered-up characters whose numerics we did
-   fprintf(txtf, "\n"); }
+   char flag = errs * warnings > 0 ? 'X' : // show X for both errors and warnings
+               errs > 0 ? '!' : // show ! for errors only
+               warnings > 0 ? '?' : ' ';// show ? for warnings only
+   if (txtfile_numtype == NONUM && txtfile_chartype == NOCHAR) { // abbreviated display of just error and lengths
+      if (numchars > 0) numchars += fprintf(txtf, ", "); // separated by commas
+      numchars += fprintf(txtf, "%c%d", flag, length);
+      if (numchars >= txtfile_linesize) { // and broken into -linesize lines
+         fprintf(txtf, "\n");
+         numchars = 0; } }
+   else { // normal display of data and/or text
+      fprintf(txtf, "%c%4d: ", flag, length);
+      bufcnt = bufstart = 0;
+      for (int i = 0; i < length; ++i) { // discard the parity bit track and write only the data bits
+         byte ch = (byte)(data[i] >> 1);
+         byte ch2 = (byte)(data[i + 1] >> 1); // in case, for OCT2, we are doing two bytes at once
+         if (bufcnt >= txtfile_linesize
+               || txtfile_linefeed && ch == 0x0a) { // start a new line
+            if (txtfile_doboth) output_chars();
+            fprintf(txtf, "\n       ");
+            bufcnt = 0; bufstart = i; }
+         buffer[bufcnt++] = ch; // save the byte for doing character interpretation
+         if (txtfile_numtype == HEX) fprintf(txtf, "%02X", ch);
+         else if (txtfile_numtype == OCT // for 8-bit octal data
+                  || (txtfile_numtype == OCT2 && i == length - 1)) // or an odd last byte of 16-bit words
+            fprintf(txtf, ntrks <= 7 ? "%02o" : "%03o", ch); // 2 chars for 6- or 7-track, otherwise 3 chars
+         else if (txtfile_numtype == OCT2) { // do this byte and the next byte together
+            fprintf(txtf, "%06o", ((uint16_t)ch << 8) | ch2);
+            buffer[bufcnt++] = ch2; // save another byte for character interpretation
+            ++i; }
+         if (txtfile_numtype != NONUM) {
+            if (txtfile_dataspace > 0 && bufcnt % txtfile_dataspace == 0)
+               fprintf(txtf, " "); } // extra space between groups of numeric data
+         else output_char(ch, i & 1); // only doing characters, not numbers
+      }
+      if (txtfile_doboth) output_chars(); // do the buffered-up characters whose numerics we did
+      fprintf(txtf, "\n"); } }
 
 void txtfile_close(void) {
    if (txtfile_isopen) {
+      if (numchars > 0) fprintf(txtf, "\n");
       fprintf(txtf, "end of file\n\n");
       fprintf(txtf, "there were %d data blocks with %s bytes, and %d tapemarks\n", numrecords, longlongcommas(numbytes), numtapemarks);
       if (numerrorsandwarnings > 0) fprintf(txtf, numerrorsandwarnings == 1 ?

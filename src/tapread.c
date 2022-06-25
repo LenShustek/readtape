@@ -4,7 +4,7 @@
 Read a SIMH .tap file for the purpose of using the readtape text
 and binary dump routines to create an interpreted text file.
 
-See textfile.c for the command-line parameters that control what is display
+See textfile.c for the command-line parameters that control what is displayed
 and for the guts of what this calls.
 
 *******************************************************************************
@@ -33,13 +33,21 @@ static int nbytes = 0;
 
 byte tapf_readbyte(void) {
    byte ch;
-   if (fread(&ch, 1, 1, tapf) != 1) fatal("SIMH .tap endfile with no end-of-medium marker");
+   if (fread(&ch, 1, 1, tapf) != 1) {
+      if (feof(tapf)) fatal(".tap endfile too soon");
+      else fatal("error reading .tap file: %s", strerror(ferror(tapf))); }
    ++nbytes;
    return ch; }
 
 uint32_t tapf_get_marker(void) { // a 4-byte little-endian unsigned integer
+   byte chs[4];
+   if (fread(&chs, 1, 4, tapf) != 4) {
+      if (feof(tapf)) {  // endfile: treat as "end of medium"
+         txtfile_message("missing .tap end-of-medium marker\n");
+         return 0xffffffffL; }
+      else fatal("error reading .tap file: %s", strerror(ferror(tapf))); }
    uint32_t val = 0;
-   for (int sh = 0; sh < 32; sh += 8) val |= tapf_readbyte() << sh;
+   for (int ndx = 3; ndx >= 0; --ndx) val = (val << 8) | chs[ndx];
    return val; };
 
 void read_tapfile(const char *basefilename) { // read the whole SIMH file
@@ -50,24 +58,30 @@ void read_tapfile(const char *basefilename) { // read the whole SIMH file
    assert(tapf != NULLP, "Unable to open SIMH TAP file \"%s\"", filename);
    rlog("processing %s\n", filename);
    txtfile_open();  // create our output text file; abort on failure
-   while (1) { // we read until the SIMH end marker
+   while (1) { // we read until we get the SIMH end marker or the end of the file
       uint32_t marker, length;
       marker = tapf_get_marker();
       if (marker == 0xffffffffL) {
          rlog(".tap end of medium\n");
          break; }
-      if (marker == 0xfffffffeL) txtfile_erasegap();
+      if (marker == 0xfffffffeL) txtfile_message("erased gap\n");
       if (marker == 0x00000000L) txtfile_tapemark();
       else { // data record
          if (marker & 0x7f000000L) fatal(".tap bad marker: %08lX", marker);
          if ((length = marker & 0xffffffL) == 0) fatal(".tap bad record length: %08lX", marker);
-         assert(length < MAXBLOCK, "SIMH .tap data record too big: %d", length);
+         assert(length < MAXBLOCK, ".tap data record too big: %d", length);
          for (unsigned ndx = 0; ndx < length; ++ndx) // read all the bytes of this SIMH record
             data[ndx] = tapf_readbyte() << 1; // the data with a bogus parity bit on the right
-         txtfile_outputrecord(length, marker & 0x80000000L /*error flag*/ ? 1 : 0, 0); // decode the block
-         if (length & 1) tapf_readbyte(); // data is padded to an even number of bytes
-         marker = tapf_get_marker(); // get the ending marker for data block
-         if ((marker & 0xffffffL) != length) fatal("bad ending marker: %08lX at file offset %d", marker, nbytes); } }
+         txtfile_outputrecord(length, /* error flag: */ marker & 0x80000000L ? 1 : 0, /*warning flag: */ 0); // decode the record
+         // There is supposed to be exactly one byte of padding if the length is odd, following by a 4-byte trailing length that
+         // matches the length at the start of the record. But some writers disobeyed the spec and didn't pad, or padded too much.
+         // So we look for the matching trailing length in up to 4 places, accommodating 0 to 3 bytes of padding.
+         marker = tapf_get_marker(); // get a potential trailing length for the data record assuming there is no padding
+         int tries = 0;
+         while ((marker & 0xffffffL) != length) {
+            if (++tries > 4) fatal("didn't find .tap trailing record length at file offset %d", nbytes);
+            marker = (marker >> 8) | ((uint32_t)tapf_readbyte() << 24); // skip a byte: discard LSB, add a new MSB
+         } } }
    fclose(tapf); }
 
 //*

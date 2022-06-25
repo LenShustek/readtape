@@ -421,7 +421,7 @@ void read_parms(void);
 void txtfile_open(void);
 void txtfile_outputrecord(int length, int numerrs, int numwarnings);
 void txtfile_tapemark(void);
-void txtfile_erasegap(void);
+void txtfile_message(const char *msg);
 void txtfile_close(void);
 void read_tapfile(const char *basefilename);
 

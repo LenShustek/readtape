@@ -304,6 +304,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 - Add -tapread option to only read .tap files and do text/numeric decoding.
 - Relax timing for NRZI tapemark detection.
 
+*** 24 June 2022, L. Shustek, V3.14
+- Make -ASCII ignore the top (0x80) bit
+- Changes to -tapread:
+    - show just record summaries if neither text nor numeric mode is specified.
+      (also for when it isn't -tapread)
+    - treat the end of file as an implicit EOM marker, with a warning
+    - allow variable data record padding; look for the trailing length to indicate the end
 
  TODO:
  - add an option to use even parity for small (?) blocks and odd parity for big blocks,
@@ -328,7 +335,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.13"
+#define VERSION "3.14"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -1838,14 +1845,15 @@ int main(int argc, char *argv[]) {
    if (txtfile_numtype != NONUM || txtfile_chartype != NOCHAR)
       do_txtfile = true; // assume -txtfile if any of its suboptions were given
    if (do_txtfile) {
-      if (txtfile_chartype == NOCHAR && txtfile_numtype == NONUM) {
-         txtfile_chartype = ASC; txtfile_numtype = HEX; }
+      //if (txtfile_chartype == NOCHAR && txtfile_numtype == NONUM) {
+      //   txtfile_chartype = ASC; txtfile_numtype = HEX; }
       txtfile_doboth = txtfile_chartype != NOCHAR && txtfile_numtype != NONUM;
       if (txtfile_linesize == 0) txtfile_linesize = txtfile_doboth ? 32 : 64; }
 
    if (tap_read) {  // we are only to read and interpret a SIMH .tap file
-      assert(do_txtfile, "-tapread was specified, but no text file options were given");
+      //assert(do_txtfile, "-tapread was specified, but no text file options were given");
       ntrks = ntrks_specified; // so that ntrks=9 will make octal 3 characters wide
+      if (txtfile_linesize == 0) txtfile_linesize = 64;
       read_tapfile(cmdfilename);
       txtfile_close(); }
 
