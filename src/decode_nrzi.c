@@ -182,8 +182,8 @@ void nrzi_deletebits(int howmany) {
       t->datacount -= howmany; } }
 
 void nrzi_bot(struct trkstate_t *t) { // detected a bottom
-   if (trace_on) dlog("trk %d bot at %.7f tick %.1lf, agc %.2f\n",
-                         t->trknum, t->t_bot, TICK(t->t_bot), t->agc_gain);
+   //if (trace_on) dlog("trk %d bot at %.7f tick %.1lf, agc %.2f\n",
+   //                      t->trknum, t->t_bot, TICK(t->t_bot), t->agc_gain);
    if (PEAK_STATS && nrzi.t_lastclock != 0 && nrzi.datablock && nrzi.post_counter == 0)
       record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_bot - nrzi.t_lastclock), t->trknum);
    if (t->t_bot < nrzi.t_last_midbit && nrzi.post_counter == 0) {
@@ -197,8 +197,8 @@ void nrzi_bot(struct trkstate_t *t) { // detected a bottom
       adjust_agc(t); }
 
 void nrzi_top(struct trkstate_t *t) {  // detected a top
-   if (trace_on) dlog("trk %d top at %.7f tick %.1lf, agc %.2f\n",
-                         t->trknum, t->t_top, TICK(t->t_top), t->agc_gain);
+   //if (trace_on) dlog("trk %d top at %.7f tick %.1lf, agc %.2f\n",
+   //                      t->trknum, t->t_top, TICK(t->t_top), t->agc_gain);
    if (PEAK_STATS && nrzi.t_lastclock != 0 && nrzi.datablock && nrzi.post_counter == 0)
       record_peakstat(nrzi.clkavg.t_bitspaceavg, (float)(t->t_top - nrzi.t_lastclock), t->trknum);
    if (t->t_top < nrzi.t_last_midbit && nrzi.post_counter == 0) {
@@ -231,6 +231,7 @@ void nrzi_top(struct trkstate_t *t) {  // detected a top
 
 void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next clock boundary
    // - check for missing peaks near the previous clock, which represent zero bits
+   // - delete extra data we added if there were multiple peaks near the previous clock (7/18/2022)
    // - adjust the clock edge position and rate based on the average location of all one-bit transitions we see there
    // - check for entering the end-of-block area when there is silence on all tracks
    int numbits = 0, numlaterbits = 0;
@@ -241,17 +242,24 @@ void nrzi_zerocheck(void) {  // we're more or less in the vicinity of the next c
    if (DEBUG && trace_on) dlog("zerocheck: postctr %d, left %.8lf tick %.1lf, right %.8lf tick %.1lf, at %.8lf tick %.1lf\n",
                                   nrzi.post_counter, left_edge, TICK(left_edge), right_edge, TICK(right_edge), timenow, TICK(timenow));
    double avg_pos = 0;
-   int last_complete_byte = 0;
+   int last_complete_byte = 0; // only for debugging
    for (int trknum = 0; trknum < ntrks; ++trknum) {
       struct trkstate_t *t = &trkstate[trknum];
-      if (t->t_lastpeak > left_edge && t->t_lastpeak < right_edge) {
+      bool lastpeak_in_window = t->t_lastpeak > left_edge && t->t_lastpeak < right_edge;
+      bool prevlastpeak_in_window = t->t_prevlastpeak > left_edge && t->t_prevlastpeak < right_edge;
+      if (lastpeak_in_window) {
          avg_pos += t->t_lastpeak; // the last peak was in the subject window
-         last_complete_byte = t->datacount - 1;
-         ++numbits; }
-      else if (t->t_prevlastpeak > left_edge && t->t_prevlastpeak < right_edge) {
+         ++numbits;
+         if (prevlastpeak_in_window) { // If the previous peak was also in the window, we have a noisy peak.
+            --t->datacount;  // delete the 1-bit for one of the peaks
+            if (DEBUG && trace_on)
+               dlog("   trk %d deleted 1-bit from noise peak at %.8lf tick %.1lf\n",
+                    trknum, t->t_lastpeak, TICK(t->t_lastpeak)); }
+         if (DEBUG) last_complete_byte = t->datacount - 1; }
+      else if (prevlastpeak_in_window) {
          avg_pos += t->t_prevlastpeak; // the peak before that was in the window
-         last_complete_byte = t->datacount - 2;
-         ++numbits; }
+         ++numbits;
+         if (DEBUG) last_complete_byte = t->datacount - 2; }
       else { // neither: we missed a peak on this track and must record a zero bit
          if (t->t_lastpeak > right_edge) { // but if there was a subsequent peak,
             --t->datacount; // temporarily erase that one bit

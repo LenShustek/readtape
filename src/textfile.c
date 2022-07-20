@@ -77,6 +77,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "decoder.h"
 
+bool txtfile_verbose = true;   // do we want the verbose block info?  This could be an option.
+
 static byte buffer[MAXLINE];
 static int bufcnt, bufstart, numrecords, numerrors, numwarnings, numerrorsandwarnings, numtapemarks, numchars;
 static long long int numbytes;
@@ -148,9 +150,10 @@ static byte Adagetape_code[64] = { // Adage AGT magtape; http://bitsavers.org/pd
    /*60*/ '+', '-', '*', '/', '.', '(', ')', ',', '=', '&', ':', ' ', '$', '#', ' ', 'r' }; // r is CR
 
 static byte CDC_code[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-*/()$= ,.#[]:\"_!&\'?<>@\\^;";
-typedef char CDC_ok [sizeof(CDC_code) == 65];
-static byte Univac_code[] = "@[]#^ ABCDEFGHIJKLMNOPQRSTUVWXYZ)-+<=>&$*(%:?!,\\0123456789';/.o~";
-typedef char Univac_ok [sizeof(Univac_code) == 65];
+typedef char CDC_ok [sizeof(CDC_code) == 65]; // compiler check that it is 64 characters
+
+static byte Univac_code[] = "@[]#^ ABCDEFGHIJKLMNOPQRSTUVWXYZ)-+<=>&$*(%:?!,\\0123456789';/.o~"; // o is lozenge
+typedef char Univac_ok [sizeof(Univac_code) == 65]; // compiler check that it is 64 characters
 
 // must correspond to enums in decoder.h
 static char *chartype_options[] = { " ", "-BCD", "-EBCDIC", "-ASCII", "-B5500", "-sixbit", "-SDS", "-SDSM", "-flexo",
@@ -209,16 +212,19 @@ void txtfile_open(void) { // create <base>.<options>.txt file for interpreted da
    numbytes = 0;
    txtfile_isopen = true; }
 
-void txtfile_message (const char *msg) {
+void txtfile_message (const char *msg, ...) {
    if (!txtfile_isopen) txtfile_open();
    if (numchars > 0) {
       fprintf(txtf, "\n");
       numchars = 0; }
-   fprintf(txtf, msg); }
+   va_list args;
+   va_start(args, msg);
+   vfprintf(txtf, msg, args);
+   va_end(args); }
 
 void txtfile_tapemark(void) {
    ++numtapemarks;
-   txtfile_message("tape mark\n"); }
+   txtfile_message("tape mark at time %.8lf\n", timenow); }
 
 void txtfile_outputrecord(int length, int errs, int warnings) {
    if (!txtfile_isopen) txtfile_open();
@@ -238,7 +244,11 @@ void txtfile_outputrecord(int length, int errs, int warnings) {
          fprintf(txtf, "\n");
          numchars = 0; } }
    else { // normal display of data and/or text
-      fprintf(txtf, "%c%4d: ", flag, length);
+      if (txtfile_verbose) {
+         struct results_t *result = &block.results[block.parmset];
+         fprintf(txtf, "block %d: %d bytes at time %.8lf, %s\n ",
+                 numblks+1, result->minbits, timenow, format_block_errors(result)); }
+      else fprintf(txtf, "%c%4d: ", flag, length); // 7 chars
       bufcnt = bufstart = 0;
       for (int i = 0; i < length; ++i) { // discard the parity bit track and write only the data bits
          byte ch = (byte)(data[i] >> 1);
@@ -246,7 +256,7 @@ void txtfile_outputrecord(int length, int errs, int warnings) {
          if (bufcnt >= txtfile_linesize
                || txtfile_linefeed && ch == 0x0a) { // start a new line
             if (txtfile_doboth) output_chars();
-            fprintf(txtf, "\n       ");
+            fprintf(txtf, txtfile_verbose ? "\n " : "\n       "); // 7 chars if not verbose
             bufcnt = 0; bufstart = i; }
          buffer[bufcnt++] = ch; // save the byte for doing character interpretation
          if (txtfile_numtype == HEX) fprintf(txtf, "%02X", ch);
@@ -270,17 +280,28 @@ void txtfile_close(void) {
       if (numchars > 0) fprintf(txtf, "\n");
       fprintf(txtf, "end of file\n\n");
       fprintf(txtf, "there were %d data blocks with %s bytes, and %d tapemarks\n", numrecords, longlongcommas(numbytes), numtapemarks);
-      if (numerrorsandwarnings > 0) fprintf(txtf, numerrorsandwarnings == 1 ?
-                                               "%d block with both errors and warnings was marked with a X before the length\n" :
-                                               "%d blocks with both errors and warnings were marked with a X before the length\n", numerrorsandwarnings);
-      if (numerrors > 0) fprintf(txtf, numerrors == 1 ?
-                                    "%d block with errors was marked with a ! before the length\n" :
-                                    "%d blocks with errors were marked with a ! before the length\n", numerrors);
-      else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had errors\n");
-      if (numwarnings > 0) fprintf(txtf, numwarnings == 1 ?
-                                      "%d block with warnings was marked with a ? before the length\n" :
-                                      "%d blocks with warnings were marked with a ? before the length\n", numwarnings);
-      else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had warnings\n");
+      if (txtfile_verbose) {
+         if (numerrorsandwarnings > 0)
+            fprintf(txtf, "%d block%s had both errors and warnings\n", numerrorsandwarnings, add_s(numerrorsandwarnings));
+         if (numerrors > 0) fprintf(txtf, "%d block%s had errors\n", numerrors, add_s(numerrors));
+         else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had errors\n");
+         if (numwarnings > 0) fprintf(txtf, "%d block%s had warnings\n", numwarnings, add_s(numwarnings));
+         else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had warnings\n"); }
+      else {
+         if (numerrorsandwarnings > 0)
+            fprintf(txtf, numerrorsandwarnings == 1 ?
+                    "%d block with both errors and warnings was marked with a X before the length\n" :
+                    "%d blocks with both errors and warnings were marked with a X before the length\n", numerrorsandwarnings);
+         if (numerrors > 0)
+            fprintf(txtf, numerrors == 1 ?
+                    "%d block with errors was marked with a ! before the length\n" :
+                    "%d blocks with errors were marked with a ! before the length\n", numerrors);
+         else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had errors\n");
+         if (numwarnings > 0)
+            fprintf(txtf, numwarnings == 1 ?
+                    "%d block with warnings was marked with a ? before the length\n" :
+                    "%d blocks with warnings were marked with a ? before the length\n", numwarnings);
+         else if (numerrorsandwarnings == 0) fprintf(txtf, "no blocks had warnings\n"); }
       fclose(txtf);
       txtfile_isopen = false; } }
 

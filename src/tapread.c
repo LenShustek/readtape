@@ -50,10 +50,10 @@ uint32_t tapf_get_marker(void) { // a 4-byte little-endian unsigned integer
    for (int ndx = 3; ndx >= 0; --ndx) val = (val << 8) | chs[ndx];
    return val; };
 
-void read_tapfile(const char *basefilename) { // read the whole SIMH file
+void read_tapfile(const char *basefilename, const char *extension) { // read the whole SIMH file
    char filename[MAXPATH];
    strncpy(filename, basefilename, MAXPATH - 5); filename[MAXPATH - 5] = '\0';
-   strcat(filename, ".tap");
+   strcat(filename, extension);
    tapf = fopen(filename, "rb");
    assert(tapf != NULLP, "Unable to open SIMH TAP file \"%s\"", filename);
    rlog("processing %s\n", filename);

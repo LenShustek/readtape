@@ -131,7 +131,8 @@ void pe_preamble_peak(struct trkstate_t *t, bool is_top) {
       static warned_polarity = false; // should be in a file-specific structure
       if (!t->bit1_up && !warned_polarity) {
          rlog("*** NOTE: we detected reverse PE signal polarity, but we can handle it\n");
-         warned_polarity = true; } }
+         warned_polarity = true; }
+      block.t_blockstart = timenow; } // record the start of the block
    if (t->peakcount > PE_MIN_PREBITS	// if we've seen at least 35 zeroes
          && t->bit1_up == is_top // and this is the direction that could be a one
          && (is_top ? t->t_top : t->t_bot) - t->t_lastpeak > t->t_clkwindow) { // and we missed a clock

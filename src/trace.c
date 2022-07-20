@@ -225,7 +225,7 @@ void trace_startstop(void) {
    //if (rereading
    //if (true
    //if (ww.datablock && numblks >= 2
-   if (timenow > 10.5289
+   if (timenow > 1.93907
          //if (numblks >= 1478 && block.parmset == 2 && timenow > 163.863
          //if (timenow > 13.1369 && trkstate[0].datacount > 270
          //if (trkstate[TRACETRK].peakcount > 0

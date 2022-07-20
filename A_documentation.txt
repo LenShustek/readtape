@@ -80,10 +80,16 @@ it reverses numbers in external files when necessary. I compile and link
 using Microsoft Visual Studio Community 2017.
 
 use: readtape <options> <basefilename>
-  the input file is <basefilename>.csv or <basefilename>.tbin
-  the output files will be <basefilename>.xxx by default
-  the optional parameter file is <basefilename>.parms,
-   or NRZI/PE/GCR/Whirlwind.parms, in the base or current directory
+
+  The input file is <basefilename> with .csv, .tbin, or .tap,
+     which may optionally be included in the command. 
+     If the extension is not specified, it tries .csv first 
+     then .tbin, and .tap only if -tapread is specified.
+
+  The output files will be <basefilename>.xxx by default.
+
+  The optional parameter file is <basefilename>.parms,
+   or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.
 
 options:
   -ntrks=n       set the number of tracks
@@ -121,7 +127,7 @@ options:
                    characters per line: -linesize=nn
                    space every n bytes of data: -dataspace=n
                    make LF or CR start a new line: -linefeed
-  -tapread       just read a SIMH .tap file to produce a textfile
+  -tapread       read a SIMH .tap file to produce a textfile; the input may have any extension
   -outf=bbb      use bbb as the <basefilename> for output files
   -outp=ppp      otherwise use ppp as an optional prepended path for output files
   -sumt=sss      append a text summary of results to text file sss

@@ -736,6 +736,7 @@ void gcr_addbit(struct trkstate_t *t, byte bit, double t_bit) { // add a GCR bit
    //   adjust_clock(&t->clkavg, (float)(t_bit - t->t_lastbit), t->trknum);
    t->t_lastbit = t_bit;
    if (t->datacount == 0) {
+      block.t_blockstart = t_bit;
       t->t_firstbit = t_bit; // record time of first bit in the datablock
       //assert(t->v_top > t->v_bot, "v_top < v_bot in gcr_addbit at %.8lf", t_bit);
       t->max_agc_gain = t->agc_gain; }

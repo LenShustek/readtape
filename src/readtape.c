@@ -312,14 +312,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     - treat the end of file as an implicit EOM marker, with a warning
     - allow variable data record padding; look for the trailing length to indicate the end
 
+*** 18 July 2022, L. Shustek, V3.15
+- Fix NRZI bug: a second bogus peak in a single bit window caused the extra bit to be propagated on
+  that track for the rest of the block. Now in zerocheck() we delete a second peak in one window.
+- In the textfile, expand the info about the block into a line before the data like this:
+      block nnnn: xxxx bytes at time yyyy, <error information>
+- In the textfile, have "tape mark" show the time.
+- By default comment on gaps greater than 5 seconds, ie -showibg=5000.
+- Allow extensions .csv, .tbin, .tap (or others with -tapread) to be given on the command line.
+
  TODO:
- - add an option to use even parity for small (?) blocks and odd parity for big blocks,
-   for 7-track binary tapes with 80-character BCD labels
 - support reading Saleae binary export files;
   see https://support.saleae.com/faq/technical-faq/data-export-format-analog-binary
-  (But .tbin is still smaller and faster, so have csvtbin do that conversion too?)
--set block.t_blockstart for formats other than Whirlwind so that
-  -showibg will work for them
+  (But: .tbin is still smaller and faster, so have csvtbin do that conversion too?)
+  (But: Saleae has changed their export format, so which to do?)
 - make multiple decodes work for WW. Pb is that the peak and skew state
   needs to be saved and restored because the blocks can be so close.
   Flash: we now have similar code at the end of deskewing, so check that out.
@@ -335,7 +341,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.14"
+#define VERSION "3.15"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -520,9 +526,10 @@ int starting_parmset = 0;
 time_t start_time;
 double data_start_time = 0;
 double last_block_time = 0;
+double block_start_time = 0;
 int skip_samples = 0, subsample = 1;
-bool show_ibg = false;
-int show_ibg_threshold;
+bool show_ibg = true;
+int show_ibg_threshold = 5000; // by default: gaps > 5 seconds are shown
 int dlog_lines = 0;
 
 /********************************************************************
@@ -587,16 +594,121 @@ void close_summary_file(void) {
       doing_summary = false; } }
 
 /********************************************************************
+   utility routines
+*********************************************************************/
+size_t strlcpy(char * dst, const char * src, size_t maxlen) { // from BSD library: a safe strcpy
+   const size_t srclen = strlen(src);
+   if (srclen + 1 < maxlen) {
+      memcpy(dst, src, srclen + 1); }
+   else if (maxlen != 0) {
+      memcpy(dst, src, maxlen - 1);
+      dst[maxlen - 1] = '\0'; }
+   return srclen; }
+
+int strcasecmp(const char*a, const char*b) {  // case-independent string comparison
+   while (tolower(*a) == tolower(*b++))
+      if (*a++ == '\0') return (0);
+   return (tolower(*a) - tolower(*--b)); }
+
+float scanfast_float(char **p) { // *** fast scanning routines for CSV numbers
+// These routines are *way* faster than using sscanf!
+   float n = 0;
+   bool negative = false;
+   while (**p == ' ' || **p == ',')++*p; //skip leading blanks, comma
+   if (**p == '-') { // optional minus sign
+      ++*p; negative = true; }
+   while (isdigit(**p)) n = n * 10 + (*(*p)++ - '0'); //accumulate left of decimal point
+   if (**p == '.') { // skip decimal point
+      float divisor = 10;
+      ++*p;
+      while (isdigit(**p)) { //accumulate right of decimal point
+         n += (*(*p)++ - '0') / divisor;
+         divisor *= 10; } }
+   return negative ? -n : n; }
+
+double scanfast_double(char **p) {
+   double n = 0;
+   bool negative = false;
+   while (**p == ' ' || **p == ',')++*p;  //skip leading blanks, comma
+   if (**p == '-') { // optional minus sign
+      ++*p; negative = true; }
+   while (isdigit(**p)) n = n * 10 + (*(*p)++ - '0'); //accumulate left of decimal point
+   if (**p == '.') {
+      double divisor = 10;
+      ++*p;
+      while (isdigit(**p)) { //accumulate right of decimal point
+         n += (*(*p)++ - '0') / divisor;
+         divisor *= 10; } }
+   return negative ? -n : n; }
+
+// While we're at it: Microsoft Visual Studio C doesn't support the wonderful POSIX %' format
+// specifier for nicely displaying big numbers with commas separating thousands, millions, etc.
+// So here are a couple of special-purpose routines for that.
+// *** BEWARE *** THEY USE A STATIC BUFFER, SO YOU CAN ONLY DO ONE CALL PER SPRINTF LINE!
+
+char *intcommas(int n) { // 32 bits
+   assert(n >= 0, "bad call to intcommas: %d", n);
+   static char buf[14]; //max: 2,147,483,647
+   char *p = buf + 13;  int ctr = 4;
+   *p-- = '\0';
+   if (n == 0)  *p-- = '0';
+   else while (n > 0) {
+         if (--ctr == 0) {
+            *p-- = ',';  ctr = 3; }
+         *p-- = n % 10 + '0';
+         n = n / 10; }
+   return p + 1; }
+
+char *longlongcommas(long long n) { // 64 bits
+   assert(n >= 0, "bad call to longlongcommas: %ld", n);
+   static char buf[26]; //max: 9,223,372,036,854,775,807
+   char *p = buf + 25; int ctr = 4;
+   *p-- = '\0';
+   if (n == 0)  *p-- = '0';
+   else while (n > 0) {
+         if (--ctr == 0) {
+            *p-- = ',';  ctr = 3; }
+         *p-- = n % 10 + '0';
+         n = n / 10; }
+   return p + 1; }
+
+char const *add_s(int value) { // make plurals have good grammar
+   return value == 1 ? "" : "s"; }
+
+void reverse2(uint16_t *pnum) {  // routines to change little- and big-endian numbers
+   byte x = ((byte *)pnum)[0];
+   byte y = ((byte *)pnum)[1];
+   ((byte *)pnum)[0] = y;
+   ((byte *)pnum)[1] = x; }
+
+void reverse4(uint32_t *pnum) {
+   for (int i = 0; i < 2; ++i) {
+      byte x = ((byte *)pnum)[i];
+      byte y = ((byte *)pnum)[3 - i];
+      ((byte *)pnum)[i] = y;
+      ((byte *)pnum)[3 - i] = x; } }
+
+void reverse8(uint64_t *pnum) {
+   for (int i = 0; i < 4; ++i) {
+      byte x = ((byte *)pnum)[i];
+      byte y = ((byte *)pnum)[7 - i];
+      ((byte *)pnum)[i] = y;
+      ((byte *)pnum)[7 - i] = x; } }
+
+/********************************************************************
    Routines for processing options
 *********************************************************************/
-static char *github_info = "For more information, see https://github.com/LenShustek/readtape\n";
+static char *github_info = "\nFor more information, see https://github.com/LenShustek/readtape\n";
 void SayUsage (void) {
-   static char *usage[] = {
-      "use: readtape <options> <basefilename>",
-      "  the input file is <basefilename>.csv or <basefilename>.tbin",
-      "  the output files will be <basefilename>.xxx by default",
-      "  the optional parameter file is <basefilename>.parms,",
-      "   or NRZI/PE/GCR/Whirlwind.parms, in the base or current directory",
+   static char *usage[] = { "",
+      "use: readtape <options> <basefilename>[.ext]", "",
+      "  The input file is <basefilename> with .csv, .tbin, or .tap,",
+      "    which may optionally be included in the command.",
+      "   If the extension is not specified, it tries .csv first",
+     "    then.tbin, and.tap only if -tapread is specified.", "",
+      "  The output files will be <basefilename>.xxx by default.", "",
+      "  The optional parameter file is <basefilename>.parms,",
+      "   or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.",
       "",
       "options:",
       "  -ntrks=n       set the number of tracks to n",
@@ -635,7 +747,7 @@ void SayUsage (void) {
       "                   characters per line: -linesize=nn",
       "                   space every n bytes of data: -dataspace=n",
       "                   make LF or CR start a new line: -linefeed",
-      "  -tapread       just read a SIMH .tap file to produce a textfile",
+      "  -tapread       read a SIMH .tap file to produce a textfile; the input may have any extension",
       "  -outf=bbb      use bbb as the <basefilename> for output files",
       "  -outp=ppp      otherwise use ppp as an optional prepended path for output files",
       "  -sumt=sss      append a text summary of results to text file sss",
@@ -644,7 +756,7 @@ void SayUsage (void) {
       "  -nm            don't try multiple ways to decode a block",
       "  -v[n]          verbose mode [level n, default is 1]",
 #if DEBUG
-      "  -d[n]          debug mode [level n, default is 1]",
+      "  -d[n]          debug options [bits in n, default is 1]",
 #endif
       "  -q             quiet mode (only say \"ok\" or \"bad\")",
       "  -f             take a file list from <basefilename>.txt",
@@ -872,7 +984,7 @@ int HandleOptions (int argc, char *argv[]) {
    return firstnonoption; }
 
 /********************************************************************
-   utility routines
+   block data routines
 *********************************************************************/
 byte parity (uint16_t val) { // compute the parity of one byte
    uint16_t p = val & 1;
@@ -948,10 +1060,6 @@ void create_datafile(const char *name) {
 char *modename(void) {
    return mode == PE ? "PE" : mode == NRZI ? "NRZI" : mode == GCR ? "GCR" : mode == WW ? "Whirlwind" : "???"; }
 
-/***********************************************************************************************
-      tape block processing
-***********************************************************************************************/
-
 struct file_position_t {   // routines to save and restore the file position, sample time, and number of samples
    int64_t position;
    double time;
@@ -980,14 +1088,21 @@ void restore_file_position(struct file_position_t *fp, const char *msg) {
 
 static struct file_position_t blockstart;
 
+/***********************************************************************************************
+      end of block processing
+***********************************************************************************************/
+
 void show_ibg_time(void) {
-   // "blockstart.time" is when we start looking for a block,
-   // so it is at the end of the previous block or tape mark.
+   // "blockstart.time" is when we start looking for a block, so it is at the end of the previous block or tape mark.
    // "block.t_blockstart" is the time when the decoder noticed the start of data.
    int ibg_msec = (int)(((block.t_blockstart - blockstart.time) * 1000.0) + 0.5);
    //rlog("    show IBG time at %.3lf msec, started looking %.3lf msec, data started %.3lf msec\n", timenow*1e3, blockstart.time*1e3, block.t_blockstart*1e3);
-   if (show_ibg_threshold == 0 || ibg_msec >= show_ibg_threshold)
-      rlog("  %d msec interblock gap\n", ibg_msec); }
+   if (show_ibg_threshold == 0 || ibg_msec >= show_ibg_threshold) {
+      char msg[100];
+      snprintf(msg, sizeof(msg), "%.1d.%03d sec interblock gap%s\n", ibg_msec / 1000, ibg_msec % 1000,
+               show_ibg_threshold > 0 ? "!" : "");
+      rlog(msg);
+      if (do_txtfile) txtfile_message(msg); } }
 
 void got_tapemark(void) {
    ++numtapemarks;
@@ -1006,6 +1121,39 @@ void got_tapemark(void) {
       output_tap_marker(0x00000000); }
    else if (!hdr1_label) close_file(); // not tap format: close the file if we didn't see tape labels
    hdr1_label = false; }
+
+// format the errors and warnings that occurred in this block
+char * format_block_errors(struct results_t *result) {
+   // WARNING: returns pointer to static message buffer
+   static char buf[MAXLINE];
+   char *bufptr = buf;
+   int length = result->minbits;
+   if (result->errcount > 0) {
+      bufptr += sprintf(bufptr, "%d err%s", result->errcount, result->errcount > 1 ? "s" : "");
+      if (result->track_mismatch) bufptr += sprintf(bufptr, ", %d bit track mismatch", result->track_mismatch);
+      if (result->vparity_errs) bufptr += sprintf(bufptr, ", %d parity", result->vparity_errs);
+      if (result->crc_errs) bufptr += sprintf(bufptr, ", %d CRC", result->crc_errs);
+      if (result->lrc_errs) bufptr += sprintf(bufptr, ", 1 LRC");
+      if (result->ecc_errs) bufptr += sprintf(bufptr, ", %d ECC", result->ecc_errs);
+      if (result->ww_bad_length) bufptr += sprintf(bufptr, ", bad length");
+      if (result->ww_speed_err) bufptr += sprintf(bufptr, ", bad speed"); }
+   else bufptr += sprintf(bufptr, "ok");
+   if (result->warncount > 0) {
+      bufptr += sprintf(bufptr, ", %d warning%s", result->warncount, result->warncount > 1 ? "s" : "");
+      if (mode == NRZI) {
+         if (result->corrected_bits > 0) {
+            int trkcount; uint16_t tracks = result->faked_tracks;
+            COUNTBITS(trkcount, tracks);
+            bufptr += sprintf(bufptr, ", %d bits corrected on %d trks", result->corrected_bits, trkcount); } }
+      if (result->gcr_bad_dgroups) bufptr += sprintf(bufptr, ", %d bad dgroups", result->gcr_bad_dgroups);
+      if (result->corrected_bits > 0) bufptr += sprintf(bufptr, ", %d corrected bits", result->corrected_bits);
+      if (mode == PE) {
+         int corrected_bits = count_corrected_bits(data_faked, length);
+         if (corrected_bits > 0) bufptr += sprintf(bufptr, ", %d faked bits on %d trks", corrected_bits, count_faked_tracks(data_faked, length)); }
+      if (result->ww_leading_clock) bufptr += sprintf(bufptr, ", leading clk");
+      if (result->ww_missing_onebit) bufptr += sprintf(bufptr, ", missing 1-bit");
+      if (result->ww_missing_clock) bufptr += sprintf(bufptr, ", missing clk"); }
+   return buf; }
 
 void got_datablock(bool badblock) { // decoded a tape block
    struct results_t *result = &block.results[block.parmset];
@@ -1083,32 +1231,8 @@ void got_datablock(bool badblock) { // decoded a tape block
             if (result->alltrk_min_agc_gain == FLT_MAX)
                rlog("max AGC %.2f, ", result->alltrk_max_agc_gain);
             else rlog("AGC %.2f-%.2f, ", result->alltrk_min_agc_gain, result->alltrk_max_agc_gain);
-            if (result->errcount > 0) {
-               rlog("%d err%s: ", result->errcount, result->errcount > 1 ? "s" : "");
-               if (result->track_mismatch) rlog("%d bit track mismatch, ", result->track_mismatch);
-               if (result->vparity_errs) rlog("%d parity, ", result->vparity_errs);
-               if (result->crc_errs) rlog("%d CRC, ", result->crc_errs);
-               if (result->lrc_errs) rlog("LRC, ");
-               if (result->ecc_errs) rlog("%d ECC, ", result->ecc_errs);
-               if (result->ww_bad_length) rlog("bad length, ");
-               if (result->ww_speed_err) rlog("bad speed, "); }
-            else rlog("ok, ");
-            if (result->warncount > 0) {
-               rlog("%d warning%s: ", result->warncount, result->warncount > 1 ? "s" : "");
-               if (mode == NRZI) {
-                  if (result->corrected_bits > 0) {
-                     int trkcount; uint16_t tracks = result->faked_tracks;
-                     COUNTBITS(trkcount, tracks);
-                     rlog("%d bits corrected on %d trks, ", result->corrected_bits, trkcount); } }
-               if (result->gcr_bad_dgroups) rlog("%d bad dgroups, ", result->gcr_bad_dgroups);
-               if (result->corrected_bits > 0) rlog("%d corrected bits, ", result->corrected_bits);
-               if (mode == PE) {
-                  int corrected_bits = count_corrected_bits(data_faked, length);
-                  if (corrected_bits > 0) rlog("%d faked bits on %d trks, ", corrected_bits, count_faked_tracks(data_faked, length)); }
-               if (result->ww_leading_clock) rlog("leading clk, ");
-               if (result->ww_missing_onebit) rlog("missing 1-bit, ");
-               if (result->ww_missing_clock) rlog("missing clk, "); }
-            rlog("avg speed %.2f IPS at time %.8lf", 1 / (result->avg_bit_spacing * bpi), timenow);
+            rlog(format_block_errors(result)); // print info about the errors and warnings
+            rlog(", avg speed %.2f IPS at time %.8lf", 1 / (result->avg_bit_spacing * bpi), timenow);
             if (SHOW_START_TIME) rlog(", start %.8lf", block.t_blockstart);
             if (SHOW_TAP_OFFSET) rlog(", tap offset %lld", numoutbytes);
             if (SHOW_NUMSAMPLES) rlog(", %lld samples", numsamples);
@@ -1137,87 +1261,6 @@ void got_datablock(bool badblock) { // decoded a tape block
 /*****************************************************************************************
       tape data processing, in either CSV (ASCII) or TBIN (binary) format
 ******************************************************************************************/
-// These routines are *way* faster than using sscanf!
-
-float scanfast_float(char **p) { // *** fast scanning routines for CSV numbers
-   float n=0;
-   bool negative=false;
-   while (**p==' ' || **p==',') ++*p; //skip leading blanks, comma
-   if (**p=='-') { // optional minus sign
-      ++*p; negative = true; }
-   while (isdigit(**p)) n = n*10 + (*(*p)++ -'0'); //accumulate left of decimal point
-   if (**p=='.') { // skip decimal point
-      float divisor=10;
-      ++*p;
-      while (isdigit(**p)) { //accumulate right of decimal point
-         n += (*(*p)++ -'0')/divisor;
-         divisor *= 10; } }
-   return negative ? -n : n; }
-
-double scanfast_double(char **p) {
-   double n=0;
-   bool negative=false;
-   while (**p==' ' || **p==',') ++*p;  //skip leading blanks, comma
-   if (**p=='-') { // optional minus sign
-      ++*p; negative = true; }
-   while (isdigit(**p)) n = n*10 + (*(*p)++ -'0'); //accumulate left of decimal point
-   if (**p=='.') {
-      double divisor=10;
-      ++*p;
-      while (isdigit(**p)) { //accumulate right of decimal point
-         n += (*(*p)++ -'0')/divisor;
-         divisor *= 10; } }
-   return negative ? -n : n; }
-
-// While we're at it: Microsoft Visual Studio C doesn't support the wonderful POSIX %' format
-// specifier for nicely displaying big numbers with commas separating thousands, millions, etc.
-// So here are a couple of special-purpose routines for that.
-// *** BEWARE *** THEY USE A STATIC BUFFER, SO YOU CAN ONLY DO ONE CALL PER LINE!
-char *intcommas(int n) { // 32 bits
-   assert(n >= 0, "bad call to intcommas: %d", n);
-   static char buf[14]; //max: 2,147,483,647
-   char *p = buf + 13;  int ctr = 4;
-   *p-- = '\0';
-   if (n == 0)  *p-- = '0';
-   else while (n > 0) {
-         if (--ctr == 0) {
-            *p-- = ',';  ctr = 3; }
-         *p-- = n % 10 + '0';
-         n = n / 10; }
-   return p + 1; }
-
-char *longlongcommas(long long n) { // 64 bits
-   assert(n >= 0, "bad call to longlongcommas: %ld", n);
-   static char buf[26]; //max: 9,223,372,036,854,775,807
-   char *p = buf + 25; int ctr = 4;
-   *p-- = '\0';
-   if (n == 0)  *p-- = '0';
-   else while (n > 0) {
-         if (--ctr == 0) {
-            *p-- = ',';  ctr = 3; }
-         *p-- = n % 10 + '0';
-         n = n / 10; }
-   return p + 1; }
-
-void reverse2(uint16_t *pnum) {
-   byte x = ((byte *)pnum)[0];
-   byte y = ((byte *)pnum)[1];
-   ((byte *)pnum)[0] = y;
-   ((byte *)pnum)[1] = x; }
-
-void reverse4(uint32_t *pnum) {
-   for (int i = 0; i < 2; ++i) {
-      byte x = ((byte *)pnum)[i];
-      byte y = ((byte *)pnum)[3 - i];
-      ((byte *)pnum)[i] = y;
-      ((byte *)pnum)[3 - i] = x; } }
-
-void reverse8(uint64_t *pnum) {
-   for (int i = 0; i < 4; ++i) {
-      byte x = ((byte *)pnum)[i];
-      byte y = ((byte *)pnum)[7 - i];
-      ((byte *)pnum)[i] = y;
-      ((byte *)pnum)[7 - i] = x; } }
 
 void read_tbin_header(void) {  // read the .TBIN file header
    if (!quiet) rlog("\n.tbin file header:\n");
@@ -1257,8 +1300,11 @@ void read_tbin_header(void) {  // read the .TBIN file header
          assert(parse_track_order(tbin_hdrext_trkorder.trkorder), "invalid track order in TBIN file: %s", tbin_hdrext_trkorder.trkorder);
          if (!quiet) rlog("  -order=%s\n", tbin_hdrext_trkorder.trkorder); } }
    if (!quiet) {
-      if (!(tbin_hdr.u.s.flags & TBIN_NO_REORDER) && (head_to_trk[0] != -1))
-         rlog("  -order ignored because it was specified when the .tbin file was created\n");
+      if (!(tbin_hdr.u.s.flags & TBIN_NO_REORDER)) {  // track reordering has been done
+         rlog("  ");
+         if (head_to_trk[0] != -1)
+            rlog("-order was ignored because ");
+         rlog ("the track ordering was changed to the canonical order when the .tbin file was created\n"); }
       if (tbin_hdr.u.s.flags & TBIN_INVERTED) rlog("  the waveforms were inverted by CSVTBIN\n");
       if (tbin_hdr.u.s.flags & TBIN_REVERSED) rlog("  the tape may have been read or written backwards\n");
       if (tbin_hdr.descr[0] != 0) rlog("   description: %s\n", tbin_hdr.descr);
@@ -1437,7 +1483,7 @@ void show_decode_status(void) { // show the results of all the decoding tries
 //*** process a complete input file whose path and base file name are in baseinfilename[]
 //*** return TRUE only if all blocks were well-formed and error-free
 
-bool process_file(int argc, char *argv[]) {
+bool process_file(int argc, char *argv[], const char *extension) {
    char logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
@@ -1456,15 +1502,17 @@ bool process_file(int argc, char *argv[]) {
       assert((rlogf = fopen(logfilename, "w")) != NULLP, "Unable to open log file \"%s\"", logfilename); }
 
    indatafilename[MAXPATH - 5] = '\0';
-   if (!tbin_file) {
+   inf = NULL;
+   if (!tbin_file && strcasecmp(extension, ".tbin") != 0) {
       strncpy(indatafilename, baseinfilename, MAXPATH - 5);  // try to open <baseinfilename>.csv
       strcat(indatafilename, ".csv");
-      inf = fopen(indatafilename, "r"); }
+      inf = fopen(indatafilename, "r");
+      tbin_file = false; }
    if (!inf) {
       strncpy(indatafilename, baseinfilename, MAXPATH - 6);  // try to open <baseinfilename>.tbin
       strcat(indatafilename, ".tbin");
       inf = fopen(indatafilename, "rb");
-      assert(inf != NULLP, "Unable to open input file \"%s\"%s.tbin", baseinfilename, tbin_file ? "" : " .csv or ");
+      assert(inf != NULL, "Unable to open input file \"%s\" .tbin or .csv", baseinfilename);
       tbin_file = true; }
    if (!quiet) {
       rlog("this is readtape version %s, compiled on %s %s, running on %s",
@@ -1611,7 +1659,7 @@ bool process_file(int argc, char *argv[]) {
       init_blockstate();  // initialize for first processing of a new block
       block.parmset = starting_parmset;
       save_file_position(&blockstart, "to remember block start"); // remember the file position for the start of a block
-      dlog("\n*** block start file pos %s at %.8lf\n", longlongcommas(blockstart.position), timenow);
+      dlog("\n*** start block search at file pos %s at %.8lf\n", longlongcommas(blockstart.position), timenow);
 
       bool keep_trying;
       int last_parmset;
@@ -1780,18 +1828,19 @@ void breakpoint(void) { // for the debugger
    static int counter;
    ++counter; }
 
-//**********************************************************************************************
+/**********************************************************************
+   main
+**********************************************************************/
 
 //void test(const char *str) {
 //   int x;
 //   bool ans = opt_int(str, "V=", &x, 0, 255);
-//   printf("%s: %d, %d\n", str, ans, x);
-//}
-
+//   printf("%s: %d, %d\n", str, ans, x); }
 
 int main(int argc, char *argv[]) {
    int argno;
-   char *cmdfilename;
+   char cmdfilename[MAXPATH];
+   char cmdfileext[15];
 
 #if 0 // test new opt_int
    test("v=123");
@@ -1821,17 +1870,31 @@ int main(int argc, char *argv[]) {
    little_endian = *(byte *)&testendian == 1;
 
    // process command-line options
-
    if (argc == 1) {
       SayUsage(); exit(4); }
    argno = HandleOptions(argc, argv);
+   if (txtfile_numtype != NONUM || txtfile_chartype != NOCHAR)
+      do_txtfile = true; // assume -txtfile if any of its suboptions were given
+   if (do_txtfile) {
+      //if (txtfile_chartype == NOCHAR && txtfile_numtype == NONUM) {
+      //   txtfile_chartype = ASC; txtfile_numtype = HEX; }
+      txtfile_doboth = txtfile_chartype != NOCHAR && txtfile_numtype != NONUM;
+      if (txtfile_linesize == 0) txtfile_linesize = txtfile_doboth ? 32 : 64; }
+
    if (argno == 0) {
       fprintf(stderr, "\n*** No <basefilename> given\n\n");
       SayUsage(); exit(4); }
    if (argc > argno + 1) {
       fprintf(stderr, "\n*** unknown parameter: %s\n\n", argv[argno]);
       SayUsage(); exit(4); }
-   cmdfilename = argv[argno];
+
+   // break the commandline parameter into filename and extension, if one was given
+   strlcpy(cmdfilename, argv[argno], sizeof(cmdfilename));
+   char *filename_end = strrchr(cmdfilename, '.'); // last .
+   if (filename_end) { // there is an extension
+      strlcpy(cmdfileext, filename_end, sizeof(cmdfileext)); // copy the extension, with the dot
+      *filename_end = 0; } // and remove it from the cmdfilename
+   else cmdfileext[0] = 0;  // no extension was given
 
    //TODO: Move what follows into process_file so we do it for each file of a list?
    // Nah. A more elegant solution would be to gather all the options into a
@@ -1842,25 +1905,18 @@ int main(int argc, char *argv[]) {
       assert(strlen(outpathname) + strlen(cmdfilename) < MAXPATH - 1, "path + basename too long");
       strcpy(baseoutfilename, outpathname);
       strcat(baseoutfilename, cmdfilename); }
-   if (txtfile_numtype != NONUM || txtfile_chartype != NOCHAR)
-      do_txtfile = true; // assume -txtfile if any of its suboptions were given
-   if (do_txtfile) {
-      //if (txtfile_chartype == NOCHAR && txtfile_numtype == NONUM) {
-      //   txtfile_chartype = ASC; txtfile_numtype = HEX; }
-      txtfile_doboth = txtfile_chartype != NOCHAR && txtfile_numtype != NONUM;
-      if (txtfile_linesize == 0) txtfile_linesize = txtfile_doboth ? 32 : 64; }
 
-   if (tap_read) {  // we are only to read and interpret a SIMH .tap file
+   if (tap_read || strcasecmp(cmdfileext, ".tap") == 0) {  // we are only to read and interpret a SIMH .tap file
       ntrks = ntrks_specified; // -ntrks controls whether octal is 2 or 3 characters wide
       if (ntrks <= 0) ntrks = 9; // assume 9 tracks (3-digit octal) if not given
       if (txtfile_linesize == 0) txtfile_linesize = 64;
-      read_tapfile(cmdfilename);
+      read_tapfile(cmdfilename, cmdfileext);
       txtfile_close(); }
 
    else {  // do a real mag tape decoding
       assert(mode != WW || !multiple_tries, "Sorry, multiple decoding tries is not implemented yet for Whirlwind");
       start_time = time(NULL);
-      if (filelist) {  // process a list of files
+      if (filelist || strcasecmp(cmdfileext, ".txt") == 0) {  // process a list of files
          char filename[MAXPATH];
          strncpy(filename, cmdfilename, MAXPATH - 5); filename[MAXPATH - 5] = '\0';
          strcat(filename, ".txt");
@@ -1879,13 +1935,13 @@ int main(int argc, char *argv[]) {
                   skip_blanks(&ptr); }
                strncpy(baseinfilename, ptr, MAXPATH - 5); // copy the filename, which could include a path
                baseinfilename[MAXPATH - 5] = '\0';
-               bool result = process_file(argc, argv);
+               bool result = process_file(argc, argv, "");
                printf("%s: %s\n", baseinfilename, result ? "ok" : "bad"); } } }
 
       else {  // process one file
          strncpy(baseinfilename, cmdfilename, MAXPATH - 5);
          baseinfilename[MAXPATH - 5] = '\0';
-         bool result = process_file(argc, argv);
+         bool result = process_file(argc, argv, cmdfileext);
          double elapsed_time = difftime(time(NULL), start_time); // integral seconds, even though a double!
          bool skew_ok;
          // should move the following reports into process_file so we do it for a file list too
@@ -1944,5 +2000,4 @@ int main(int argc, char *argv[]) {
             fclose(summf); } } }
 
    return 0; }
-
 //*
