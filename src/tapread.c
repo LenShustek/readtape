@@ -55,9 +55,14 @@ void read_tapfile(const char *basefilename, const char *extension) { // read the
    strncpy(filename, basefilename, MAXPATH - 5); filename[MAXPATH - 5] = '\0';
    strcat(filename, extension);
    tapf = fopen(filename, "rb");
+   if (!tapf && !*extension) {  // if that didn't work and there wasn't an extension given
+      strcat(filename, ".tap");
+      tapf = fopen(filename, "rb"); }
    assert(tapf != NULLP, "Unable to open SIMH TAP file \"%s\"", filename);
    rlog("processing %s\n", filename);
    txtfile_open();  // create our output text file; abort on failure
+   txtfile_verbose = false; // there is no detailed error info in .tap files
+   numblks = 0;
    while (1) { // we read until we get the SIMH end marker or the end of the file
       uint32_t marker, length;
       marker = tapf_get_marker();
@@ -65,7 +70,7 @@ void read_tapfile(const char *basefilename, const char *extension) { // read the
          rlog(".tap end of medium\n");
          break; }
       if (marker == 0xfffffffeL) txtfile_message("erased gap\n");
-      if (marker == 0x00000000L) txtfile_tapemark();
+      if (marker == 0x00000000L) txtfile_tapemark(true);
       else { // data record
          if (marker & 0x7f000000L) fatal(".tap bad marker: %08lX", marker);
          if ((length = marker & 0xffffffL) == 0) fatal(".tap bad record length: %08lX", marker);
@@ -81,7 +86,8 @@ void read_tapfile(const char *basefilename, const char *extension) { // read the
          while ((marker & 0xffffffL) != length) {
             if (++tries > 4) fatal("didn't find .tap trailing record length at file offset %d", nbytes);
             marker = (marker >> 8) | ((uint32_t)tapf_readbyte() << 24); // skip a byte: discard LSB, add a new MSB
-         } } }
+         }
+         ++numblks; } }
    fclose(tapf); }
 
 //*

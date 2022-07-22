@@ -71,6 +71,9 @@ V1.10        Add -stopaft, -starttime, -endtime options to truncate files.
              Fix -read, broken since V1.7.
              Remove use of max() macro.
 
+22 Jul 2022, L. Shustek
+V1.11        Don't generated the trailing comma on the CSV header line for -read, 
+             because it makes readtape think there is an extra track
 
 --- FUTURE VERSION IDEAS ---
 
@@ -80,7 +83,7 @@ V1.10        Add -stopaft, -starttime, -endtime options to truncate files.
   independent way to find out the size of the file and how far we're read.)
 
 ******************************************************************************/
-#define VERSION "1.10"
+#define VERSION "1.11"
 /******************************************************************************
 Copyright (C) 2018,2019,2022 Len Shustek
 
@@ -513,7 +516,7 @@ void read_tbin(void) {
    assert(dat.sample_bits == 16, "Sorry, we only support 16-bit voltage samples");
    if (!display_header) {
       fprintf(outf, "'%s\nTime, ", hdr.descr); // first line is description, second is column headings
-      for (unsigned i = 0; i < ntrks; ++i) fprintf(outf, "Track %d, ", i);
+      for (unsigned i = 0; i < ntrks; ++i) fprintf(outf, "Track %d%s", i, i == ntrks-1 ? "" : ", ");
       fprintf(outf, "\n"); }
    uint64_t timenow = dat.tstart;
    int16_t data[MAXTRKS];

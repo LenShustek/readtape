@@ -321,6 +321,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 - By default comment on gaps greater than 5 seconds, ie -showibg=5000.
 - Allow extensions .csv, .tbin, .tap (or others with -tapread) to be given on the command line.
 
+*** 11 July 2022, L. Shustek, V3.16
+ - Fix -tapread: filename parsing; trying to show info not in the .tap file.
+
  TODO:
 - support reading Saleae binary export files;
   see https://support.saleae.com/faq/technical-faq/data-export-format-analog-binary
@@ -341,7 +344,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.15"
+#define VERSION "3.16"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -520,6 +523,7 @@ enum txtfile_chartype_t txtfile_chartype = NOCHAR;
 int txtfile_linesize = 0, txtfile_dataspace = 0;
 bool txtfile_doboth;
 bool txtfile_linefeed = false;
+bool txtfile_verbose = true;   // (not for -tapread) (could be an option, otherwise)
 char version_string[] = { VERSION };
 
 int starting_parmset = 0;
@@ -698,69 +702,70 @@ void reverse8(uint64_t *pnum) {
 /********************************************************************
    Routines for processing options
 *********************************************************************/
-static char *github_info = "\nFor more information, see https://github.com/LenShustek/readtape\n";
+static char *github_info = "For more information, see https://github.com/LenShustek/readtape\n";
 void SayUsage (void) {
    static char *usage[] = { "",
-      "use: readtape <options> <basefilename>[.ext]", "",
-      "  The input file is <basefilename> with .csv, .tbin, or .tap,",
-      "    which may optionally be included in the command.",
-      "   If the extension is not specified, it tries .csv first",
-     "    then.tbin, and.tap only if -tapread is specified.", "",
-      "  The output files will be <basefilename>.xxx by default.", "",
-      "  The optional parameter file is <basefilename>.parms,",
-      "   or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.",
-      "",
-      "options:",
-      "  -ntrks=n       set the number of tracks to n",
-      "  -order=        set input data order for tracks 0..ntrks-2,P, where 0=MSB",
-      "                 default: 01234567P for 9 trk, 012345P for 7 trk",
-      "                 (for Whirlwind: a combination of C L M c l m and x's)",
-      "  -pe            PE (phase encoding)",
-      "  -nrzi          NRZI (non return to zero inverted)",
-      "  -gcr           GCR (group coded recording)",
-      "  -whirlwind     Whirlwind I 6-track 2-bit-per-character",
-      "  -ips=n         speed in inches/sec (default: 50, except 25 for GCR)",
-      "  -bpi=n         density in bits/inch (default: autodetect)",
-      "  -zeros         base decoding on zero crossings instead of peaks",
-      "  -differentiate do simple delta differentiation of the input data",
-      "  -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)",
-      "  -revparity=n   reverse parity for blocks up to n bytes long",
-      "  -invert        invert the data so positive peaks are negative and vice versa",
-      "  -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block",
-      "  -reverse       reverse bits in a word and words in a block (Whirlwind only)",
-      "  -skip=n        skip the first n samples",
-      "  -blklimit=n    stop after n blocks",
-      "  -subsample=n   use only every nth data sample",
-      "  -showibg=n     report on interblock gaps greater than n milliseconds",
-      "  -tap           create one SIMH .tap file from all the data",
-      "  -deskew        do NRZI track deskewing based on the beginning data",
-      "  -skew=n,n      use this skew, in #samples for each track, rather than deducing it",
-      "  -correct       do error correction, where feasible",
-      "  -addparity     include the parity bit as the highest bit in the data (for ntrks<9)",
-      "  -tbin          only look for a .tbin input file, not .csv first",
-      "  -nolog         don't create a log file",
-      "  -nolabels      don't try to decode IBM standard tape labels",
-      "  -textfile      create an interpreted .<options>.txt file from the data",
-      "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
-      "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM",
-      "                        -flexo -adage -adagetape -CDC -Univac",
-      "                   characters per line: -linesize=nn",
-      "                   space every n bytes of data: -dataspace=n",
-      "                   make LF or CR start a new line: -linefeed",
-      "  -tapread       read a SIMH .tap file to produce a textfile; the input may have any extension",
-      "  -outf=bbb      use bbb as the <basefilename> for output files",
-      "  -outp=ppp      otherwise use ppp as an optional prepended path for output files",
-      "  -sumt=sss      append a text summary of results to text file sss",
-      "  -sumc=ccc      append a CSV summary of results to text file ccc",
-      "  -m             try multiple ways to decode a block",
-      "  -nm            don't try multiple ways to decode a block",
-      "  -v[n]          verbose mode [level n, default is 1]",
+                            "use: readtape <options> <basefilename>[.ext]", "",
+                            "  The input file is <basefilename> with .csv, .tbin, or .tap,",
+                            "    which may optionally be included in the command.",
+                            "   If the extension is not specified, it tries .csv first",
+                            "    then.tbin, and.tap only if -tapread is specified.", "",
+                            "  The output files will be <basefilename>.xxx by default.", "",
+                            "  The optional parameter file is <basefilename>.parms,",
+                            "   or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.",
+                            "",
+                            "options:",
+                            "  -ntrks=n       set the number of tracks to n",
+                            "  -order=        set input data order for tracks 0..ntrks-2,P, where 0=MSB",
+                            "                 default: 01234567P for 9 trk, 012345P for 7 trk",
+                            "                 (for Whirlwind: a combination of C L M c l m and x's)",
+                            "  -pe            PE (phase encoding)",
+                            "  -nrzi          NRZI (non return to zero inverted)",
+                            "  -gcr           GCR (group coded recording)",
+                            "  -whirlwind     Whirlwind I 6-track 2-bit-per-character",
+                            "  -ips=n         speed in inches/sec (default: 50, except 25 for GCR)",
+                            "  -bpi=n         density in bits/inch (default: autodetect)",
+                            "  -zeros         base decoding on zero crossings instead of peaks",
+                            "  -differentiate do simple delta differentiation of the input data",
+                            "  -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)",
+                            "  -revparity=n   reverse parity for blocks up to n bytes long",
+                            "  -invert        invert the data so positive peaks are negative and vice versa",
+                            "  -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block",
+                            "  -reverse       reverse bits in a word and words in a block (Whirlwind only)",
+                            "  -skip=n        skip the first n samples",
+                            "  -blklimit=n    stop after n blocks",
+                            "  -subsample=n   use only every nth data sample",
+                            "  -showibg=n     report on interblock gaps greater than n milliseconds",
+                            "  -tap           create one SIMH .tap file from all the data",
+                            "  -deskew        do NRZI track deskewing based on the beginning data",
+                            "  -skew=n,n      use this skew, in #samples for each track, rather than deducing it",
+                            "  -correct       do error correction, where feasible",
+                            "  -addparity     include the parity bit as the highest bit in the data (for ntrks<9)",
+                            "  -tbin          only look for a .tbin input file, not .csv first",
+                            "  -nolog         don't create a log file",
+                            "  -nolabels      don't try to decode IBM standard tape labels",
+                            "  -textfile      create an interpreted .<options>.txt file from the data",
+                            "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
+                            "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM",
+                            "                        -flexo -adage -adagetape -CDC -Univac",
+                            "                   characters per line: -linesize=nn",
+                            "                   space every n bytes of data: -dataspace=n",
+                            "                   make LF or CR start a new line: -linefeed",
+                            "  -tapread       read a SIMH .tap file to produce a textfile; the input may have any extension",
+                            "  -outf=bbb      use bbb as the <basefilename> for output files",
+                            "  -outp=ppp      otherwise use ppp as an optional prepended path for output files",
+                            "  -sumt=sss      append a text summary of results to text file sss",
+                            "  -sumc=ccc      append a CSV summary of results to text file ccc",
+                            "  -m             try multiple ways to decode a block",
+                            "  -nm            don't try multiple ways to decode a block",
+                            "  -v[n]          verbose mode [level n, default is 1]",
 #if DEBUG
-      "  -d[n]          debug options [bits in n, default is 1]",
+                            "  -d[n]          debug options [bits in n, default is 1]",
 #endif
-      "  -q             quiet mode (only say \"ok\" or \"bad\")",
-      "  -f             take a file list from <basefilename>.txt",
-      NULLP };
+                            "  -q             quiet mode (only say \"ok\" or \"bad\")",
+                            "  -f             take a file list from <basefilename>.txt",
+                            "",
+                            NULLP };
    fprintf(stderr, "readtape version %s, compiled on %s %s\n", VERSION, __DATE__, __TIME__);
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]);
    fprintf(stderr, github_info); }
@@ -1115,7 +1120,7 @@ void got_tapemark(void) {
       if (SHOW_TAP_OFFSET) rlog(", tap offset %lld", numoutbytes);
       if (SHOW_NUMSAMPLES) rlog(", %lld samples", numsamples);
       rlog(", %d blocks written so far\n", numblks); }
-   if (do_txtfile) txtfile_tapemark();
+   if (do_txtfile) txtfile_tapemark(false);
    if (tap_format) {
       if (!outf) create_datafile(NULLP);
       output_tap_marker(0x00000000); }
@@ -1471,6 +1476,29 @@ bool rereading;
 static char *bs_names[] = // must agree with enum bstate_t in decoder.h
 { "BS_NONE", "BS_TAPEMARK", "BS_NOISE", "BS_BADBLOCK", "BS_BLOCK", "ABORTED" };
 
+void show_program_info(int argc, char *argv[]) {
+   char line[MAXLINE + 1];
+   rlog("this is readtape version %s, compiled on %s %s, running on %s",
+        VERSION, __DATE__, __TIME__, ctime(&start_time)); // ctime ends with newline!
+   if (DEBUG) rlog("**** DEBUG version %s\n", TRACEFILE ? " with tracing" : "");
+#if defined(_WIN32)
+   {
+      char *pgmpathptr;
+      rlog("  executable file: ");
+      if (_get_pgmptr(&pgmpathptr) == 0) rlog("%s\n", pgmpathptr);
+      else rlog("<unavailable>\n"); }
+#endif
+   rlog("  command line: ");
+   for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
+      rlog("%s ", argv[i]);
+   rlog("\n");
+#if defined(_WIN32)
+   rlog("  current directory: %s\n", _getcwd(line, MAXLINE));
+#endif
+   rlog("  this is a %s-endian computer\n", little_endian ? "little" : "big");
+   rlog("  %s", github_info); }
+
+
 void show_decode_status(void) { // show the results of all the decoding tries
    rlog("parmset decode status:\n");
    for (int i = 0; i < MAXPARMSETS; ++i) {
@@ -1515,25 +1543,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
       assert(inf != NULL, "Unable to open input file \"%s\" .tbin or .csv", baseinfilename);
       tbin_file = true; }
    if (!quiet) {
-      rlog("this is readtape version %s, compiled on %s %s, running on %s",
-           VERSION, __DATE__, __TIME__, ctime(&start_time)); // ctime ends with newline!
-      if (DEBUG) rlog("**** DEBUG version %s\n", TRACEFILE ? " with tracing" : "");
-#if defined(_WIN32)
-      {
-         char *pgmpathptr;
-         rlog("  executable file: ");
-         if (_get_pgmptr(&pgmpathptr) == 0) rlog("%s\n", pgmpathptr);
-         else rlog("<unavailable>\n"); }
-#endif
-      rlog("  command line: ");
-      for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
-         rlog("%s ", argv[i]);
-      rlog("\n");
-#if defined(_WIN32)
-      rlog("  current directory: %s\n", _getcwd(line, MAXLINE));
-#endif
-      rlog("  this is a %s-endian computer\n", little_endian ? "little" : "big");
-      rlog("  %s", github_info);
+      show_program_info(argc, argv);
       rlog("\nreading file \"%s\"\n", indatafilename);
       rlog("the output files will be \"%s.xxx\"\n", baseoutfilename); }
    if (tbin_file) read_tbin_header();  // sets NRZI, etc., so do before read_parms()
@@ -1888,11 +1898,15 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "\n*** unknown parameter: %s\n\n", argv[argno]);
       SayUsage(); exit(4); }
 
-   // break the commandline parameter into filename and extension, if one was given
+   // break the commandline parameter into filename and extension, if one we recognize was given
    strlcpy(cmdfilename, argv[argno], sizeof(cmdfilename));
    char *filename_end = strrchr(cmdfilename, '.'); // last .
-   if (filename_end) { // there is an extension
+   if (filename_end &&
+         (strcasecmp(filename_end, ".tap") == 0
+          || strcasecmp(filename_end, ".csv") == 0
+          || strcasecmp(filename_end, ".tbin") == 0)) {
       strlcpy(cmdfileext, filename_end, sizeof(cmdfileext)); // copy the extension, with the dot
+      dlog("extension: %s\n", cmdfileext);
       *filename_end = 0; } // and remove it from the cmdfilename
    else cmdfileext[0] = 0;  // no extension was given
 
@@ -1910,6 +1924,7 @@ int main(int argc, char *argv[]) {
       ntrks = ntrks_specified; // -ntrks controls whether octal is 2 or 3 characters wide
       if (ntrks <= 0) ntrks = 9; // assume 9 tracks (3-digit octal) if not given
       if (txtfile_linesize == 0) txtfile_linesize = 64;
+      show_program_info(argc, argv);
       read_tapfile(cmdfilename, cmdfileext);
       txtfile_close(); }
 

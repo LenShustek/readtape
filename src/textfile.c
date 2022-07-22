@@ -77,7 +77,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "decoder.h"
 
-bool txtfile_verbose = true;   // do we want the verbose block info?  This could be an option.
 
 static byte buffer[MAXLINE];
 static int bufcnt, bufstart, numrecords, numerrors, numwarnings, numerrorsandwarnings, numtapemarks, numchars;
@@ -222,9 +221,9 @@ void txtfile_message (const char *msg, ...) {
    vfprintf(txtf, msg, args);
    va_end(args); }
 
-void txtfile_tapemark(void) {
+void txtfile_tapemark(bool tapfile) {
    ++numtapemarks;
-   txtfile_message("tape mark at time %.8lf\n", timenow); }
+   txtfile_message(tapfile ? "tape mark\n" : "tape mark at time %.8lf\n", timenow); }
 
 void txtfile_outputrecord(int length, int errs, int warnings) {
    if (!txtfile_isopen) txtfile_open();
@@ -247,7 +246,7 @@ void txtfile_outputrecord(int length, int errs, int warnings) {
       if (txtfile_verbose) {
          struct results_t *result = &block.results[block.parmset];
          fprintf(txtf, "block %d: %d bytes at time %.8lf, %s\n ",
-                 numblks+1, result->minbits, timenow, format_block_errors(result)); }
+                 numblks+1, length, timenow, format_block_errors(result)); }
       else fprintf(txtf, "%c%4d: ", flag, length); // 7 chars
       bufcnt = bufstart = 0;
       for (int i = 0; i < length; ++i) { // discard the parity bit track and write only the data bits
