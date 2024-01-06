@@ -169,6 +169,22 @@ void fatal(const char *msg, ...) {
    va_start(args, msg);
    vfatal(msg, args); }
 
+char * asctime_unix(const struct tm_unix *timeptr)
+{
+  struct tm newtmx;
+  newtmx.tm_sec = timeptr->tm_sec;
+  newtmx.tm_min = timeptr->tm_min;
+  newtmx.tm_hour = timeptr->tm_hour;
+  newtmx.tm_mday = timeptr->tm_mday;
+  newtmx.tm_mon = timeptr->tm_mon;
+  newtmx.tm_year = timeptr->tm_year;
+  newtmx.tm_wday = timeptr->tm_wday;
+  newtmx.tm_isdst = timeptr->tm_isdst;
+  newtmx.tm_zone = "UTC";
+  newtmx.tm_gmtoff = 0;
+  return asctime(&newtmx);
+}
+
 /********************************************************************
 Routines for processing options
 *********************************************************************/
@@ -499,9 +515,9 @@ void read_tbin(void) {
              hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta / 1e3);
    logprintf("the track ordering was%s given when the .tbin file was created\n", hdr.u.s.flags & TBIN_NO_REORDER ? " not" : "");
    logprintf("description: %s\n", hdr.descr);
-   if (hdr.u.s.time_written.tm_year > 0)   logprintf("created on:   %s", asctime(&hdr.u.s.time_written));
-   if (hdr.u.s.time_read.tm_year > 0)      logprintf("read on:      %s", asctime(&hdr.u.s.time_read));
-   if (hdr.u.s.time_converted.tm_year > 0) logprintf("converted on: %s", asctime(&hdr.u.s.time_converted));
+   if (hdr.u.s.time_written.tm_year > 0)   logprintf("created on:   %s", asctime_unix(&hdr.u.s.time_written));
+   if (hdr.u.s.time_read.tm_year > 0)      logprintf("read on:      %s", asctime_unix(&hdr.u.s.time_read));
+   if (hdr.u.s.time_converted.tm_year > 0) logprintf("converted on: %s", asctime_unix(&hdr.u.s.time_converted));
    if (hdr.u.s.flags & TBIN_INVERTED) logprintf("the data was inverted\n");
    if (hdr.u.s.flags & TBIN_REVERSED) logprintf("the tape might have been read or written backwards\n");
    if (hdr.u.s.flags & TBIN_TRKORDER_INCLUDED) { // optional trkorder heaader extension?
@@ -567,7 +583,8 @@ void write_tbin_hdr(void) {
    time_t start_time;
    time(&start_time);
    struct tm *ptm = localtime(&start_time);
-   hdr.u.s.time_converted = *ptm;  // structure copy!
+#warning FIXME time time_converted
+//   hdr.u.s.time_converted = *ptm;  // structure copy!
    hdr.u.s.ntrks = ntrks;
    assert(fwrite(hdr.tag, sizeof(hdr.tag)+sizeof(hdr.descr), 1, outf) == 1, "can't write hdr tag/descr");
    for (int i = 0; i < sizeof(hdr.u.s) / 4; ++i)
