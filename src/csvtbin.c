@@ -121,7 +121,7 @@ typedef unsigned char byte;
 #define MINTRKS 5
 #define PREREAD_COUNT 1000000
 
-FILE *inf, *outf, *graphf, *logf;
+FILE *inf, *outf, *graphf, *csvlogf;
 char *basefilename;
 char infilename[MAXPATH], outfilename[MAXPATH], graphfilename[MAXPATH], logfilename[MAXPATH];
 uint64_t num_samples = 0;
@@ -148,13 +148,13 @@ void logprintf(const char *msg, ...) {
    va_list args2;
    va_copy(args2, args);
    vfprintf(stdout, msg, args);  // to the console
-   if (logf) vfprintf(logf, msg, args2); // and maybe also the log file
+   if (csvlogf) vfprintf(csvlogf, msg, args2); // and maybe also the log file
    va_end(args2); }
 
 void vfatal(const char *msg, va_list args) {
    logprintf("\n***FATAL ERROR: ");
    vprintf(msg, args);
-   if (logf) vfprintf(logf, msg, args);
+   if (csvlogf) vfprintf(csvlogf, msg, args);
    logprintf("\n");
    exit(99); }
 
@@ -739,9 +739,9 @@ int main(int argc, char *argv[]) {
 
    strncpy(logfilename, basefilename, MAXPATH - 15); logfilename[MAXPATH - 15] = 0;
    strcat(logfilename, ".csvtbin.log");
-   logf = fopen(logfilename, "w");
-   assert(logf, "file create failed for %s", logfilename);
-   fprintf(logf, "CSVTBIN version %s compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+   csvlogf = fopen(logfilename, "w");
+   assert(csvlogf, "file create failed for %s", logfilename);
+   fprintf(csvlogf, "CSVTBIN version %s compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
    logprintf("command line: ");
    for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
       logprintf("%s ", argv[i]);

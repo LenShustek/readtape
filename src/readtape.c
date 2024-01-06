@@ -600,6 +600,23 @@ void close_summary_file(void) {
 /********************************************************************
    utility routines
 *********************************************************************/
+char * asctime_unix(const struct tm_unix *timeptr)
+{
+  struct tm newtmx;
+  newtmx.tm_sec = timeptr->tm_sec;
+  newtmx.tm_min = timeptr->tm_min;
+  newtmx.tm_hour = timeptr->tm_hour;
+  newtmx.tm_mday = timeptr->tm_mday;
+  newtmx.tm_mon = timeptr->tm_mon;
+  newtmx.tm_year = timeptr->tm_year;
+  newtmx.tm_wday = timeptr->tm_wday;
+  newtmx.tm_isdst = timeptr->tm_isdst;
+  newtmx.tm_zone = "UTC";
+  newtmx.tm_gmtoff = 0;
+  return asctime(&newtmx);
+}
+
+#if !defined(strlcpy)
 size_t strlcpy(char * dst, const char * src, size_t maxlen) { // from BSD library: a safe strcpy
    const size_t srclen = strlen(src);
    if (srclen + 1 < maxlen) {
@@ -608,11 +625,14 @@ size_t strlcpy(char * dst, const char * src, size_t maxlen) { // from BSD librar
       memcpy(dst, src, maxlen - 1);
       dst[maxlen - 1] = '\0'; }
    return srclen; }
+#endif
 
+#if !defined(strcasecmp)
 int strcasecmp(const char*a, const char*b) {  // case-independent string comparison
    while (tolower(*a) == tolower(*b++))
       if (*a++ == '\0') return (0);
    return (tolower(*a) - tolower(*--b)); }
+#endif
 
 float scanfast_float(char **p) { // *** fast scanning routines for CSV numbers
 // These routines are *way* faster than using sscanf!
@@ -768,7 +788,7 @@ void SayUsage (void) {
                             NULLP };
    fprintf(stderr, "readtape version %s, compiled on %s %s\n", VERSION, __DATE__, __TIME__);
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]);
-   fprintf(stderr, github_info); }
+   fprintf(stderr, "%s", github_info); }
 
 bool opt_key(const char* arg, const char* keyword) {
    do { // check for a keyword option and nothing after it
@@ -788,7 +808,7 @@ bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max)
          if (sscanf(++arg, "%x%n", &num, &nch) != 1) return false; }
       else if (toupper(*arg) == 'B') { // binary
          char ch; // (why is there no %b conversion?)
-         while (ch = *++arg) {
+         while ((ch = *++arg)) {
             if (ch == '0') num <<= 1;
             else if (ch == '1') num = (num << 1) + 1;
             else return false; } }
@@ -884,7 +904,7 @@ bool parse_skew(const char *arg) { // skew=1.2,4.5,0,0,1   must match ntrks
       str += nch;
       skip_blanks(&str);
       if (trk < ntrks_specified - 1) {
-         assert(*str++ == ',', "missing comma in skew list at: %s", str);
+         assert(*str == ',', "missing comma in skew list at: %s", str+1);
          skip_blanks(&str); } }
    assert(*str == 0, "extra crap in skew list: %s", str);
    return true; }
@@ -1282,7 +1302,7 @@ void read_tbin_header(void) {  // read the .TBIN file header
       if (ntrks <= 0) {
          ntrks = nheads = tbin_hdr.u.s.ntrks;
          if (!quiet) rlog("  using .tbin ntrks = %d\n", ntrks); }
-      else if (tbin_hdr.u.s.ntrks != ntrks) ("*** WARNING *** .tbin file says %d trks but ntrks=%d\n", tbin_hdr.u.s.ntrks, ntrks); }
+      else if (tbin_hdr.u.s.ntrks != ntrks) rlog("*** WARNING *** .tbin file says %d trks but ntrks=%d\n", tbin_hdr.u.s.ntrks, ntrks); }
    if (tbin_hdr.u.s.mode != UNKNOWN) {
       mode = tbin_hdr.u.s.mode;
       if (!quiet) rlog("  using .tbin mode = %s\n", modename()); }
