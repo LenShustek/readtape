@@ -837,7 +837,7 @@ bool opt_str(const char* arg, const char* keyword, const char** str) {
    return true; }
 
 bool opt_filename(const char* arg, const char* keyword, char* path) {
-   char *str;
+   const char *str;
    if (opt_str(arg, keyword, &str)) {
       strncpy(path, str, MAXPATH); path[MAXPATH - 1] = '\0';
       return true; }
@@ -1333,9 +1333,9 @@ void read_tbin_header(void) {  // read the .TBIN file header
       if (tbin_hdr.u.s.flags & TBIN_INVERTED) rlog("  the waveforms were inverted by CSVTBIN\n");
       if (tbin_hdr.u.s.flags & TBIN_REVERSED) rlog("  the tape may have been read or written backwards\n");
       if (tbin_hdr.descr[0] != 0) rlog("   description: %s\n", tbin_hdr.descr);
-      if (tbin_hdr.u.s.time_written.tm_year > 0)   rlog("  created on:   %s", asctime(&tbin_hdr.u.s.time_written));
-      if (tbin_hdr.u.s.time_read.tm_year > 0)      rlog("  read on:      %s", asctime(&tbin_hdr.u.s.time_read));
-      if (tbin_hdr.u.s.time_converted.tm_year > 0) rlog("  converted on: %s", asctime(&tbin_hdr.u.s.time_converted));
+      if (tbin_hdr.u.s.time_written.tm_year > 0)   rlog("  created on:   %s", asctime_unix(&tbin_hdr.u.s.time_written));
+      if (tbin_hdr.u.s.time_read.tm_year > 0)      rlog("  read on:      %s", asctime_unix(&tbin_hdr.u.s.time_read));
+      if (tbin_hdr.u.s.time_converted.tm_year > 0) rlog("  converted on: %s", asctime_unix(&tbin_hdr.u.s.time_converted));
       rlog("  max voltage: %.1fV\n", tbin_hdr.u.s.maxvolts);
       rlog("  time between samples: %.3f usec\n", (float)tbin_hdr.u.s.tdelta / 1000); }
    // (3) read the data section header

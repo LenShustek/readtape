@@ -458,7 +458,7 @@ void gcr_get_sgroups(void) {
    for (bitnum = 0; bitnum < 5; ++bitnum) {
       dataword = data[gcr_bitnum + bitnum];
       trk = 9; do {
-         gcr_sgroup[trk - 1] = (gcr_sgroup[trk - 1] << 1) & (byte)0x1f | (dataword & 1);
+         gcr_sgroup[trk - 1] = ((gcr_sgroup[trk - 1] << 1) & (byte)0x1f) | (dataword & 1);
          dataword >>= 1; }
       while (--trk); } }
 

@@ -253,7 +253,7 @@ void txtfile_outputrecord(int length, int errs, int warnings) {
          byte ch = (byte)(data[i] >> 1);
          byte ch2 = (byte)(data[i + 1] >> 1); // in case, for OCT2, we are doing two bytes at once
          if (bufcnt >= txtfile_linesize
-               || txtfile_linefeed && ch == 0x0a) { // start a new line
+               || (txtfile_linefeed && ch == 0x0a)) { // start a new line
             if (txtfile_doboth) output_chars();
             fprintf(txtf, txtfile_verbose ? "\n " : "\n       "); // 7 chars if not verbose
             bufcnt = 0; bufstart = i; }

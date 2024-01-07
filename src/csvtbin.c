@@ -171,20 +171,34 @@ void fatal(const char *msg, ...) {
 
 char * asctime_unix(const struct tm_unix *timeptr)
 {
-  struct tm newtmx;
-  newtmx.tm_sec = timeptr->tm_sec;
-  newtmx.tm_min = timeptr->tm_min;
-  newtmx.tm_hour = timeptr->tm_hour;
-  newtmx.tm_mday = timeptr->tm_mday;
-  newtmx.tm_mon = timeptr->tm_mon;
-  newtmx.tm_year = timeptr->tm_year;
-  newtmx.tm_wday = timeptr->tm_wday;
-  newtmx.tm_isdst = timeptr->tm_isdst;
-  newtmx.tm_zone = "UTC";
-  newtmx.tm_gmtoff = 0;
-  return asctime(&newtmx);
+   struct tm newtmx;
+   newtmx.tm_sec = timeptr->tm_sec;
+   newtmx.tm_min = timeptr->tm_min;
+   newtmx.tm_hour = timeptr->tm_hour;
+   newtmx.tm_mday = timeptr->tm_mday;
+   newtmx.tm_mon = timeptr->tm_mon;
+   newtmx.tm_year = timeptr->tm_year;
+   newtmx.tm_wday = timeptr->tm_wday;
+   newtmx.tm_isdst = timeptr->tm_isdst;
+   newtmx.tm_zone = "UTC";
+   newtmx.tm_gmtoff = 0;
+   return asctime(&newtmx);
 }
 
+struct tm_unix *localtime_unix(const time_t *clock)
+{
+   struct tm *ltime = localtime(clock);
+   struct tm_unix *newtmx = malloc(sizeof(struct tm_unix));
+   newtmx->tm_sec = ltime->tm_sec;
+   newtmx->tm_min = ltime->tm_min;
+   newtmx->tm_hour = ltime->tm_hour;
+   newtmx->tm_mday = ltime->tm_mday;
+   newtmx->tm_mon = ltime->tm_mon;
+   newtmx->tm_year = ltime->tm_year;
+   newtmx->tm_wday = ltime->tm_wday;
+   newtmx->tm_isdst = ltime->tm_isdst;
+   return newtmx;
+}
 /********************************************************************
 Routines for processing options
 *********************************************************************/
@@ -280,7 +294,7 @@ bool parse_nn(const char *str, int *num, int low, int high) {
    *num = (*str - '0') * 10 + (*(str + 1) - '0');
    return *num >= low && *num <= high; }
 
-bool opt_dat(const char* arg, const char*keyword, struct tm *time) {
+bool opt_dat(const char* arg, const char*keyword, struct tm_unix *time) {
    do { // check for a "keyword=ddmmyyyy" option
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
@@ -582,9 +596,8 @@ void write_tbin_hdr(void) {
    hdr.u.s.format = TBIN_FILE_FORMAT;
    time_t start_time;
    time(&start_time);
-   struct tm *ptm = localtime(&start_time);
-#warning FIXME time time_converted
-//   hdr.u.s.time_converted = *ptm;  // structure copy!
+   struct tm_unix *ptm = localtime_unix(&start_time);
+   hdr.u.s.time_converted = *ptm;  // structure copy!
    hdr.u.s.ntrks = ntrks;
    assert(fwrite(hdr.tag, sizeof(hdr.tag)+sizeof(hdr.descr), 1, outf) == 1, "can't write hdr tag/descr");
    for (int i = 0; i < sizeof(hdr.u.s) / 4; ++i)

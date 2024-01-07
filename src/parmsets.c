@@ -85,7 +85,7 @@ char *parmcmds_PE[MAXPARMSETS] = { // commands to set defaults for PE
    "{       1,       5,         0.0,            5,     0.0,       0.0,      1.50,       0.2,          0.7,       0.10,  PRM }",
    "{       1,       5,         0.0,            5,     0.0,       0.0,      1.40,       0.4,          0.7,       0.10,  PRM }",
    "{       1,       3,         0.0,            5,     0.0,       0.0,      1.40,       0.2,          0.7,       0.10,  PRM }",
-   {0 } };
+   0 };
 
 struct parms_t parmsets_NRZI[MAXPARMSETS] = { 0 }; // where we store the NRZI default parmsets
 char *parmcmds_NRZI[MAXPARMSETS] = { // commands to set defaults for NRZI
@@ -98,7 +98,7 @@ char *parmcmds_NRZI[MAXPARMSETS] = { // commands to set defaults for NRZI
    "{        1,       0,      0.200,          1,      0.000,      1.000,      0.500,      0.700,      0.050,      0.500,   PRM }",
    "{        1,       2,      0.000,          1,      0.000,      0.500,      0.500,      0.700,      0.050,      0.500,   PRM }",
    "{        1,       0,      0.600,          1,      0.000,      0.500,      0.500,      0.600,      0.050,      0.500,   PRM }",
-   { 0 } };
+    0 };
 
 struct parms_t parmsets_GCR[MAXPARMSETS] = { 0 }; // where we store the GCR default parmsets
 char *parmcmds_GCR[MAXPARMSETS] = { // commands to set defaults for GCR
@@ -108,14 +108,14 @@ char *parmcmds_GCR[MAXPARMSETS] = { // commands to set defaults for GCR
    "{         1,          0,      0.010,       0,      0.500,      0.200,   0.300,      1.500,      0.200,     1.450,  2.350,   PRM }",
    "{         1,         10,      0.000,       0,      0.500,      0.000,   0.600,      1.500,      0.140,     1.400,  2.300,   PRM }",
    "{         1           0       0.020,       0,      0.500,      0.200,   0.300,      1.500,      0.200,     1.480,  2.350,   PRM }",
-   { 0 } };
+   0 };
 
 struct parms_t parmsets_WW[MAXPARMSETS] = { 0 }; // where we store the Whirlwind default parmsets
 char *parmcmds_WW[MAXPARMSETS] = { // commands to set defaults for GCR
    "parms  active, clk_window, clk_alpha, agc_window, agc_alpha, min_peak, pkww_bitfrac, pkww_rise, id",
    "{         1,          0,      0.050,       0,      0.500,      1.000,    0.400,      0.200,    PRM }",
    "{         1,          0,      0.020,       0,      0.500,      0.050,    0.200,      0.200,    PRM }",
-   { 0 } };
+   0 };
 
 
 struct parms_t parmsets[MAXPARMSETS] = { 0 }; // the parmsets we construct and then use
@@ -203,6 +203,7 @@ void show_parms(struct parms_t *psptr, bool showall) {
             case P_INT: rlog("%10d, ", *(int *)((char*)setptr + parms[i].offset)); break;
             case P_FLT: rlog("%10.3f, ", *(float *)((char*)setptr + parms[i].offset)); break;
             case P_STR: rlog("  %s}", (char *)setptr + parms[i].offset); break; //
+            case P_END: break;
             } }
       if (setptr->comment[0]) rlog(" //%s", setptr->comment);
       else rlog("\n"); }
@@ -243,7 +244,7 @@ void parse_parms(struct parms_t *parmarray, char*(*getnextline)(void)) {
       parm_given[i] = false; }
    struct parms_t *setptr = parmarray;
    char *ptr;
-   while (ptr = (*getnextline)()) {
+   while ((ptr = (*getnextline)())) {
       //rlog("parsing line: %s\n", ptr);
       char str[MAXLINE];
       if (scan_key(&ptr, "//")); // ignore comment line
