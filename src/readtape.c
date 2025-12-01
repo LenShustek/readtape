@@ -463,12 +463,12 @@ process_sample, return block status
 
 // file names and handles
 FILE *inf, *outf, *rlogf = NULL, *summf;
-char baseinfilename[MAXPATH];  // (could have a prepended path)
-char baseoutfilename[MAXPATH] = { 0 };
-char outpathname[MAXPATH] = { 0 };
-char summtxtfilename[MAXPATH] = { 0 };
-char summcsvfilename[MAXPATH] = { 0 };
-char outdatafilename[MAXPATH], indatafilename[MAXPATH];
+char baseinfilename[MAXPATH+50];  // (could have a prepended path)
+char baseoutfilename[MAXPATH+50] = { 0 };
+char outpathname[MAXPATH+50] = { 0 };
+char summtxtfilename[MAXPATH+50] = { 0 };
+char summcsvfilename[MAXPATH+50] = { 0 };
+char outdatafilename[MAXPATH+50], indatafilename[MAXPATH+50];
 
 // statistics for the whole tape
 int numblks = 0, numblks_err = 0, numblks_warn = 0, numblks_trksmismatched = 0, numblks_midbiterrs = 0;

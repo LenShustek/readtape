@@ -265,7 +265,7 @@ bool opt_64int(const char* arg, const char* keyword, uint64_t *pval, uint64_t mi
    if (strlen(arg) == 0) return true;  // allow and ignore if null
    uint64_t num;
    unsigned nch;
-   if (sscanf(arg, "%llu%n", &num, &nch) != 1
+   if (sscanf(arg, "%" PRIu64 "%n", &num, &nch) != 1
          || num < min || num > max || arg[nch] != '\0') fatal("bad integer: %s", arg);
    *pval = num;
    return true; }
@@ -712,7 +712,7 @@ void write_tbin(void) {
          if (++num_samples >= stopaft) break;
          if (sample_time > endtime) break;
          if (graphbin && tries == 0 && ++num_graph_vals >= graphbin) {
-            fprintf(graphf, "%llu, %f\n", num_samples, graphbin_max);
+            fprintf(graphf, "%" PRIu64 ", %f\n", num_samples, graphbin_max);
             graphbin_max = 0;
             num_graph_vals = 0; }
          update_progress_count(); }
@@ -735,8 +735,8 @@ done:
          num_samples = progress_count = 0;
          total_time = 0;
          fclose(inf); fclose(outf);
-         assert(inf = fopen(infilename, "r"), "unable to reopen input file\"%s\"", infilename);
-         assert(outf = fopen(outfilename, "wb"), "unable to reopen output file\"%s\"", outfilename); }
+         assert((inf = fopen(infilename, "r")), "unable to reopen input file\"%s\"", infilename);
+         assert((outf = fopen(outfilename, "wb")), "unable to reopen output file\"%s\"", outfilename); }
       else
          return;// all sample voltages were less than maxvolts
    } };

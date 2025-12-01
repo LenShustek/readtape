@@ -3,7 +3,8 @@ READTAPE_OBJS = decoder.o readtape.o parmsets.o decode_ww.o \
 				textfile.o decode_nrzi.o decode_pe.o \
 				decode_gcr.o tapread.o ibmlabels.o trace.o
 
-CFLAGS = -Wall -Wno-unused-variable -Wno-unused-but-set-variable
+CFLAGS += --std=c99 -Wall -Wno-unused-variable -Wno-unused-but-set-variable -D_DEFAULT_SOURCE
+LDFLAGS += -lm
 
 .PHONY: all clean
 

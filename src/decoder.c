@@ -547,7 +547,7 @@ void adjust_clock(struct clkavg_t *c, float delta, int trk) {  // update the bit
    }
    else { // *** STRATEGY 3: use a constant instead of averaging
       assert(bpi > 0, "bpi=0 in adjust_clock at %.8lf", timenow);
-      c->t_bitspaceavg = mode & PE+WW ? 1 / (bpi*ips) : nrzi.clkavg.t_bitspaceavg; //
+      c->t_bitspaceavg = (mode & (PE+WW)) ? 1 / (bpi*ips) : nrzi.clkavg.t_bitspaceavg; //
    }
    //if (DEBUG && trace_on && (DEBUGALL || trk == TRACETRK))
       //rlog("trk %d adjust clock of %.2f with delta %.2f uS to %.2f at %.8lf tick %.1lf\n",
