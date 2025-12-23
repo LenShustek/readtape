@@ -905,6 +905,7 @@ bool parse_skew(const char *arg) { // skew=1.2,4.5,0,0,1   must match ntrks
       skip_blanks(&str);
       if (trk < ntrks_specified - 1) {
          assert(*str == ',', "missing comma in skew list at: %s", str+1);
+         str++;
          skip_blanks(&str); } }
    assert(*str == 0, "extra crap in skew list: %s", str);
    return true; }
