@@ -1066,6 +1066,7 @@ void close_file(void) {
       outf = NULLP; } }
 
 void create_datafile(const char *name) {
+   int res = 0;
    if (outf) close_file();
    if (name) { // we generated a name based on tape labels
       assert(strlen(name) < MAXPATH - 5, "create_datafile name too big 1");
@@ -1073,9 +1074,12 @@ void create_datafile(const char *name) {
       strcat(outdatafilename, ".bin"); }
    else { // otherwise create a generic name
       assert(strlen(baseoutfilename) < MAXPATH - 5, "create_datafile name too big 1");
-      if (tap_format)
-         sprintf(outdatafilename, "%s.tap", baseoutfilename);
-      else sprintf(outdatafilename, "%s.%03d.bin", baseoutfilename, numfiles+1); }
+      if (tap_format) {
+         res = snprintf(outdatafilename, MAXPATH+50, "%s.tap", baseoutfilename);
+         assert(res < MAXPATH, "create_datafile name too big 2"); }
+      else {
+        res = snprintf(outdatafilename, MAXPATH+50, "%s.%03d.bin", baseoutfilename, numfiles+1);
+        assert(res < MAXPATH, "create_datafile name too big 3"); } }
    if (!quiet) rlog("creating file \"%s\"\n", outdatafilename);
    outf = fopen(outdatafilename, "wb");
    assert(outf != NULLP, "file create failed for \"%s\"", outdatafilename);
@@ -1536,6 +1540,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
    char logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
+   int res = 0;
 
 #if 0 // we no longer create a directory
 #if defined(_WIN32)
@@ -1547,7 +1552,8 @@ bool process_file(int argc, char *argv[], const char *extension) {
 #endif
 
    if (logging) { // Open the log file
-      sprintf(logfilename, "%s.log", baseoutfilename);
+      res = snprintf(logfilename, MAXPATH, "%s.log", baseoutfilename);
+      assert(res < MAXPATH, "logfilename too big");
       assert((rlogf = fopen(logfilename, "w")) != NULLP, "Unable to open log file \"%s\"", logfilename); }
 
    indatafilename[MAXPATH - 5] = '\0';
