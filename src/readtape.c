@@ -18,6 +18,10 @@ This is open-source code at https://github.com/LenShustek/readtape.
 - See VCF_Aug2020_01.pdf for a slide show about the system.
 - See https://www.youtube.com/watch?v=7YoolSAHR5w&t=4200s for a bad-quality
   video of me giving a talk using that slideshow.
+  
+For a related Windows-only program that can be used to visually browse very
+  large files of digitized analog tape signals, see
+  https://github.com/LenShustek/grapher
 
 ********************************************************************************
 Copyright (C) 2018,2019,2022 Len Shustek
@@ -324,14 +328,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *** 11 July 2022, L. Shustek, V3.16
  - Fix -tapread: filename parsing; trying to show info not in the .tap file.
 
+ *** 22 July 2022, L. Shustek, V3.17
+ - Fix "running on" date for -tapread mode
+ - Relax warning thresholds for skew being ineffective.
+ - Make -m (multiple tries per block) the default, except for Whirlwind
+ - Point to the "grapher" Windows program for visualizing large data files
+
  TODO:
 - support reading Saleae binary export files;
   see https://support.saleae.com/faq/technical-faq/data-export-format-analog-binary
   (But: .tbin is still smaller and faster, so have csvtbin do that conversion too?)
   (But: Saleae has changed their export format, so which to do?)
+
 - make multiple decodes work for WW. Pb is that the peak and skew state
   needs to be saved and restored because the blocks can be so close.
   Flash: we now have similar code at the end of deskewing, so check that out.
+
 - make zerocrossing work for PE and NRZI (but: need examples to test with)
 - continue implementing the new debug_level and verbose_level controls
 - write some kind of block for undecodeable blocks? (Naaah...)
@@ -344,7 +356,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.16"
+#define VERSION "3.17"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -372,8 +384,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
  TIP: If you have the CSV file but not the Salae data file, use BeSpice Wave to view it.
  AnalogFlavor, http://www.analogflavor.com/en/bespice/bespice-wave/
- (download the free trial from the MS app store, https://www.microsoft.com/en-us/p/bespicewave/9pg67lv956hh
- because the msi-installed one from AnalogFlavor's website fails loading big CSV files)
+ Download the free trial from the MS app store, https://www.microsoft.com/en-us/p/bespicewave/9pg67lv956hh
+ because the msi-installed one from AnalogFlavor's website fails loading big CSV files.
+
+ Flash: That's not such a good tip; it still fails on large files. I wrote my own graphing
+ program to use instead, and it works on both CSV and TBIN files, so give that a try:
+ https://github.com/LenShustek/grapher
 
  code portability assumptions:
    - int is at least 32 bits
@@ -489,7 +505,7 @@ int verbose_level = 0, debug_level = 0;
 bool baseoutfilename_given = false;
 bool filelist = false, tap_format = false, tap_read = false;
 bool tbin_file = false, do_txtfile = false, labels = true;
-bool multiple_tries = false, deskew = false, adjdeskew = false, skew_given = false, add_parity = false;
+bool multiple_tries = true, deskew = false, adjdeskew = false, skew_given = false, add_parity = false;
 bool invert_data = false, autoinvert_data = false, reverse_tape = false;
 bool doing_deskew = false, doing_density_detection = false, doing_summary = false;
 bool do_correction = false, find_zeros = false, do_differentiate = false;
@@ -702,70 +718,73 @@ void reverse8(uint64_t *pnum) {
 /********************************************************************
    Routines for processing options
 *********************************************************************/
-static char *github_info = "For more information, see https://github.com/LenShustek/readtape\n";
+static char *github_info = "For more information, see https://github.com/LenShustek/readtape\n"
+ "For a related Windows data visualizer, see https://github.com/LenShustek/grapher\n";
 void SayUsage (void) {
-   static char *usage[] = { "",
-                            "use: readtape <options> <basefilename>[.ext]", "",
-                            "  The input file is <basefilename> with .csv, .tbin, or .tap,",
-                            "    which may optionally be included in the command.",
-                            "   If the extension is not specified, it tries .csv first",
-                            "    then.tbin, and.tap only if -tapread is specified.", "",
-                            "  The output files will be <basefilename>.xxx by default.", "",
-                            "  The optional parameter file is <basefilename>.parms,",
-                            "   or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.",
-                            "",
-                            "options:",
-                            "  -ntrks=n       set the number of tracks to n",
-                            "  -order=        set input data order for tracks 0..ntrks-2,P, where 0=MSB",
-                            "                 default: 01234567P for 9 trk, 012345P for 7 trk",
-                            "                 (for Whirlwind: a combination of C L M c l m and x's)",
-                            "  -pe            PE (phase encoding)",
-                            "  -nrzi          NRZI (non return to zero inverted)",
-                            "  -gcr           GCR (group coded recording)",
-                            "  -whirlwind     Whirlwind I 6-track 2-bit-per-character",
-                            "  -ips=n         speed in inches/sec (default: 50, except 25 for GCR)",
-                            "  -bpi=n         density in bits/inch (default: autodetect)",
-                            "  -zeros         base decoding on zero crossings instead of peaks",
-                            "  -differentiate do simple delta differentiation of the input data",
-                            "  -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)",
-                            "  -revparity=n   reverse parity for blocks up to n bytes long",
-                            "  -invert        invert the data so positive peaks are negative and vice versa",
-                            "  -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block",
-                            "  -reverse       reverse bits in a word and words in a block (Whirlwind only)",
-                            "  -skip=n        skip the first n samples",
-                            "  -blklimit=n    stop after n blocks",
-                            "  -subsample=n   use only every nth data sample",
-                            "  -showibg=n     report on interblock gaps greater than n milliseconds",
-                            "  -tap           create one SIMH .tap file from all the data",
-                            "  -deskew        do NRZI track deskewing based on the beginning data",
-                            "  -skew=n,n      use this skew, in #samples for each track, rather than deducing it",
-                            "  -correct       do error correction, where feasible",
-                            "  -addparity     include the parity bit as the highest bit in the data (for ntrks<9)",
-                            "  -tbin          only look for a .tbin input file, not .csv first",
-                            "  -nolog         don't create a log file",
-                            "  -nolabels      don't try to decode IBM standard tape labels",
-                            "  -textfile      create an interpreted .<options>.txt file from the data",
-                            "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
-                            "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM",
-                            "                        -flexo -adage -adagetape -CDC -Univac",
-                            "                   characters per line: -linesize=nn",
-                            "                   space every n bytes of data: -dataspace=n",
-                            "                   make LF or CR start a new line: -linefeed",
-                            "  -tapread       read a SIMH .tap file to produce a textfile; the input may have any extension",
-                            "  -outf=bbb      use bbb as the <basefilename> for output files",
-                            "  -outp=ppp      otherwise use ppp as an optional prepended path for output files",
-                            "  -sumt=sss      append a text summary of results to text file sss",
-                            "  -sumc=ccc      append a CSV summary of results to text file ccc",
-                            "  -m             try multiple ways to decode a block",
-                            "  -nm            don't try multiple ways to decode a block",
-                            "  -v[n]          verbose mode [level n, default is 1]",
+   static char *usage[] = {
+      "",
+      "use: readtape <options> <basefilename>[.ext]", "",
+      "  The input file is <basefilename> with .csv, .tbin, or .tap,",
+      "    which may optionally be included in the command.",
+      "   If the extension is not specified, it tries .csv first",
+      "    then.tbin, and.tap only if -tapread is specified.", "",
+      "  The output files will be <basefilename>.xxx by default.", "",
+      "  The optional parameter file is <basefilename>.parms,",
+      "   or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.",
+      "",
+      "options:",
+      "  -ntrks=n       set the number of tracks to n",
+      "  -order=        set input data order for tracks 0..ntrks-2,P, where 0=MSB",
+      "                 default: 01234567P for 9 trk, 012345P for 7 trk",
+      "                 (for Whirlwind: a combination of C L M c l m and x's)",
+      "  -pe            PE (phase encoding)",
+      "  -nrzi          NRZI (non return to zero inverted)",
+      "  -gcr           GCR (group coded recording)",
+      "  -whirlwind     Whirlwind I 6-track 2-bit-per-character",
+      "  -ips=n         speed in inches/sec (default: 50, except 25 for GCR)",
+      "  -bpi=n         density in bits/inch (default: autodetect)",
+      "  -zeros         base decoding on zero crossings instead of peaks",
+      "  -differentiate do simple delta differentiation of the input data",
+      "  -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)",
+      "  -revparity=n   reverse parity for blocks up to n bytes long",
+      "  -invert        invert the data so positive peaks are negative and vice versa",
+      "  -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block",
+      "  -reverse       reverse bits in a word and words in a block (Whirlwind only)",
+      "  -skip=n        skip the first n samples",
+      "  -blklimit=n    stop after n blocks",
+      "  -subsample=n   use only every nth data sample",
+      "  -showibg=n     report on interblock gaps greater than n milliseconds",
+      "  -tap           create one SIMH .tap file from all the data",
+      "  -deskew        do NRZI track deskewing based on the beginning data",
+      "  -skew=n,n      use this skew, in #samples for each track, rather than deducing it",
+      "  -correct       do error correction, where feasible",
+      "  -addparity     include the parity bit as the highest bit in the data (for ntrks<9)",
+      "  -tbin          only look for a .tbin input file, not .csv first",
+      "  -nolog         don't create a log file",
+      "  -nolabels      don't try to decode IBM standard tape labels",
+      "  -textfile      create an interpreted .<options>.txt file from the data",
+      "                   numeric options: -hex -octal (bytes) -octal2 (16-bit words)",
+      "                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM",
+      "                        -flexo -adage -adagetape -CDC -Univac",
+      "                   characters per line: -linesize=nn",
+      "                   space every n bytes of data: -dataspace=n",
+      "                   make LF or CR start a new line: -linefeed",
+      "  -tapread       read a SIMH .tap file to produce a textfile; the input may have any extension",
+      "  -outf=bbb      use bbb as the <basefilename> for output files",
+      "  -outp=ppp      otherwise use ppp as an optional prepended path for output files",
+      "  -sumt=sss      append a text summary of results to text file sss",
+      "  -sumc=ccc      append a CSV summary of results to text file ccc",
+      "  -m             try multiple ways to decode a block (the default unless Whirlwind)",
+      "  -nm            don't try multiple ways to decode a block",
+      "  -v[n]          verbose mode [level n, default is 1]",
 #if DEBUG
-                            "  -d[n]          debug options [bits in n, default is 1]",
+      "  -d[n]          debug options [bits in n, default is 1]",
 #endif
-                            "  -q             quiet mode (only say \"ok\" or \"bad\")",
-                            "  -f             take a file list from <basefilename>.txt",
-                            "",
-                            NULLP };
+      "  -q             quiet mode (only say \"ok\" or \"bad\")",
+      "  -f             take a file list from <basefilename>.txt",
+      "",
+      NULLP };
+   fprintf(stderr, "readtape: a decoder for digitized analog magnetic tape data\n");
    fprintf(stderr, "readtape version %s, compiled on %s %s\n", VERSION, __DATE__, __TIME__);
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]);
    fprintf(stderr, github_info); }
@@ -901,7 +920,7 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "GCR")) {
       mode = GCR; ips = 25; }
    else if (opt_key(arg, "WHIRLWIND")) {
-      mode = WW;  bpi = 100; }
+      mode = WW;  bpi = 100; multiple_tries = false; }
    else if (opt_key(arg, "ZEROS")) find_zeros = true;
    else if (opt_key(arg, "DIFFERENTIATE")) do_differentiate = true;
    else if (opt_flt(arg, "BPI=", &bpi_specified, 100, 10000));
@@ -1160,7 +1179,8 @@ char * format_block_errors(struct results_t *result) {
       if (result->ww_missing_clock) bufptr += sprintf(bufptr, ", missing clk"); }
    return buf; }
 
-void got_datablock(bool badblock) { // decoded a tape block
+// final processing for a decoded tape block
+void got_datablock(bool badblock) {
    struct results_t *result = &block.results[block.parmset];
    int length = result->minbits;
    if (show_ibg) show_ibg_time();
@@ -1264,7 +1284,7 @@ void got_datablock(bool badblock) { // decoded a tape block
 };
 
 /*****************************************************************************************
-      tape data processing, in either CSV (ASCII) or TBIN (binary) format
+      input tape data processing, in either CSV (ASCII) or TBIN (binary) format
 ******************************************************************************************/
 
 void read_tbin_header(void) {  // read the .TBIN file header
@@ -1350,7 +1370,6 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
    bool did_processing = false;
    bool endfile = false;
    enum bstate_t blockkind;
-
    samples_per_bit = bpi > 0 ? (int)(1 / (bpi*ips*sample_deltat)) : 20;
    do { // loop reading samples
       if (!retry) ++lines_in;
@@ -1402,7 +1421,7 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
       timenow = sample.time;
       if (torigin == 0) torigin = timenow; // for debugging output
 
-      if (!block.window_set) { //
+      if (!block.window_set) { // the game's afoot: do initial parameter setting and reporting
          // set the width of the peak-detect moving window
          if (bpi)
             pkww_width = min(PKWW_MAX_WIDTH, (int)(PARM.pkww_bitfrac / (bpi*ips*sample_deltat)));
@@ -1459,10 +1478,10 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
 
 done:;
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
-   result->errcount = // sum up all the possible errors for all types
+   result->errcount = // sum up all the possible errors of all types
       result->track_mismatch + result->vparity_errs + result->ecc_errs + result->crc_errs + result->lrc_errs
       + result->gcr_bad_sequence + result->ww_bad_length + result->ww_speed_err;
-   result->warncount = // sum up all the possible warnings for all types
+   result->warncount = // sum up all the possible warnings of all types
       result->missed_midbits + result->corrected_bits + result->gcr_bad_dgroups
       + result->ww_leading_clock + result->ww_missing_onebit + result->ww_missing_clock;
    return !endfile; //
@@ -1473,15 +1492,16 @@ done:;
 ***********************************************************************************************/
 bool rereading;
 
-static char *bs_names[] = // must agree with enum bstate_t in decoder.h
+static char *bs_names[] = // block state: must agree with enum bstate_t in decoder.h
 { "BS_NONE", "BS_TAPEMARK", "BS_NOISE", "BS_BADBLOCK", "BS_BLOCK", "ABORTED" };
 
 void show_program_info(int argc, char *argv[]) {
    char line[MAXLINE + 1];
+   rlog("readtape: a decoder for digitized analog magnetic tape data\n");
    rlog("this is readtape version %s, compiled on %s %s, running on %s",
         VERSION, __DATE__, __TIME__, ctime(&start_time)); // ctime ends with newline!
    if (DEBUG) rlog("**** DEBUG version %s\n", TRACEFILE ? " with tracing" : "");
-#if defined(_WIN32)
+#if defined(_WIN32) // no system-independent way to do this!
    {
       char *pgmpathptr;
       rlog("  executable file: ");
@@ -1492,12 +1512,11 @@ void show_program_info(int argc, char *argv[]) {
    for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
       rlog("%s ", argv[i]);
    rlog("\n");
-#if defined(_WIN32)
+#if defined(_WIN32) // no system-independent way to do this!
    rlog("  current directory: %s\n", _getcwd(line, MAXLINE));
 #endif
    rlog("  this is a %s-endian computer\n", little_endian ? "little" : "big");
    rlog("  %s", github_info); }
-
 
 void show_decode_status(void) { // show the results of all the decoding tries
    rlog("parmset decode status:\n");
@@ -1508,9 +1527,11 @@ void show_decode_status(void) { // show the results of all the decoding tries
               i, bs_names[result->blktype], result->errcount, result->warncount,
               result->minbits, result->maxbits, result->avg_bit_spacing); } }
 
-//*** process a complete input file whose path and base file name are in baseinfilename[]
-//*** return TRUE only if all blocks were well-formed and error-free
-
+//-----------------------------------------------------------------------------------------------
+//   Process a complete input file whose path and base file name are in baseinfilename[],
+//   and whose extension of .csv or .tbin might have been specified and be in extension[].
+//   Return TRUE only if all blocks were well-formed and error-free.
+//-----------------------------------------------------------------------------------------------
 bool process_file(int argc, char *argv[], const char *extension) {
    char logfilename[MAXPATH];
    char line[MAXLINE + 1];
@@ -1557,7 +1578,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
       // first two (why?) lines in the input file are headers from Saleae
       assert(fgets(line, MAXLINE, inf) != NULLP, "Can't read first CSV title line");
       assert(fgets(line, MAXLINE, inf) != NULLP, "Can't read second CSV title line");
-      unsigned int numcommas = 0;
+      unsigned int numcommas = 0; // count commas in the second line to determine # of tracks
       for (int i = 0; line[i]; ++i) if (line[i] == ',') ++numcommas;
       if (ntrks <= 0) {
          ntrks = nheads = numcommas;
@@ -1706,7 +1727,9 @@ bool process_file(int argc, char *argv[], const char *extension) {
          //window_set = false;
          if (mode == WW) ww_init_blockstate();  // for Whirlwind, we initialize the whole track state only once because blocks can be very close together
          else init_trackstate();
-         if (verbose_level & VL_ATTEMPTS) rlog("     trying block %d with parmset %d at byte %s, time %.8lf\n", numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
+         if (verbose_level & VL_ATTEMPTS)
+            rlog("     trying block %d with parmset %d at byte %s, time %.8lf\n",
+                 numblks + 1, block.parmset, longlongcommas(blockstart.position), timenow);
          if (mode == WW && ww.blockmark_queued) {
             ww_blockmark(); // returned the queued-up blockmark from the end of the last block
             block.t_blockstart = timenow - ww.clkavg.t_bitspaceavg; // and say that it started one bit ago
@@ -1716,8 +1739,9 @@ bool process_file(int argc, char *argv[], const char *extension) {
          if (result->blktype == BS_NONE) goto endfile; // stuff at the end wasn't a real block
          ++block.tries;
          ++PARM.tried;  // note that we used this parameter set in another attempt
-         if (verbose_level & VL_ATTEMPTS) rlog("       block %d is type %s with parmset %d; minlength %d, maxlength %d, %d errors, %d warnings, %d corrected bits at %.8lf\n", //
-                                                  numblks + 1, bs_names[result->blktype], block.parmset, result->minbits, result->maxbits, result->errcount, result->warncount, result->corrected_bits, timenow);
+         if (verbose_level & VL_ATTEMPTS)
+            rlog("       block %d is type %s with parmset %d; minlength %d, maxlength %d, %d errors, %d warnings, %d corrected bits at %.8lf\n", //
+                 numblks + 1, bs_names[result->blktype], block.parmset, result->minbits, result->maxbits, result->errcount, result->warncount, result->corrected_bits, timenow);
          if (result->blktype == BS_TAPEMARK) goto done;  // if we got a tapemake, we're done
          if (result->blktype == BS_NOISE && SKIP_NOISE) goto done; // if we got noise and are immediately skipping noise blocks, we're done
          if (result->blktype == BS_BLOCK && result->errcount == 0 && result->warncount == 0) { // if we got a perfect block, we're done
@@ -1744,8 +1768,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
       if (block.tries == 1) { // unless we don't have multiple decoding tries
          if (block.results[block.parmset].errcount > 0) ok = false; }
       else {
-
-         dlog("looking a block without errors and the minimum warning\n");
+         dlog("looking for a block without errors and the minimum warning\n");
          int min_warnings = INT_MAX;
          for (int i = 0; i < MAXPARMSETS; ++i) { // Try 1: find a decoding with no errors and the minimum number of warnings
             struct results_t *result = &block.results[i];
@@ -1920,6 +1943,7 @@ int main(int argc, char *argv[]) {
       strcpy(baseoutfilename, outpathname);
       strcat(baseoutfilename, cmdfilename); }
 
+   start_time = time(NULL);
    if (tap_read || strcasecmp(cmdfileext, ".tap") == 0) {  // we are only to read and interpret a SIMH .tap file
       ntrks = ntrks_specified; // -ntrks controls whether octal is 2 or 3 characters wide
       if (ntrks <= 0) ntrks = 9; // assume 9 tracks (3-digit octal) if not given
@@ -1930,7 +1954,7 @@ int main(int argc, char *argv[]) {
 
    else {  // do a real mag tape decoding
       assert(mode != WW || !multiple_tries, "Sorry, multiple decoding tries is not implemented yet for Whirlwind");
-      start_time = time(NULL);
+
       if (filelist || strcasecmp(cmdfileext, ".txt") == 0) {  // process a list of files
          char filename[MAXPATH];
          strncpy(filename, cmdfilename, MAXPATH - 5); filename[MAXPATH - 5] = '\0';
@@ -2003,7 +2027,8 @@ int main(int argc, char *argv[]) {
             close_summary_file();
 #endif
          } // !quiet
-         if (summcsvfilename[0]) {
+
+         if (summcsvfilename[0]) { // append stats to the summary CSV file
             assert((summf = fopen(summcsvfilename, "a")) != NULLP, "can't open summary file %s", summcsvfilename);
             // the format here is odd, but it matches the spreadsheet we use to keep track of Whirlwind tape decodings
             fprintf(summf, "=\"%s\",=\"%s\",=\"%s\",=\"%s\", %.2lf, %d, %d, %lld, %d, %d, %d,\"%c\"\n",

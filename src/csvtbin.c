@@ -72,7 +72,7 @@ V1.10        Add -stopaft, -starttime, -endtime options to truncate files.
              Remove use of max() macro.
 
 22 Jul 2022, L. Shustek
-V1.11        Don't generated the trailing comma on the CSV header line for -read, 
+V1.11        Don't generate the trailing comma on the CSV header line for -read, 
              because it makes readtape think there is an extra track
 
 --- FUTURE VERSION IDEAS ---

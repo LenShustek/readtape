@@ -70,6 +70,11 @@ TBIN. The compression factor is about 10:1, and the processing is about
 2x faster when the program reads that file format. There is some loss of 
 precision in the compressed format, but not enough to affect the decoding. 
 
+A windows GUI program for efficiently displaying the raw data in either
+CSV or TBIN format, even when there are billions of data points, is here:
+https://github.com/LenShustek/grapher
+That can be very useful in seeing quirks in the data, and can help in
+setting the many decoding parameters described here.
 
 USING THE PROGRAM 
 

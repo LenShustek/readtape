@@ -41,8 +41,8 @@ typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" a
 
 #define PEAK_STATS true             // accumulate peak timing statistics?
 #define DESKEW (true & PEAK_STATS)  // also add code for optional track deskewing?
-#define DESKEW_PEAKDIFF_WARNING 0.10   // fraction of a bit to warn about deskewed peaks too far apart
-#define DESKEW_STDDEV_WARNING 0.03     // fraction of a bit to warn about largest peak std deviation too big
+#define DESKEW_PEAKDIFF_WARNING 0.20   // fraction of a bit to warn about deskewed peaks too far apart
+#define DESKEW_STDDEV_WARNING 0.05     // fraction of a bit to warn about largest peak std deviation too big
 #define CORRECT true                // add code to do data correction if -correct?
 #define GCR_PARMSCAN false          // scan for optimal GCR parameters?
 #define SHOW_TAP_OFFSET true        // show .tap file offsetof the block in the log

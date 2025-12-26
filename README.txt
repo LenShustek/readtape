@@ -43,6 +43,12 @@ can convert between CSV and TBIN. The "readtape" decoding program can read
 either format. The compression using TBIN is about 10:1, and it speeds up 
 decoding by about 2x. 
 
+A windows GUI program for efficiently displaying the raw data in either
+CSV or TBIN format, even when there are billions of data points, is here:
+https://github.com/LenShustek/grapher
+That can be very useful in seeing quirks in the data, and can help in
+setting the many decoding parameters described in A_documentation.txt.
+
 The output of the decoding can include:
  - a log file
  - multiple binary files of the reconstructed data separated at filemarks, or
@@ -105,7 +111,7 @@ that have been unread and unexamined for fifty years.
                          and batch files to run them automatically
  
 *** Thanks to: 
- - Paul Pierce for the original inspiration of his similar work 10+ years ago.
+ - Paul Pierce for the original inspiration of his similar work 15 years ago.
  - Grant Saviers for detailed consulting on tape nitty-gritties. 
  - Al Kossow for the tape drive, for making lots of good suggestions (Saleae, 
    .tap format, compressed files, etc.), and for carefully reading many, many 
@@ -115,4 +121,5 @@ Len Shustek
  6 Feb 2018
 17 May 2018, 27 May 2018, 8 Oct 2018
  4 Aug 2019, 29 Dec 2019, 28 Feb 2022, 21 Jun 2022, 20 Jul 2022
+12 Dec 2025
 
