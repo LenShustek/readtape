@@ -74,6 +74,9 @@ V1.10        Add -stopaft, -starttime, -endtime options to truncate files.
 22 Jul 2022, L. Shustek
 V1.11        Don't generate the trailing comma on the CSV header line for -read, 
              because it makes readtape think there is an extra track
+             
+26 Dec 2025, David Ryskalczyk
+V1.12        Changes for macOS and Linux compatibility, and to reduce compiler warnings.
 
 --- FUTURE VERSION IDEAS ---
 
@@ -83,7 +86,7 @@ V1.11        Don't generate the trailing comma on the CSV header line for -read,
   independent way to find out the size of the file and how far we're read.)
 
 ******************************************************************************/
-#define VERSION "1.11"
+#define VERSION "1.12"
 /******************************************************************************
 Copyright (C) 2018,2019,2022 Len Shustek
 
@@ -121,7 +124,7 @@ typedef unsigned char byte;
 #define MINTRKS 5
 #define PREREAD_COUNT 1000000
 
-FILE *inf, *outf, *graphf, *logf;
+FILE *inf, *outf, *graphf, *csvlogf;
 char *basefilename;
 char infilename[MAXPATH], outfilename[MAXPATH], graphfilename[MAXPATH], logfilename[MAXPATH];
 uint64_t num_samples = 0;
@@ -148,13 +151,13 @@ void logprintf(const char *msg, ...) {
    va_list args2;
    va_copy(args2, args);
    vfprintf(stdout, msg, args);  // to the console
-   if (logf) vfprintf(logf, msg, args2); // and maybe also the log file
+   if (csvlogf) vfprintf(csvlogf, msg, args2); // and maybe also the log file
    va_end(args2); }
 
 void vfatal(const char *msg, va_list args) {
    logprintf("\n***FATAL ERROR: ");
    vprintf(msg, args);
-   if (logf) vfprintf(logf, msg, args);
+   if (csvlogf) vfprintf(csvlogf, msg, args);
    logprintf("\n");
    exit(99); }
 
@@ -169,6 +172,38 @@ void fatal(const char *msg, ...) {
    va_start(args, msg);
    vfatal(msg, args); }
 
+char * asctime_unix(const struct tm_unix *timeptr)
+{
+   struct tm newtmx;
+   newtmx.tm_sec = timeptr->tm_sec;
+   newtmx.tm_min = timeptr->tm_min;
+   newtmx.tm_hour = timeptr->tm_hour;
+   newtmx.tm_mday = timeptr->tm_mday;
+   newtmx.tm_mon = timeptr->tm_mon;
+   newtmx.tm_year = timeptr->tm_year;
+   newtmx.tm_wday = timeptr->tm_wday;
+   newtmx.tm_isdst = timeptr->tm_isdst;
+#if !defined(_WIN32) 
+   newtmx.tm_zone = "UTC";
+   newtmx.tm_gmtoff = 0;
+#endif
+   return asctime(&newtmx);
+}
+
+struct tm_unix *localtime_unix(const time_t *clock)
+{
+   struct tm *ltime = localtime(clock);
+   struct tm_unix *newtmx = malloc(sizeof(struct tm_unix));
+   newtmx->tm_sec = ltime->tm_sec;
+   newtmx->tm_min = ltime->tm_min;
+   newtmx->tm_hour = ltime->tm_hour;
+   newtmx->tm_mday = ltime->tm_mday;
+   newtmx->tm_mon = ltime->tm_mon;
+   newtmx->tm_year = ltime->tm_year;
+   newtmx->tm_wday = ltime->tm_wday;
+   newtmx->tm_isdst = ltime->tm_isdst;
+   return newtmx;
+}
 /********************************************************************
 Routines for processing options
 *********************************************************************/
@@ -235,7 +270,7 @@ bool opt_64int(const char* arg, const char* keyword, uint64_t *pval, uint64_t mi
    if (strlen(arg) == 0) return true;  // allow and ignore if null
    uint64_t num;
    unsigned nch;
-   if (sscanf(arg, "%llu%n", &num, &nch) != 1
+   if (sscanf(arg, "%" PRIu64 "%n", &num, &nch) != 1
          || num < min || num > max || arg[nch] != '\0') fatal("bad integer: %s", arg);
    *pval = num;
    return true; }
@@ -264,7 +299,7 @@ bool parse_nn(const char *str, int *num, int low, int high) {
    *num = (*str - '0') * 10 + (*(str + 1) - '0');
    return *num >= low && *num <= high; }
 
-bool opt_dat(const char* arg, const char*keyword, struct tm *time) {
+bool opt_dat(const char* arg, const char*keyword, struct tm_unix *time) {
    do { // check for a "keyword=ddmmyyyy" option
       if (toupper(*arg++) != *keyword++) return false; }
    while (*keyword);
@@ -499,9 +534,9 @@ void read_tbin(void) {
              hdr.u.s.bpi, hdr.u.s.ips, (float)hdr.u.s.tdelta / 1e3);
    logprintf("the track ordering was%s given when the .tbin file was created\n", hdr.u.s.flags & TBIN_NO_REORDER ? " not" : "");
    logprintf("description: %s\n", hdr.descr);
-   if (hdr.u.s.time_written.tm_year > 0)   logprintf("created on:   %s", asctime(&hdr.u.s.time_written));
-   if (hdr.u.s.time_read.tm_year > 0)      logprintf("read on:      %s", asctime(&hdr.u.s.time_read));
-   if (hdr.u.s.time_converted.tm_year > 0) logprintf("converted on: %s", asctime(&hdr.u.s.time_converted));
+   if (hdr.u.s.time_written.tm_year > 0)   logprintf("created on:   %s", asctime_unix(&hdr.u.s.time_written));
+   if (hdr.u.s.time_read.tm_year > 0)      logprintf("read on:      %s", asctime_unix(&hdr.u.s.time_read));
+   if (hdr.u.s.time_converted.tm_year > 0) logprintf("converted on: %s", asctime_unix(&hdr.u.s.time_converted));
    if (hdr.u.s.flags & TBIN_INVERTED) logprintf("the data was inverted\n");
    if (hdr.u.s.flags & TBIN_REVERSED) logprintf("the tape might have been read or written backwards\n");
    if (hdr.u.s.flags & TBIN_TRKORDER_INCLUDED) { // optional trkorder heaader extension?
@@ -566,7 +601,7 @@ void write_tbin_hdr(void) {
    hdr.u.s.format = TBIN_FILE_FORMAT;
    time_t start_time;
    time(&start_time);
-   struct tm *ptm = localtime(&start_time);
+   struct tm_unix *ptm = localtime_unix(&start_time);
    hdr.u.s.time_converted = *ptm;  // structure copy!
    hdr.u.s.ntrks = ntrks;
    assert(fwrite(hdr.tag, sizeof(hdr.tag)+sizeof(hdr.descr), 1, outf) == 1, "can't write hdr tag/descr");
@@ -682,7 +717,7 @@ void write_tbin(void) {
          if (++num_samples >= stopaft) break;
          if (sample_time > endtime) break;
          if (graphbin && tries == 0 && ++num_graph_vals >= graphbin) {
-            fprintf(graphf, "%llu, %f\n", num_samples, graphbin_max);
+            fprintf(graphf, "%" PRIu64 ", %f\n", num_samples, graphbin_max);
             graphbin_max = 0;
             num_graph_vals = 0; }
          update_progress_count(); }
@@ -705,8 +740,8 @@ done:
          num_samples = progress_count = 0;
          total_time = 0;
          fclose(inf); fclose(outf);
-         assert(inf = fopen(infilename, "r"), "unable to reopen input file\"%s\"", infilename);
-         assert(outf = fopen(outfilename, "wb"), "unable to reopen output file\"%s\"", outfilename); }
+         assert((inf = fopen(infilename, "r")), "unable to reopen input file\"%s\"", infilename);
+         assert((outf = fopen(outfilename, "wb")), "unable to reopen output file\"%s\"", outfilename); }
       else
          return;// all sample voltages were less than maxvolts
    } };
@@ -739,9 +774,9 @@ int main(int argc, char *argv[]) {
 
    strncpy(logfilename, basefilename, MAXPATH - 15); logfilename[MAXPATH - 15] = 0;
    strcat(logfilename, ".csvtbin.log");
-   logf = fopen(logfilename, "w");
-   assert(logf, "file create failed for %s", logfilename);
-   fprintf(logf, "CSVTBIN version %s compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
+   csvlogf = fopen(logfilename, "w");
+   assert(csvlogf, "file create failed for %s", logfilename);
+   fprintf(csvlogf, "CSVTBIN version %s compiled on %s at %s\n", VERSION, __DATE__, __TIME__);
    logprintf("command line: ");
    for (int i = 0; i < argc; ++i)  // for documentation, show invocation options
       logprintf("%s ", argv[i]);

@@ -24,13 +24,25 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
-
+#pragma pack(push,1)
 #define TBIN_FILE_FORMAT 1
 #define MAXTRKS 19 // should be one less than a multiple of 4, 
 //                 // for machine-independent alignment of data structures here.
 
-//**** beware that changing these definitions may invalidate existing files!
+struct tm_unix {
+        int     tm_sec;         /* seconds after the minute [0-60] */
+        int     tm_min;         /* minutes after the hour [0-59] */
+        int     tm_hour;        /* hours since midnight [0-23] */
+        int     tm_mday;        /* day of the month [1-31] */
+        int     tm_mon;         /* months since January [0-11] */
+        int     tm_year;        /* years since 1900 */
+        int     tm_wday;        /* days since Sunday [0-6] */
+        int     tm_yday;        /* days since January 1 [0-365] */
+        int     tm_isdst;       /* Daylight Savings Time flag */
+};
 
+
+//**** beware that changing these definitions may invalidate existing files!
 enum mode_t {
    UNKNOWN = 0, PE = 0x01, NRZI = 0x02, GCR = 0x04, WW = 0x08,
    ALLMODES = PE + NRZI + GCR + WW };
@@ -43,9 +55,9 @@ struct tbin_hdr_t {     // the file header for .tbin files, which appears once
       struct { // everything in this struct must be 4-byte numbers, stored little-endian
          uint32_t tbinhdrsize;      // size of this header in bytes
          uint32_t format;           // .tbin file format version
-         struct tm time_written;    // when the analog tape data was written (9 integers)
-         struct tm time_read;       // when the analog tape data was digitized (9 integers)
-         struct tm time_converted;  // when the digitized data was converted to .tbin (9 integers)
+         struct tm_unix time_written;    // when the analog tape data was written (9 integers)
+         struct tm_unix time_read;       // when the analog tape data was digitized (9 integers)
+         struct tm_unix time_converted;  // when the digitized data was converted to .tbin (9 integers)
          uint32_t flags;            // file format flags, TBIN_xxx
 #define TBIN_NO_REORDER 0x01           //  tracks weren't reordered with -order=
 #define TBIN_TRKORDER_INCLUDED 0x02    //  the "trkorder" header extension follows this header
@@ -82,6 +94,7 @@ struct tbin_dat_t {     // the data header that starts each block of data
    byte rsvd1, rsvd2;               // reserved fields so that the next field is on an 8-byte boundary
    uint64_t tstart;                 // time of the next sample in nanoseconds, relative to the start of the tape
 };
+#pragma pack(pop)
 // What follows are multiple sets of "ntrks" packed little-endian signed integers,
 // in the track (head) order msb..lsb,parity.
 // Each integer is "sample_bits" long, and encodes the read head voltage for a sample in the range
