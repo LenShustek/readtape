@@ -128,7 +128,7 @@ void pe_preamble_peak(struct trkstate_t *t, bool is_top) {
    // process a peak during the preamble, and see if it is a one-bit that starts the data
    if (t->peakcount == 1) {  // the first transition, which is a 0-bit, sets the bit polarity
       t->bit1_up = !is_top; // (normally 1 is up, but might be reversed depending on logic analyzer polarity)
-      static warned_polarity = false; // should be in a file-specific structure
+      static int warned_polarity = false; // should be in a file-specific structure
       if (!t->bit1_up && !warned_polarity) {
          rlog("*** NOTE: we detected reverse PE signal polarity, but we can handle it\n");
          warned_polarity = true; }

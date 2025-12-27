@@ -328,11 +328,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *** 11 July 2022, L. Shustek, V3.16
  - Fix -tapread: filename parsing; trying to show info not in the .tap file.
 
- *** 22 July 2022, L. Shustek, V3.17
+*** 22 July 2022, L. Shustek, V3.17
  - Fix "running on" date for -tapread mode
  - Relax warning thresholds for skew being ineffective.
  - Make -m (multiple tries per block) the default, except for Whirlwind
  - Point to the "grapher" Windows program for visualizing large data files
+
+*** 26 Dec 2025, David Ryskalczyk (also Thalia Archibald), V3.18
+ - Changes for macOS and Linux compatibility, and to reduce compiler warnings
 
  TODO:
 - support reading Saleae binary export files;
@@ -356,7 +359,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.17"
+#define VERSION "3.18"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -479,12 +482,12 @@ process_sample, return block status
 
 // file names and handles
 FILE *inf, *outf, *rlogf = NULL, *summf;
-char baseinfilename[MAXPATH];  // (could have a prepended path)
-char baseoutfilename[MAXPATH] = { 0 };
-char outpathname[MAXPATH] = { 0 };
-char summtxtfilename[MAXPATH] = { 0 };
-char summcsvfilename[MAXPATH] = { 0 };
-char outdatafilename[MAXPATH], indatafilename[MAXPATH];
+char baseinfilename[MAXPATH+50];  // (could have a prepended path)
+char baseoutfilename[MAXPATH+50] = { 0 };
+char outpathname[MAXPATH+50] = { 0 };
+char summtxtfilename[MAXPATH+50] = { 0 };
+char summcsvfilename[MAXPATH+50] = { 0 };
+char outdatafilename[MAXPATH+50], indatafilename[MAXPATH+50];
 
 // statistics for the whole tape
 int numblks = 0, numblks_err = 0, numblks_warn = 0, numblks_trksmismatched = 0, numblks_midbiterrs = 0;
@@ -616,6 +619,25 @@ void close_summary_file(void) {
 /********************************************************************
    utility routines
 *********************************************************************/
+char * asctime_unix(const struct tm_unix *timeptr)
+{
+  struct tm newtmx;
+  newtmx.tm_sec = timeptr->tm_sec;
+  newtmx.tm_min = timeptr->tm_min;
+  newtmx.tm_hour = timeptr->tm_hour;
+  newtmx.tm_mday = timeptr->tm_mday;
+  newtmx.tm_mon = timeptr->tm_mon;
+  newtmx.tm_year = timeptr->tm_year;
+  newtmx.tm_wday = timeptr->tm_wday;
+  newtmx.tm_isdst = timeptr->tm_isdst;
+#if !defined(_WIN32) 
+  newtmx.tm_zone = "UTC";
+  newtmx.tm_gmtoff = 0;
+#endif
+  return asctime(&newtmx);
+}
+
+#if !defined(strlcpy)
 size_t strlcpy(char * dst, const char * src, size_t maxlen) { // from BSD library: a safe strcpy
    const size_t srclen = strlen(src);
    if (srclen + 1 < maxlen) {
@@ -624,11 +646,14 @@ size_t strlcpy(char * dst, const char * src, size_t maxlen) { // from BSD librar
       memcpy(dst, src, maxlen - 1);
       dst[maxlen - 1] = '\0'; }
    return srclen; }
+#endif
 
+#if !defined(strcasecmp)
 int strcasecmp(const char*a, const char*b) {  // case-independent string comparison
    while (tolower(*a) == tolower(*b++))
       if (*a++ == '\0') return (0);
    return (tolower(*a) - tolower(*--b)); }
+#endif
 
 float scanfast_float(char **p) { // *** fast scanning routines for CSV numbers
 // These routines are *way* faster than using sscanf!
@@ -721,8 +746,7 @@ void reverse8(uint64_t *pnum) {
 static char *github_info = "For more information, see https://github.com/LenShustek/readtape\n"
  "For a related Windows data visualizer, see https://github.com/LenShustek/grapher\n";
 void SayUsage (void) {
-   static char *usage[] = {
-      "",
+   static char *usage[] = { "",
       "use: readtape <options> <basefilename>[.ext]", "",
       "  The input file is <basefilename> with .csv, .tbin, or .tap,",
       "    which may optionally be included in the command.",
@@ -787,7 +811,7 @@ void SayUsage (void) {
    fprintf(stderr, "readtape: a decoder for digitized analog magnetic tape data\n");
    fprintf(stderr, "readtape version %s, compiled on %s %s\n", VERSION, __DATE__, __TIME__);
    for (int i = 0; usage[i]; ++i) fprintf(stderr, "%s\n", usage[i]);
-   fprintf(stderr, github_info); }
+   fprintf(stderr, "%s", github_info); }
 
 bool opt_key(const char* arg, const char* keyword) {
    do { // check for a keyword option and nothing after it
@@ -807,7 +831,7 @@ bool opt_int(const char* arg,  const char* keyword, int *pval, int min, int max)
          if (sscanf(++arg, "%x%n", &num, &nch) != 1) return false; }
       else if (toupper(*arg) == 'B') { // binary
          char ch; // (why is there no %b conversion?)
-         while (ch = *++arg) {
+         while ((ch = *++arg)) {
             if (ch == '0') num <<= 1;
             else if (ch == '1') num = (num << 1) + 1;
             else return false; } }
@@ -836,7 +860,7 @@ bool opt_str(const char* arg, const char* keyword, const char** str) {
    return true; }
 
 bool opt_filename(const char* arg, const char* keyword, char* path) {
-   char *str;
+   const char *str;
    if (opt_str(arg, keyword, &str)) {
       strncpy(path, str, MAXPATH); path[MAXPATH - 1] = '\0';
       return true; }
@@ -903,7 +927,8 @@ bool parse_skew(const char *arg) { // skew=1.2,4.5,0,0,1   must match ntrks
       str += nch;
       skip_blanks(&str);
       if (trk < ntrks_specified - 1) {
-         assert(*str++ == ',', "missing comma in skew list at: %s", str);
+         assert(*str == ',', "missing comma in skew list at: %s", str+1);
+         str++;
          skip_blanks(&str); } }
    assert(*str == 0, "extra crap in skew list: %s", str);
    return true; }
@@ -1064,6 +1089,7 @@ void close_file(void) {
       outf = NULLP; } }
 
 void create_datafile(const char *name) {
+   int res = 0;
    if (outf) close_file();
    if (name) { // we generated a name based on tape labels
       assert(strlen(name) < MAXPATH - 5, "create_datafile name too big 1");
@@ -1071,9 +1097,12 @@ void create_datafile(const char *name) {
       strcat(outdatafilename, ".bin"); }
    else { // otherwise create a generic name
       assert(strlen(baseoutfilename) < MAXPATH - 5, "create_datafile name too big 1");
-      if (tap_format)
-         sprintf(outdatafilename, "%s.tap", baseoutfilename);
-      else sprintf(outdatafilename, "%s.%03d.bin", baseoutfilename, numfiles+1); }
+      if (tap_format) {
+         res = snprintf(outdatafilename, MAXPATH+50, "%s.tap", baseoutfilename);
+         assert(res < MAXPATH, "create_datafile name too big 2"); }
+      else {
+        res = snprintf(outdatafilename, MAXPATH+50, "%s.%03d.bin", baseoutfilename, numfiles+1);
+        assert(res < MAXPATH, "create_datafile name too big 3"); } }
    if (!quiet) rlog("creating file \"%s\"\n", outdatafilename);
    outf = fopen(outdatafilename, "wb");
    assert(outf != NULLP, "file create failed for \"%s\"", outdatafilename);
@@ -1302,7 +1331,7 @@ void read_tbin_header(void) {  // read the .TBIN file header
       if (ntrks <= 0) {
          ntrks = nheads = tbin_hdr.u.s.ntrks;
          if (!quiet) rlog("  using .tbin ntrks = %d\n", ntrks); }
-      else if (tbin_hdr.u.s.ntrks != ntrks) ("*** WARNING *** .tbin file says %d trks but ntrks=%d\n", tbin_hdr.u.s.ntrks, ntrks); }
+      else if (tbin_hdr.u.s.ntrks != ntrks) rlog("*** WARNING *** .tbin file says %d trks but ntrks=%d\n", tbin_hdr.u.s.ntrks, ntrks); }
    if (tbin_hdr.u.s.mode != UNKNOWN) {
       mode = tbin_hdr.u.s.mode;
       if (!quiet) rlog("  using .tbin mode = %s\n", modename()); }
@@ -1333,9 +1362,9 @@ void read_tbin_header(void) {  // read the .TBIN file header
       if (tbin_hdr.u.s.flags & TBIN_INVERTED) rlog("  the waveforms were inverted by CSVTBIN\n");
       if (tbin_hdr.u.s.flags & TBIN_REVERSED) rlog("  the tape may have been read or written backwards\n");
       if (tbin_hdr.descr[0] != 0) rlog("   description: %s\n", tbin_hdr.descr);
-      if (tbin_hdr.u.s.time_written.tm_year > 0)   rlog("  created on:   %s", asctime(&tbin_hdr.u.s.time_written));
-      if (tbin_hdr.u.s.time_read.tm_year > 0)      rlog("  read on:      %s", asctime(&tbin_hdr.u.s.time_read));
-      if (tbin_hdr.u.s.time_converted.tm_year > 0) rlog("  converted on: %s", asctime(&tbin_hdr.u.s.time_converted));
+      if (tbin_hdr.u.s.time_written.tm_year > 0)   rlog("  created on:   %s", asctime_unix(&tbin_hdr.u.s.time_written));
+      if (tbin_hdr.u.s.time_read.tm_year > 0)      rlog("  read on:      %s", asctime_unix(&tbin_hdr.u.s.time_read));
+      if (tbin_hdr.u.s.time_converted.tm_year > 0) rlog("  converted on: %s", asctime_unix(&tbin_hdr.u.s.time_converted));
       rlog("  max voltage: %.1fV\n", tbin_hdr.u.s.maxvolts);
       rlog("  time between samples: %.3f usec\n", (float)tbin_hdr.u.s.tdelta / 1000); }
    // (3) read the data section header
@@ -1536,6 +1565,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
    char logfilename[MAXPATH];
    char line[MAXLINE + 1];
    bool ok = true;
+   int res = 0;
 
 #if 0 // we no longer create a directory
 #if defined(_WIN32)
@@ -1547,7 +1577,8 @@ bool process_file(int argc, char *argv[], const char *extension) {
 #endif
 
    if (logging) { // Open the log file
-      sprintf(logfilename, "%s.log", baseoutfilename);
+      res = snprintf(logfilename, MAXPATH, "%s.log", baseoutfilename);
+      assert(res < MAXPATH, "logfilename too big");
       assert((rlogf = fopen(logfilename, "w")) != NULLP, "Unable to open log file \"%s\"", logfilename); }
 
    indatafilename[MAXPATH - 5] = '\0';

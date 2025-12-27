@@ -96,8 +96,8 @@ void nrzi_end_of_block(void) {
    // see what we think this is, based on the length
    if ( // maybe it's a tapemark, which is pretty bizarre
       result->minbits == 9 // the initial 1-bit plus 8 bits of post-block
-      && (ntrks == 9 && data[0] == 0x26 && data[8] == 0x26  // 9 trk: trks 367, then 7 bits of zeros, then 367
-          ||  ntrks == 7 && data[0] == 0x1e && (data[3] == 0x1e || data[4] == 0x1e))) { // 7trk: trks 8421, then 2 or 3 bits of zeros, then 8421
+      && ((ntrks == 9 && data[0] == 0x26 && data[8] == 0x26)  // 9 trk: trks 367, then 7 bits of zeros, then 367
+          ||  (ntrks == 7 && data[0] == 0x1e && (data[3] == 0x1e || data[4] == 0x1e)))) { // 7trk: trks 8421, then 2 or 3 bits of zeros, then 8421
       result->blktype = BS_TAPEMARK; }
    else if (result->maxbits <= NRZI_MIN_BLOCK) {  // too small, but not tapemark: just noise
       dlog("   detected noise block of length %d at %.8lf\n", result->maxbits, timenow);

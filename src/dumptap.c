@@ -45,6 +45,12 @@ If the options are "-octal -b5500 -linesize=20", the output looks like this:
 14 Oct 2018, L. Shustek, add DEC sixbit character decoding
 17 Dec 2018, L. Shustek, add SDS; change parms to match readtape; display parms;
                          change file naming
+                         
+NOTE: This program is deprecated and no longer maintained, because even 
+      better functionality is now embedded within the "readtape" program
+      using the -tapread option.
+
+******************************************************************************/
 
 /******************************************************************************
 Copyright (C) 2018, Len Shustek
