@@ -1,0 +1,7 @@
+{
+    "makefile.makeDirectory": "src/",
+    "makefile.makefilePath": "src/Makefile",
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.cStandard": "gnu17",
+    "clang-tidy.buildPath": "src/",
+}
