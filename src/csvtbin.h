@@ -24,6 +24,10 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
+#include <stdint.h>
+#if !defined(byte)
+typedef unsigned char byte;
+#endif
 #pragma pack(push,1)
 #define TBIN_FILE_FORMAT 1
 #define MAXTRKS 19 // should be one less than a multiple of 4, 

@@ -26,13 +26,18 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
-typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" as a value
+#include <stdbool.h>
+// typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" as a value
 #define true 1
 #define false 0
 #define unknown 0xff
 
+#ifndef DEBUG
 #define DEBUG false                // generate debugging output?
+#endif
+#ifndef DEBUGALL
 #define DEBUGALL true              // for track debugging when trace is on: for all tracks?
+#endif
 #define TRACETRK 6                 // if not, which track gets special attention?
 
 #define TRACEFILE (true & DEBUG)   // if DEBUG, are we also creating trace file?
@@ -84,7 +89,6 @@ enum trace_names_t { //** MUST MATCH tracevals in decoder.c !!!
 #include <stddef.h>
 #include <float.h>
 #include <math.h>
-typedef unsigned char byte;
 #include "csvtbin.h"
 
 #define MINTRKS 5
@@ -176,6 +180,20 @@ enum wwtrk_t { // Whirlwind track types
 #define DB_BLKSTATUS 0x01          // show block parmset choice progress (default for -d)
 #define DB_GCRERRS 0x02            // show GCR bad dgroups and parity errors
 #define DB_PEAKS 0x04              // show waveforms peaks and zero-crossings; 0/1 bits added, pulse position adjustments
+
+#if defined(_WIN32)
+#define pathsep '\\'
+#else
+#define pathsep '/'
+#endif
+
+enum datafile_t {                  // input file formats
+   UNKNOWN_FILE,
+   CSV_FILE,                       // as exported by Saleae Logic, one line per timestamp
+   TBIN_FILE,                      // 16-bit, compressed, normalized
+   SAL_FILE,                       // Saleae Logic (2.x) native file format
+   TAP_FILE                        // SimH-compatible magnetic tape representation
+};
 
 struct sample_t {       // what we get from the digitizer hardware:
    double time;            // the time of this sample
