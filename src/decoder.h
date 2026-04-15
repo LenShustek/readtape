@@ -116,7 +116,7 @@ typedef unsigned char byte;
 #define PE_IBG_SECS        200e-6   // minimum interblock gap in seconds (should depend on current IPS?
 #define PE_IGNORE_POSTBITS 5        // how many postamble bits to ignore
 #define PE_MIN_PREBITS     70       // minimum number of peaks (half that number of bits) for a preamble
-#define PE_MAX_POSTBITS    40       // maximum number of postamble bits we will remove
+#define PE_MAX_POSTBITS    41       // maximum number of postamble bits we will remove
 
 enum wwtrk_t { // Whirlwind track types
    WWTRK_PRICLK, WWTRK_PRILSB, WWTRK_PRIMSB,  // primary clock, LSB, and MSB
