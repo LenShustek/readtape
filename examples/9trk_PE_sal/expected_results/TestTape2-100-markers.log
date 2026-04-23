@@ -1,0 +1,153 @@
+readtape: a decoder for digitized analog magnetic tape data
+this is readtape version 3.19, compiled on Apr 23 2026 02:40:07, running on Thu Apr 23 02:45:02 2026
+  command line: readtape -v -tap -ascii -linefeed -scale=5.0 -outp=results/ TestTape2-100-markers/meta.json 
+  this is a little-endian computer
+  For more information, see https://github.com/LenShustek/readtape
+For a related Windows data visualizer, see https://github.com/LenShustek/grapher
+
+reading file "TestTape2-100-markers/meta.json"
+the output files will be "results/TestTape2-100-markers.xxx"
+.sal file metadata:
+  using .sal ntrks = 9
+  track names parsed as -order=01234567P
+  head 0 is device channel 0 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_0.bin
+  head 1 is device channel 1 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_1.bin
+  head 2 is device channel 2 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_2.bin
+  head 3 is device channel 3 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_3.bin
+  head 4 is device channel 4 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_4.bin
+  head 5 is device channel 5 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_5.bin
+  head 6 is device channel 6 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_6.bin
+  head 7 is device channel 7 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_7.bin
+  head P is device channel 8 @ /home/joant/SW/readtape/examples/9trk_PE_sal/TestTape2-100-markers/analog_8.bin
+  using .sal bpi = 1600
+  using .sal ips = 100
+  comment: RT-11 test tape written in sunny Toronto, Canada.
+  using .sal starttime =   6.700061321
+  using .sal   endtime =   8.234056473
+  read on:      Thu Apr  9 13:07:05 2026
+  time between samples: 0.320 usec
+
+no .parms file was found, so we're using these internal defaults for the PE parameter sets:
+  parms      active, clk_window,  clk_alpha, agc_window,  agc_alpha,   min_peak, clk_factor,  pulse_adj,pkww_bitfrac,  pkww_rise,  id
+  {            1,          0,      0.200,          5,      0.000,      0.000,      1.500,      0.400,      0.700,      0.100,   PRM}
+  {            1,          0,      0.200,          5,      0.000,      0.100,      1.500,      0.400,      0.700,      0.100,   PRM}
+  {            1,          3,      0.000,          5,      0.000,      0.000,      1.400,      0.000,      0.700,      0.100,   PRM}
+  {            1,          3,      0.000,          5,      0.000,      0.000,      1.400,      0.200,      0.700,      0.100,   PRM}
+  {            1,          5,      0.000,          5,      0.000,      0.000,      1.400,      0.000,      0.700,      0.100,   PRM}
+  {            1,          5,      0.000,          5,      0.000,      0.000,      1.500,      0.200,      0.700,      0.100,   PRM}
+  {            1,          5,      0.000,          5,      0.000,      0.000,      1.400,      0.400,      0.700,      0.100,   PRM}
+  {            1,          3,      0.000,          5,      0.000,      0.000,      1.400,      0.200,      0.700,      0.100,   PRM}
+
+compile-time decoding constants:
+  peak height closeness threshold: 0.005V
+  nominal peak height for rise calculation: 2.0V
+  AGC maximum: 2
+  PE idle treshold: 2.50 bits
+
+skipping 20,937,459 samples...to time 6.70006142
+
+execution-time configuration:
+  9 track PE encoding, odd parity, 1600 BPI at 100 IPS (6.25 usec/bit)
+  first sample is at time 6.70006136 seconds on the tape
+  sampling rate is 3,125,000 Hz (0.32 usec), or about 19 samples per bit
+  peak detection window width is 13 samples (4.16 usec)
+  input data order: 0(msb)1234567(lsb)p
+
+creating file "results/TestTape2-100-markers.tap"
+creating file "results/TestTape2-100-markers.ASCII.txt"
+wrote block   1,   80 bytes, 1 try, parmset 0, AGC 0.95-1.12, ok, avg speed 90.51 IPS at time 6.70468408, tap offset 8
+wrote block   2,   80 bytes, 1 try, parmset 0, AGC 0.86-1.10, ok, avg speed 94.43 IPS at time 6.71843576, tap offset 96
+  tapemark at time 6.75781080, tap offset 176, 2 blocks written so far
+wrote block   3,  512 bytes, 1 try, parmset 0, AGC 0.86-1.20, ok, avg speed 100.13 IPS at time 6.77980984, tap offset 188
+wrote block   4,  512 bytes, 1 try, parmset 0, AGC 0.87-1.13, ok, avg speed 100.17 IPS at time 6.79175608, tap offset 708
+wrote block   5,  512 bytes, 1 try, parmset 0, AGC 0.86-1.13, ok, avg speed 100.28 IPS at time 6.80367320, tap offset 1228
+wrote block   6,  512 bytes, 1 try, parmset 0, AGC 0.84-1.60, ok, avg speed 100.58 IPS at time 6.81558840, tap offset 1748
+  tapemark at time 6.85455896, tap offset 2260, 6 blocks written so far
+wrote block   7,   80 bytes, 1 try, parmset 0, AGC 0.95-1.10, ok, avg speed 100.98 IPS at time 6.87389656, tap offset 2272
+  tapemark at time 6.91280728, tap offset 2352, 7 blocks written so far
+wrote block   8,   80 bytes, 1 try, parmset 0, AGC 0.91-1.12, ok, avg speed 99.94 IPS at time 6.96552408, tap offset 2364
+  tapemark at time 7.00462616, tap offset 2444, 8 blocks written so far
+wrote block   9,  512 bytes, 1 try, parmset 0, AGC 0.89-1.14, ok, avg speed 99.75 IPS at time 7.02670808, tap offset 2456
+wrote block  10,  512 bytes, 1 try, parmset 0, AGC 0.87-1.13, ok, avg speed 99.87 IPS at time 7.08013048, tap offset 2976
+  tapemark at time 7.11923032, tap offset 3488, 10 blocks written so far
+wrote block  11,   80 bytes, 1 try, parmset 0, AGC 0.96-1.13, ok, avg speed 101.38 IPS at time 7.13857752, tap offset 3500
+  tapemark at time 7.17756280, tap offset 3580, 11 blocks written so far
+wrote block  12,   80 bytes, 1 try, parmset 0, AGC 0.86-1.11, ok, avg speed 100.43 IPS at time 7.27129464, tap offset 3592
+  tapemark at time 7.31033432, tap offset 3672, 12 blocks written so far
+wrote block  13,  512 bytes, 1 try, parmset 0, AGC 0.86-1.14, ok, avg speed 99.64 IPS at time 7.33244472, tap offset 3684
+wrote block  14,  512 bytes, 1 try, parmset 0, AGC 0.89-1.18, ok, avg speed 99.84 IPS at time 7.34441336, tap offset 4204
+wrote block  15,  512 bytes, 1 try, parmset 0, AGC 0.89-1.14, ok, avg speed 99.85 IPS at time 7.35641208, tap offset 4724
+wrote block  16,  512 bytes, 1 try, parmset 0, AGC 0.88-1.17, ok, avg speed 100.03 IPS at time 7.36840344, tap offset 5244
+wrote block  17,  512 bytes, 1 try, parmset 0, AGC 0.88-1.12, ok, avg speed 99.92 IPS at time 7.38042872, tap offset 5764
+wrote block  18,  512 bytes, 1 try, parmset 0, AGC 0.89-1.19, ok, avg speed 99.86 IPS at time 7.39246936, tap offset 6284
+wrote block  19,  512 bytes, 1 try, parmset 0, AGC 0.88-1.15, ok, avg speed 100.01 IPS at time 7.40447384, tap offset 6804
+wrote block  20,  512 bytes, 1 try, parmset 0, AGC 0.89-1.16, ok, avg speed 99.97 IPS at time 7.41645752, tap offset 7324
+wrote block  21,  512 bytes, 1 try, parmset 0, AGC 0.84-1.14, ok, avg speed 99.99 IPS at time 7.42845688, tap offset 7844
+wrote block  22,  512 bytes, 1 try, parmset 0, AGC 0.86-1.13, ok, avg speed 99.98 IPS at time 7.44044952, tap offset 8364
+wrote block  23,  512 bytes, 1 try, parmset 0, AGC 0.84-1.12, ok, avg speed 100.13 IPS at time 7.45242936, tap offset 8884
+wrote block  24,  512 bytes, 1 try, parmset 0, AGC 0.88-1.14, ok, avg speed 100.01 IPS at time 7.46439736, tap offset 9404
+wrote block  25,  512 bytes, 1 try, parmset 0, AGC 0.92-1.14, ok, avg speed 99.37 IPS at time 7.47420664, tap offset 9924
+wrote block  26,  512 bytes, 1 try, parmset 0, AGC 0.85-1.14, ok, avg speed 99.42 IPS at time 7.48401752, tap offset 10444
+wrote block  27,  512 bytes, 1 try, parmset 0, AGC 0.90-1.16, ok, avg speed 99.25 IPS at time 7.49386200, tap offset 10964
+wrote block  28,  512 bytes, 1 try, parmset 0, AGC 0.90-1.14, ok, avg speed 99.21 IPS at time 7.50371576, tap offset 11484
+wrote block  29,  512 bytes, 1 try, parmset 0, AGC 0.86-1.35, ok, avg speed 99.26 IPS at time 7.51356984, tap offset 12004
+wrote block  30,  512 bytes, 1 try, parmset 0, AGC 0.81-1.13, ok, avg speed 99.26 IPS at time 7.52342584, tap offset 12524
+wrote block  31,  512 bytes, 1 try, parmset 0, AGC 0.84-1.16, ok, avg speed 98.99 IPS at time 7.53330680, tap offset 13044
+wrote block  32,  512 bytes, 1 try, parmset 0, AGC 0.86-1.13, ok, avg speed 99.00 IPS at time 7.54316216, tap offset 13564
+wrote block  33,  512 bytes, 1 try, parmset 0, AGC 0.87-1.13, ok, avg speed 98.88 IPS at time 7.55304152, tap offset 14084
+wrote block  34,  512 bytes, 1 try, parmset 0, AGC 0.87-1.14, ok, avg speed 98.91 IPS at time 7.56293496, tap offset 14604
+wrote block  35,  512 bytes, 1 try, parmset 0, AGC 0.90-1.13, ok, avg speed 98.73 IPS at time 7.57281176, tap offset 15124
+wrote block  36,  512 bytes, 1 try, parmset 0, AGC 0.88-1.18, ok, avg speed 98.96 IPS at time 7.58271064, tap offset 15644
+wrote block  37,  512 bytes, 1 try, parmset 0, AGC 0.87-1.17, ok, avg speed 98.84 IPS at time 7.59260248, tap offset 16164
+wrote block  38,  512 bytes, 1 try, parmset 0, AGC 0.88-1.14, ok, avg speed 98.83 IPS at time 7.60251096, tap offset 16684
+wrote block  39,  512 bytes, 1 try, parmset 0, AGC 0.84-1.12, ok, avg speed 98.88 IPS at time 7.61237656, tap offset 17204
+wrote block  40,  512 bytes, 1 try, parmset 0, AGC 0.83-1.29, ok, avg speed 99.08 IPS at time 7.62225944, tap offset 17724
+wrote block  41,  512 bytes, 1 try, parmset 0, AGC 0.84-1.14, ok, avg speed 98.91 IPS at time 7.63214008, tap offset 18244
+wrote block  42,  512 bytes, 1 try, parmset 0, AGC 0.88-1.13, ok, avg speed 98.92 IPS at time 7.64202456, tap offset 18764
+wrote block  43,  512 bytes, 1 try, parmset 0, AGC 0.87-1.13, ok, avg speed 98.85 IPS at time 7.65190712, tap offset 19284
+wrote block  44,  512 bytes, 1 try, parmset 0, AGC 0.84-1.14, ok, avg speed 98.93 IPS at time 7.66179416, tap offset 19804
+wrote block  45,  512 bytes, 1 try, parmset 0, AGC 0.87-1.14, ok, avg speed 98.72 IPS at time 7.67169112, tap offset 20324
+wrote block  46,  512 bytes, 1 try, parmset 0, AGC 0.87-1.13, ok, avg speed 98.99 IPS at time 7.68155480, tap offset 20844
+wrote block  47,  512 bytes, 1 try, parmset 0, AGC 0.84-1.13, ok, avg speed 98.97 IPS at time 7.69145464, tap offset 21364
+wrote block  48,  512 bytes, 1 try, parmset 0, AGC 0.82-1.14, ok, avg speed 98.86 IPS at time 7.70134744, tap offset 21884
+  tapemark at time 7.73854488, tap offset 22396, 48 blocks written so far
+wrote block  49,   80 bytes, 1 try, parmset 0, AGC 0.81-1.13, ok, avg speed 99.53 IPS at time 7.75750392, tap offset 22408
+  tapemark at time 7.79461432, tap offset 22488, 49 blocks written so far
+wrote block  50,   80 bytes, 1 try, parmset 0, AGC 0.94-1.10, ok, avg speed 99.21 IPS at time 7.84464216, tap offset 22500
+  tapemark at time 7.88180696, tap offset 22580, 50 blocks written so far
+wrote block  51,  512 bytes, 1 try, parmset 0, AGC 0.93-1.18, ok, avg speed 98.75 IPS at time 7.90177336, tap offset 22592
+wrote block  52,  512 bytes, 1 try, parmset 0, AGC 0.85-1.37, ok, avg speed 98.57 IPS at time 7.91165016, tap offset 23112
+wrote block  53,  512 bytes, 1 try, parmset 0, AGC 0.86-1.16, ok, avg speed 98.62 IPS at time 7.92157080, tap offset 23632
+wrote block  54,  512 bytes, 1 try, parmset 0, AGC 0.85-1.12, ok, avg speed 98.69 IPS at time 7.93145784, tap offset 24152
+wrote block  55,  512 bytes, 1 try, parmset 0, AGC 0.88-1.14, ok, avg speed 98.72 IPS at time 7.94136120, tap offset 24672
+wrote block  56,  512 bytes, 1 try, parmset 0, AGC 0.88-1.13, ok, avg speed 98.75 IPS at time 7.95125272, tap offset 25192
+wrote block  57,  512 bytes, 1 try, parmset 0, AGC 0.87-1.13, ok, avg speed 98.84 IPS at time 7.96114424, tap offset 25712
+wrote block  58,  512 bytes, 1 try, parmset 0, AGC 0.89-1.13, ok, avg speed 98.77 IPS at time 7.97104440, tap offset 26232
+wrote block  59,  512 bytes, 1 try, parmset 0, AGC 0.86-1.20, ok, avg speed 98.69 IPS at time 7.98095224, tap offset 26752
+wrote block  60,  512 bytes, 1 try, parmset 0, AGC 0.87-1.14, ok, avg speed 98.84 IPS at time 7.99084088, tap offset 27272
+wrote block  61,  512 bytes, 1 try, parmset 0, AGC 0.88-1.13, ok, avg speed 98.71 IPS at time 8.00073432, tap offset 27792
+wrote block  62,  512 bytes, 1 try, parmset 0, AGC 0.89-1.13, ok, avg speed 98.78 IPS at time 8.01063416, tap offset 28312
+wrote block  63,  512 bytes, 1 try, parmset 0, AGC 0.88-1.26, ok, avg speed 98.67 IPS at time 8.02054488, tap offset 28832
+wrote block  64,  512 bytes, 1 try, parmset 0, AGC 0.88-1.12, ok, avg speed 98.60 IPS at time 8.03044152, tap offset 29352
+  tapemark at time 8.06767064, tap offset 29864, 64 blocks written so far
+wrote block  65,   80 bytes, 1 try, parmset 0, AGC 0.93-1.12, ok, avg speed 99.31 IPS at time 8.08492440, tap offset 29876
+  tapemark at time 8.12206552, tap offset 29956, 65 blocks written so far
+  tapemark at time 8.17098840, tap offset 29960, 65 blocks written so far
+  tapemark at time 8.21833048, tap offset 29964, 65 blocks written so far
+*** NOTE: we detected reverse PE signal polarity, but we can handle it
+results/TestTape2-100-markers.tap was closed at time 8.32049528 after 29,392 data bytes were extracted from 65 blocks
+
+summary for file "TestTape2-100-markers/meta.json":
+  5,063,857 samples were processed in 4 seconds (0.062 seconds/block)
+  created 1 output file with a total of 29,972 bytes
+  decoded 14 tape marks and 65 blocks with 29,392 bytes from 1.62 seconds of tape data
+  the last block written was 8.08492440 seconds into the tape
+  0 blocks had errors, 0 had warnings, 0 had mismatched tracks, 0 had bits corrected
+  0 good blocks had to try more than one parmset
+  parmset 0 was tried   80 times and used   79 times, or  98.8%
+
+  created statistics file "results/TestTape2-100-markers.peakstats.csv" from 486,855 measurements of flux transition positions
+  to graph it from Excel, open the CSV file, then: insert chart 2D line
+  the earliest peak is 3.01 usec, and the latest peak is 4.03 usec
+  that peak difference of 1.02 usec, and the largest standard deviation of 1.35 usec, are 16.3% and 21.7% of the nominal bit spacing
+  head skew is significant; you should try again with the -deskew option

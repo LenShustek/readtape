@@ -27,10 +27,10 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
 #include <stdbool.h>
-// typedef unsigned char bool; // we don't use stdbool.h so we can have "unknown" as a value
+// typedef unsigned char bool; // we don't actually ever use "unknown" as a value so stdbool.h is fine?
 #define true 1
 #define false 0
-#define unknown 0xff
+// #define unknown 0xff
 
 #ifndef DEBUG
 #define DEBUG false                // generate debugging output?

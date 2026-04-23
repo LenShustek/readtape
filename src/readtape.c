@@ -651,8 +651,7 @@ char *parentdir(const char *filename) {
    assert(fullpath != NULLP, "unable to get full path of \"%s\"", filename);
    char *dirend = strrchr(fullpath, pathsep);
    *dirend = 0;
-   return fullpath;
-}
+   return fullpath; }
 
 /********************************************************************
    utility routines
@@ -1139,8 +1138,7 @@ enum datafile_t check_file(const char *fname) {      // checks if file can be op
    else if (strcasecmp(ext, ".tbin") == 0) return TBIN_FILE;
    else if (strcasecmp(ext, ".json") == 0) return SAL_FILE;
    else if (strcasecmp(ext, "tap") == 0) return TAP_FILE;
-   else return UNKNOWN_FILE;
-}
+   else return UNKNOWN_FILE; }
 
 void close_file(void) {
    if (outf) {
@@ -1297,7 +1295,6 @@ void got_datablock(bool badblock) {
          if (!outf) { // create a generic data file if we didn't see a file header label
             create_datafile(NULLP); }
          uint32_t errflag = result->errcount ? 0x80000000 : 0;  // SIMH .tap file format error flag
-         errflag = 0; // JST: force it to zero
          if (tap_format) output_tap_marker(length | errflag); // leading record length
          for (int i = 0; i < length; ++i) { // discard the parity bit track and write all the data bits
             byte b = (byte)(data[i] >> 1);
@@ -1723,7 +1720,6 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
       ++numsamples;
       timenow = sample.time;
       if (torigin == 0) torigin = timenow; // for debugging output
-      //printf("%f: %.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n", timenow, sample.voltage[0], sample.voltage[1], sample.voltage[2], sample.voltage[3], sample.voltage[4], sample.voltage[5], sample.voltage[6],sample.voltage[7], sample.voltage[8]);
 
       if (!block.window_set) { // the game's afoot: do initial parameter setting and reporting
          // set the width of the peak-detect moving window
@@ -1974,12 +1970,9 @@ bool process_file(int argc, char *argv[], const char *extension) {
       save_file_position(&filestart, "at start of file before computing bpi"); // remember the file position for the start of the file
       do {
          init_blockstate(); // do one block
-         rlog("done one block\n");
          block.parmset = starting_parmset;
          init_trackstate();
-         rlog("init_trackstate done\n");
          if (!readblock(true)) break; // stop if endfile
-         rlog("block read\n");
          if(block.results[block.parmset].blktype != BS_NOISE) ++nblks; }
       while (!estden_done()); // keep going until we have enough transitions
       estden_setdensity(nblks);

@@ -6,6 +6,13 @@ src/dumptap
 src/readtape
 build/
 
+# .sal data & unpacked data
+# unfortunately this file is too big for GitHub without LFS
+examples/9trk_PE_sal/TestTape2-100-markers.sal
+examples/9trk_PE_sal/TestTape2-100-markers/
+examples/*/results/
+
+
 # compile-commands.json is platform-specific
 # generate your own with:
 # cd src && bear -- make clean all

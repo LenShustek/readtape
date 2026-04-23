@@ -70,19 +70,31 @@ TBIN. The compression factor is about 10:1, and the processing is about
 2x faster when the program reads that file format. There is some loss of 
 precision in the compressed format, but not enough to affect the decoding. 
 
-New functionality supports direct handling of Saleae's native .sal file
-format. This removes the need to export to CSV files, or convert them to
-the TBIN format. The recommended workflow is to use the Python program
-sal-extract (installable via pipx install sal-extract). Use this to
-export the analog binary data, as well as extract a JSON file containing
-all metadata about the capture. readtape can directly process this JSON
-file to set critical conversion parameters, such as sample rate and
-capture date & time.
+New functionality supports direct handling of Saleae's native binary
+file format. This removes the need to export to CSV files, or convert
+them to the TBIN format. The program depends on a hidden "meta.json"
+file that is contained within the Saleae .sal file (which is a .zip file
+in disguise.) This file includes useful metadata such as sample rate,
+capture date & time, but can also be used to provide optional data best
+written down at the time of data acquisition.
 
-To make best use of these features:
+The recommended workflow is to use the Python program sal-extract
+(installable via pipx install sal-extract). This tool will, given a
+Logic 2.x .sal file, automatically export the analog binary data as well
+as the meta.json file well as extract a JSON file containing all
+metadata about the capture. Or, if you prefer, export all analog channel
+binary data directly in Logic, then use a Zip utility to extract the
+meta.json file, such as one of:
 
-- Name the channels for the tracks to which they are connected. Use a
-  name like "Track #" or just "#" (01234567P or CcLlMmx for Whirlwind)
+      unzip my-capture.sal meta.json
+      7z x my-capture.sal meta.json
+
+To make the most of readtape's support of meta.json, perform the
+following actions in Logic before saving the .sal file:
+
+- Name the channels for the heads to which they are connected. Use a
+  name like "Track #" or just "#" (01234567P or CcLlMmx for Whirlwind).
+  This is recommended best practice.
 - Or, drag channels into the desired order for processing. The first
   track will be assigned the first value from the -order CLI argument.
 - Place markers on the timeline indicating the start and end of the
@@ -93,6 +105,9 @@ To make best use of these features:
   - ips=####        (inches per second: 25, 50, 100, etc.)
   - mode=x          (mode: PE, NRZI, GCR, WW)
   - desc="comment"  (a one-line comment)
+
+All of the above information may still be overridden at the readtape
+command line.
 
 A windows GUI program for efficiently displaying the raw data in either
 CSV or TBIN format, even when there are billions of data points, is here:
