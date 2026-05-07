@@ -43,6 +43,10 @@ can convert between CSV and TBIN. The "readtape" decoding program can read
 either format. The compression using TBIN is about 10:1, and it speeds up 
 decoding by about 2x. 
 
+New functionality supports direct handling of Saleae's native binary
+file format. This removes the need to export to CSV files, or convert
+them to the TBIN format. More details are in A_documentation.txt.
+
 A windows GUI program for efficiently displaying the raw data in either
 CSV or TBIN format, even when there are billions of data points, is here:
 https://github.com/LenShustek/grapher

@@ -56,11 +56,11 @@ for many minutes to create files that take dozens of gigabytes hasn't
 been a problem. The data is in Saleae's proprietary format, but then
 some or all of the file can exported to a text file.
 
-The only form in which data can be exported from the Saleae analyzer 
-software is a CSV (comma-separated-value) text file with a series of 
-floating point numbers. The first number on each line is a timestamp in 
-seconds, and the next N values on the lines are the voltages from the N 
-tracks. The readtape program can read that file. 
+Previously, the only form in which data could be exported from the
+Saleae analyzer software is a CSV (comma-separated-value) text file with
+a series of floating point numbers. The first number on each line is a
+timestamp in seconds, and the next N values on the lines are the
+voltages from the N tracks. The readtape program can read that file. 
 
 But the CSV files can be huge -- many tens of gigabytes for a few 
 minutes of recording -- so for archival purposes we've defined a binary 
@@ -70,11 +70,52 @@ TBIN. The compression factor is about 10:1, and the processing is about
 2x faster when the program reads that file format. There is some loss of 
 precision in the compressed format, but not enough to affect the decoding. 
 
+New functionality supports direct handling of Saleae's native binary
+file format. This removes the need to export to CSV files, or convert
+them to the TBIN format. The program depends on a hidden "meta.json"
+file that is contained within the Saleae .sal file (which is a .zip file
+in disguise.) This file includes useful metadata such as sample rate,
+capture date & time, but can also be used to provide optional data best
+written down at the time of data acquisition.
+
+The recommended workflow is to use the Python program sal-extract
+(installable via pipx install sal-extract). This tool will, given a
+Logic 2.x .sal file, automatically export the analog binary data as well
+as the meta.json file well as extract a JSON file containing all
+metadata about the capture. Or, if you prefer, export all analog channel
+binary data directly in Logic, then use a Zip utility to extract the
+meta.json file, such as one of:
+
+      unzip my-capture.sal meta.json
+      7z x my-capture.sal meta.json
+
+To make the most of readtape's support of meta.json, perform the
+following actions in Logic before saving the .sal file:
+
+- Name the channels for the heads to which they are connected. Use a
+  name like "Track #" or just "#" (01234567P or CcLlMmx for Whirlwind).
+  This is recommended best practice.
+- Or, drag channels into the desired order for processing. The first
+  track will be assigned the first value from the -order CLI argument.
+- Place markers on the timeline indicating the start and end of the
+  desired conversion. Name these markers "startime" and "endtime".
+- In the Notes tab on the right-hand side, enter other options in a
+  key=value format, one per line. The following options are supported:
+  - bpi=####        (bits per inch: 800, 1600, 6250, etc.)
+  - ips=####        (inches per second: 25, 50, 100, etc.)
+  - mode=x          (mode: PE, NRZI, GCR, WW)
+  - desc="comment"  (a one-line comment)
+
+All of the above information may still be overridden at the readtape
+command line.
+
 A windows GUI program for efficiently displaying the raw data in either
 CSV or TBIN format, even when there are billions of data points, is here:
 https://github.com/LenShustek/grapher
 That can be very useful in seeing quirks in the data, and can help in
-setting the many decoding parameters described here.
+setting the many decoding parameters described here. The native Saleae
+Logic GUI can display native .sal captures without the need for an
+additional program.
 
 USING THE PROGRAM 
 
@@ -84,12 +125,13 @@ code to detect whether the processor is little-endian or bit-endian, and
 it reverses numbers in external files when necessary. I compile and link
 using Microsoft Visual Studio Community 2017.
 
-use: readtape <options> <basefilename>
+use: readtape <options> <basefilename>[.ext]
 
-  The input file is <basefilename> with .csv, .tbin, or .tap,
-     which may optionally be included in the command. 
-     If the extension is not specified, it tries .csv first 
-     then .tbin, and .tap only if -tapread is specified.
+  The input file format is deduced from the file extension, which may be
+    .csv, .tbin, .json, or .tap. If no extension is given, extensions of
+    .csv, .json, and .tbin are tried, in that order. .json files and their
+    associated .bin files are extracted from .sal files by sal-extract.
+    If -tapread is specified, .tap will also be tried.
 
   The output files will be <basefilename>.xxx by default.
 
@@ -97,7 +139,7 @@ use: readtape <options> <basefilename>
    or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.
 
 options:
-  -ntrks=n       set the number of tracks
+  -ntrks=n       set the number of tracks to n
   -order=        set input data order for tracks 0..ntrks-2,P, where 0=MSB
                  default: 01234567P for 9 trk, 012345P for 7 trk
                  (for Whirlwind: a combination of C L M c l m and x's)
@@ -110,25 +152,28 @@ options:
   -zeros         base decoding on zero crossings instead of peaks
   -differentiate do simple delta differentiation of the input data
   -even          expect even parity instead of odd (for 7-track NRZI BCD tapes)
-  -revparity=n   reverse parity for blocks that are n bytes long
+  -revparity=n   reverse parity for blocks up to n bytes long
   -invert        invert the data so positive peaks are negative and vice versa
   -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block
   -reverse       reverse bits in a word and words in a block (Whirlwind only)
   -skip=n        skip the first n samples
+  -starttime=n   start only after sample time n
+  -endtime=n     end after sample time n
+  -scale=n       scale the voltages by n, which can be a fraction
   -blklimit=n    stop after n blocks
   -subsample=n   use only every nth data sample
+  -showibg=n     report on interblock gaps greater than n milliseconds
   -tap           create one SIMH .tap file from all the data
   -deskew        do NRZI track deskewing based on the beginning data
   -skew=n,n      use this skew, in #samples for each track, rather than deducing it
   -correct       do error correction, where feasible
   -addparity     include the parity bit as the highest bit in the data (for ntrks<9)
-  -tbin          only look for a .tbin input file, not .csv first
   -nolog         don't create a log file
   -nolabels      don't try to decode IBM standard tape labels
   -textfile      create an interpreted .<options>.txt file from the data
                    numeric options: -hex -octal (bytes) -octal2 (16-bit words)
-                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM -flexo
-                         -adage -adagetape -CDC -Univac
+                   character options: -ASCII -EBCDIC -BCD -sixbit -B5500 -SDS -SDSM
+                        -flexo -adage -adagetape -CDC -Univac
                    characters per line: -linesize=nn
                    space every n bytes of data: -dataspace=n
                    make LF or CR start a new line: -linefeed
@@ -137,12 +182,12 @@ options:
   -outp=ppp      otherwise use ppp as an optional prepended path for output files
   -sumt=sss      append a text summary of results to text file sss
   -sumc=ccc      append a CSV summary of results to text file ccc
-  -m             try multiple ways to decode a block
+  -m             try multiple ways to decode a block (the default unless Whirlwind)
   -nm            don't try multiple ways to decode a block
   -v[n]          verbose mode [level n, default is 1]
   -q             quiet mode (only say "ok" or "bad")
   -f             take a file list from <basefilename>.txt
-  
+
 For Whirlwind, don't specify the number of tracks. Instead, the -order parameter 
 specifies the assignment of input data (the heads) to tracks, as follows:
   - The length of the -order parameter is the number of data columns

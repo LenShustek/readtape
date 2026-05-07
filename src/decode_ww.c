@@ -67,7 +67,7 @@ int ww_chk_databit(double clkendtime, enum wwtrk_t type, uint16_t bitmask) {
 
 void ww_chk_databits(double clkendtime) { // check for data pulse starts that occurred between clock pulse ends
    struct results_t *result = &block.results[block.parmset]; // where we put the results of this decoding
-   bool got_priMSB, got_priLSB;
+   int got_priMSB, got_priLSB;
    if (0 && !doing_deskew) rlog("chk bits, datacount %d, clockpulseend "TIMEFMT", timenow "TIMEFMT"\n",
                                    ww.datacount, TIMETICK(clkendtime), TIMETICK(timenow));
    if (((got_priMSB = ww_chk_databit(clkendtime, WWTRK_PRIMSB, 0x02)) | ww_chk_databit(clkendtime, WWTRK_ALTMSB, 0x02)) == 3) {

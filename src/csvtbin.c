@@ -115,7 +115,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdbool.h>
 #include <time.h>
 #include <limits.h>
-typedef unsigned char byte;
 
 #include "csvtbin.h"
 

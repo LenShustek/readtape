@@ -1,0 +1,1211 @@
+file results/TestTape2-100-markers.ASCII.txt
+created by readtape version 3.19 on Thu Apr 23 02:45:03 2026
+using text options   -ASCII -newline -linesize=64
+
+block 1: 80 bytes at time 6.70468408, ok
+ VOL1RT11A                            D%B          1             
+                3
+block 2: 80 bytes at time 6.71843576, ok
+ HDR1DEMOKD.TXT       RT11A 00010001000100 00000 00000 000000DECR
+ T11A            
+tape mark at time 6.75781080
+block 3: 512 bytes at time 6.77980984, ok
+  Sample Keypad Editing Session - //DATE// 
+   
+       This file has been designed especially for the sample edit
+ ing session 
+  that is described in the PDP-11 Keypad Editor User's Guide. 
+   
+  After you have completed the sample session,  
+  you may use this file to practice other keypad editor functions
+  and  
+  commands, if you like. 
+   
+  ABOUT THE SAMPLE SESSION 
+   
+  Your general task for the sample session is to insert the date 
+ you  
+  begin working with the keypad editor into your own copy of this
+  file. The  
+  date is //DA
+block 4: 512 bytes at time 6.79175608, ok
+ TE//. 
+   
+   
+  Sample Keypad Editing Session, "section" 2 lakdjhfuierbhnv a678
+ 237yfg^90(4#!! 
+   
+   
+   
+   
+  The PDP-11 Keypad Editor is for use with 
+  VT100 compatible terminals that have keypads. 
+   
+  As you work through a file with the keypad editor, the editor d
+ isplays 24 
+  lines of the file on your screen. One of the lines always shows
+  the keypad 
+  editor cursor, the flashing symbol that is always somewhere on 
+ your screen. 
+  The cursor identifies the character that will be erased if you 
+ use one of the 
+  erasing function
+block 5: 512 bytes at time 6.80367320, ok
+ s. It also marks the location in your file where the editor  
+  will insert what you type on the keyboard. 
+   
+  //DATE// is the date you started to learn to use the keypad edi
+ tor.  
+  If KED is the first video-oriented editor you have used, welcom
+ e to a 
+  new world of fast, clear responses to editing functions. If you
+  already 
+  have used a video-oriented editor, welcome to DIGITAL's contrib
+ ution 
+  for users of the RT-11 operating system. If the  
+  experience of other users is valid for you also, you will be co
+ nfident
+block 6: 512 bytes at time 6.81558840, ok
+  about 
+  using the keypad editor within a day or two after //DATE//. 
+                                                                 
+                                                                 
+                                                                 
+                                                                 
+                                                                 
+                                                                 
+                                                             
+tape mark at time 6.85455896
+block 7: 80 bytes at time 6.87389656, ok
+ EOF1DEMOKD.TXT       RT11A 00010001000100 00000 00000 000004DECR
+ T11A            
+tape mark at time 6.91280728
+block 8: 80 bytes at time 6.96552408, ok
+ HDR1V5USER.TXT       RT11A 00010002000100 00000 00000 000000DECR
+ T11A            
+tape mark at time 7.00462616
+block 9: 512 bytes at time 7.02670808, ok
+  
+                                     RT-11 V5.7 
+   
+      Installation  of  RT-11  Version  5.7 is complete and you a
+ re now running 
+      RT-11 from your system volume.   
+   
+      Your  system volume is your working volume if you have used
+  the Automatic 
+      Installation (AI) procedure.  If you  have  installed  RT-1
+ 1  using  that 
+      procedure,  Mentec  recommends  you verify the  correct ope
+ ration of your 
+      system's software using the VERIFY verification procedure. 
+  You can  only 
+      perform  VERIFY  on  t
+block 10: 512 bytes at time 7.08013048, ok
+ he  valid target (output) media you used for the AI 
+      procedure.  Run VERIFY before you run CONFIG.  To run VERIF
+ Y,  enter  the 
+      command:   
+                                     IND VERIFY 
+   
+      You should read the file V5NOTE.TXT, which you can TYPE or 
+ PRINT.  Also,  
+      read the Introduction to RT-11, and the Installation Guide 
+ which 
+      contain much of the information you need to use RT-11 Versi
+ on 5.7. 
+                                                                 
+                                
+tape mark at time 7.11923032
+block 11: 80 bytes at time 7.13857752, ok
+ EOF1V5USER.TXT       RT11A 00010002000100 00000 00000 000002DECR
+ T11A            
+tape mark at time 7.17756280
+block 12: 80 bytes at time 7.27129464, ok
+ HDR1V5NOTE.TXT       RT11A 00010003000100 00000 00000 000000DECR
+ T11A            
+tape mark at time 7.31033432
+block 13: 512 bytes at time 7.33244472, ok
+  
+                        RT-11 V5.7 RELEASE NOTES ADDENDA 
+                        ================================ 
+   
+   
+       This file lists the new features of RT-11 Version  5.7.  T
+ he features    
+       are described in the RT-11 System Release Notes, AA-5286M-
+ TC. 
+   
+    1. Media 
+       ----- 
+   
+       RT-11 is now only officially distributed on 9 track 1600BP
+ I 
+       Magtape, RX50s and TK50s.  If you require RT-11 on alterna
+ te Media,  
+       please contact Mentec. 
+   
+       With the imminent end of life of the RX50 
+block 14: 512 bytes at time 7.34441336, ok
+ media, Mentec are looking  
+       into alternate, inexpensive upgrades for readily available
+  media. 
+   
+    2. Backups 
+       ------- 
+   
+       Two sets of RX50 media are no longer distributed by defaul
+ t. You are  
+       recommended to make a backup copy of your kit. 
+   
+    3. Accessories 
+       ----------- 
+   
+       We are pleased to be able to offer a number of AS-IS UNSUP
+ PORTED 
+       accessories with the RT-11 kits. 
+   
+       These include Kermit-RT, ARK (an archival tool), RT-PC too
+ ls, and 
+        
+       Due to space li
+block 15: 512 bytes at time 7.35641208, ok
+ mitations on only Kermit is available on the RX50 kit. 
+   
+       The RT-11 accessories, including a TCP/IP implementation f
+ or RT-11 
+       and TSX, are available from Mentec.  See the Mentec web si
+ te  
+       http://www.mentec.com for details, or call Mentec asking f
+ or  
+       information on the RT-11 Accessories. 
+       
+    4. Useful information regarding the RT Monitors 
+       -------------------------------------------- 
+       
+       The following article was published by Bob Schorr for the 
+ RT-11 
+       community at
+block 16: 512 bytes at time 7.36840344, ok
+  the announcement of RT-11 at DECUS, Anaheim 1997 and 
+       is considered to be of use here.  Mentec wishes to thank B
+ ob for 
+       permission to reproduce it here. 
+   
+   
+                What Happened to RT-11 SJ 
+   
+                       or 
+   
+                 Where Has TT.SYS Gone? 
+   
+         
+   
+   
+       Perhaps the most noticable change in RT-11 with the introd
+ uction  
+       of Version 5.6 and Version 5.7 is the whole-scale renaming
+  of the  
+       various monitors.  Three new monitors have been added, and
+  one  
+       
+block 17: 512 bytes at time 7.38042872, ok
+ long-time old friend, RT-11 SJ, the Single Job Monitor, has gone
+   
+       away.  The purpose of this talk is to explore why it has g
+ one,  
+       review the consequences for the user, and try to demonstra
+ te the  
+       old saying "When Life Hands You a Lemon, Make Lemonade". 
+   
+       First, where has it gone?  RT-11 SJ was the "Single Job" m
+ onitor,  
+       nut in the new 5.6 monitor scheme, it has been replaced by
+  RT-11 SB  
+       What were the functionalities of SJ, its pluses and minuse
+ s, which  
+       have contri
+block 18: 512 bytes at time 7.39246936, ok
+ buted to making it such a favorite of many users in the  
+       Real Time and Data Acquisition environment? 
+   
+       SJ = Single Job, you were guaranteed to be the only job ru
+ nning,  
+       which meant that you never had to worry about some other p
+ rogram  
+       (other than the operating system) corrupting yours.  You r
+ an in  
+       Kernel mode, meaning you had all of the power of the PDP-1
+ 1 at your  
+       disposal. You could even HALT the machine!  The monitor wa
+ s small,  
+       and fast, giving you access to a 
+block 19: 512 bytes at time 7.40447384, ok
+ reasonable chunk of the 56kB of  
+       memory (plus full access to the 8kB I/O page) in the machi
+ ne.  Even  
+       the non-essential parts of the terminal device (the part w
+ hich used  
+       to do .READs and .WRITEs) were split out into TT.SYS so th
+ at user  
+       programs which didn't do "regular" I/O to the terminal wou
+ ld have  
+       more space. 
+   
+       But there were problems.  The major problem involved Compl
+ etion  
+       Routines.  There were cases, particularly likely to occur 
+ while  
+       using VM:, in w
+block 20: 512 bytes at time 7.41645752, ok
+ hich the system could get thoroughly hung.  The  
+       only solution involved bringing in 75-80% of the FB functi
+ onality,  
+       so the developers decided to put in 100% and solve this an
+ d other  
+       possible problems in a clean manner.  SB is the resulting 
+ product. 
+   
+       Some of the problems in SJ arose from the schizoid nature 
+ of its  
+       development.  As features and capabilities were designed i
+ nto the  
+       evolving monitor set (first FB, then XM), attempts were ma
+ de to  
+       "build in" as many 
+block 21: 512 bytes at time 7.42845688, ok
+ of these into SJ as sensible, given the  
+       different underlying monitor structures (and the fact that
+  SJ  
+       really was optimized for small size and quick response, st
+ ructure- 
+       be-damned).  The development of the later monitors benefit
+ ted from  
+       knowledge of SJ development, and did many things better (a
+ nd perhaps  
+       "right").  One particular difference is that information a
+ bout job  
+       context in later monitors is kept in a separate impure are
+ a,  
+       allowing for controlled access;
+block 22: 512 bytes at time 7.44044952, ok
+  in SJ, this information tends to  
+       be scattered throughout the monitor.  One further SJ probl
+ em is that  
+       interrupts just sort of "happened"; the monitor did not de
+ al with  
+       them in as robust a method as with FB/XM. 
+   
+       These fundamental monitor differences between SJ, on the o
+ ne hand,  
+       and FB/XM, on the other hand, were reflected in the existe
+ nce of  
+       two monitor sources, RMONSJ and RMONFB; the latter built b
+ oth FB  
+       and XM using a conditional code switch which basically
+block 23: 512 bytes at time 7.45242936, ok
+  turned 
+       on memory management (MMG$T). 
+   
+       The solution to the "broken SJ" problem, and the evolution
+ ary  
+       pressure which created SB, was to further conditionalize R
+ MON to  
+       specify the number of supported jobs; if the answer was 1,
+  you  
+       had SB (and, incidently, XB and ZB basically came for free
+ ).   
+       Because only one job needs to be supported, the structure 
+ of the  
+       monitor's impure area is particularly simple, and the moni
+ tor  
+       itself can be simplified (as it doesn't
+block 24: 512 bytes at time 7.46439736, ok
+  need code to switch  
+       context, but can leave its pointer looking at the guarante
+ ed job  
+       context).  Context-switching mainly goes away. 
+    
+       Some size comparisons.  The examples below are for a monit
+ or  
+       running out of VM, as well as the more conventional config
+ uration  
+       running out of DU. 
+   
+       For VM ... 
+   
+       RT-11 v5.5        RT-11 v5.6                  
+        
+         SJ     FB      XM      SB     FB     XM           
+        128     128     86      128    128    86 
+        
+    
+block 25: 512 bytes at time 7.47420664, ok
+    RMON 
+        
+       2516    5076   8056     3913   5148   8248 
+        
+       USR 
+        
+       (2065) (2065)  2577    (2065) (2065)  2577 
+        
+       BkGd 
+        
+       25772   23212  17697    24375  23140  17505 
+        
+       For DU ... 
+        
+         SJ     FB      XM      SB     FB     XM           
+        915    915     144    1000   1000    154 
+        
+       RMON  
+        
+       2516    5076   8056    3913   5148    8248 
+        
+       USR  
+   
+       (2065) (2065)  2577   (2065) (20650)  2577 
+        
+       BkGd  
+block 26: 512 bytes at time 7.48401752, ok
+ 
+        
+       24985   22425  17639   23503   22268  17437 
+        
+       The above chart contains the bad news the smallest monitor
+ ,  
+       RT-11SB, has grown in size by about 1400 words (the other 
+  
+       monitors have also grown slightly, but nowhere nearly as m
+ uch).   
+       It is therefore possible that code that used to run under 
+ RT-11SJ  
+       will not run (immediately) under SB because of lack of mem
+ ory.   
+       This brings up the entire issue of code migration. 
+   
+   
+       There are two sorts of migration 
+block 27: 512 bytes at time 7.49386200, ok
+ issues to consider.  First, aside  
+       from size and speed, are there any other ways that SB diff
+ ers from  
+       SJ, and could thus cause migration headaches?  Second, wha
+ t if  
+       size or speed really is an issue? 
+   
+       The good news is that almost all programs which ran under 
+ SJ should  
+       run under SB (assuming the code still fits in memory).  Al
+ so, all  
+       programs which ran under FB should definitely run under SB
+ !  One  
+       subtle change in SB lies in $CNFG1; the low bit, BMON$, us
+ ed to  
+block 28: 512 bytes at time 7.50371576, ok
+ 
+       distinguish between SJ and FB.  Under 5.6, this defaults t
+ o 1,  
+       i.e. "FB".  Should this matter to your program, the develo
+ pers have  
+       handily provided a SET MODE SJ switch to change this bit b
+ ack to 0.   
+       The "correct" way to distinguish SB from FB is to look at 
+ $JOBS and  
+       see if it is 1 or a larger number. 
+   
+       However, if your program actually went in and played aroun
+ d with  
+       internal monitor tables, particularly if it didn't use the
+  RMON  
+       offsets to do so, it is 
+block 29: 512 bytes at time 7.51356984, ok
+ likely that it may fail under SB, with its  
+       reorganized (and rationalized) structure. 
+   
+       The general goal of the entire 5.6 development effort was 
+  
+       portability of old software without modification. "Vanilla
+ "  
+       programs, those which handle interrupts and mapping throug
+ h system  
+       calls, rather than directly, and which do i/o through the 
+ monitor,  
+       should immediately run.  It is probably true (but we have 
+ no direct  
+       data) that programs which attempt to push the CPU to its 
+block 30: 512 bytes at time 7.52342584, ok
+ limit in  
+       terms of speed while processing interrupts will probably r
+ un  
+       somewhat slower under SB; there is more overhead associate
+ d with  
+       the (correct, safe) processing of interrupts.  
+   
+       How about speed?  This is harder.  If this is really an is
+ sue,  
+       there aresome things to try.  One is to use VM: as a syste
+ m  
+       device, or for i/o (depends on where the bottleneck lies).
+   Another  
+       is to buy a faster processor!   
+   
+       How about space?  Assuming it doesn't fit under S
+block 31: 512 bytes at time 7.53330680, ok
+ B, try it under  
+       XB.  While this is an even larger (and somewhat slower) mo
+ nitor, it  
+       allows you to use VBGEXE to create a virtual environment w
+ here you  
+       have direct access to 56kB (and, in some cases, 64kB) of m
+ emory.   
+       The reason for this gain in memory is because all of the m
+ onitor  
+       stuff now runs in Kernel mode, and your program moves to a
+  separate  
+       User Space.  
+   
+       VBGEXE/XM support three memory models.  [Those familiar wi
+ th TSX+  
+       will recognize some of thi
+block 32: 512 bytes at time 7.54316216, ok
+ s].  One is 56kB of User space + direct  
+       access to the I/O page.  Another is 56kB + a copy of RMON 
+ tables  
+       in the top 8kB, allowing very rapid access through the $SY
+ PTR at  
+       location 54.  The third is to simply have 64kB of User spa
+ ce  
+       directly.  Note that in any of these environments, you've 
+ got more  
+       space available than under any unmapped monitor, even SJ. 
+  
+   
+       What are the drawbacks?  One may be speed -- if you are ri
+ ght at  
+       the edge, going from SB to XB might push
+block 33: 512 bytes at time 7.55304152, ok
+  you over.  See "speed"  
+       discussion above.  How about problems in your program? 
+        
+       The big issue is interrupts.  If your program deals direct
+ ly with  
+       interrupts, that is, if it contains an Interrupt Service R
+ outine,  
+       you have to do a bit of work to run in a virtual environme
+ nt.  The  
+       first problem is fielding the interrupt.  When an interrup
+ t occurs,  
+       you vector to a location in low memory in Kernel Space, re
+ gardless  
+       of the mode you were in when the interrupt o
+block 34: 512 bytes at time 7.56293496, ok
+ ccurs.  So problem #1  
+       is getting vectors into Kernel Memory.  .PROTECT will corr
+ ectly  
+       give you the status of the Kernel vector and will protect 
+ the  
+       vector; you could then use .PEEK/.POKE to load it and poin
+ t it to  
+       your ISR.  The next question is in which mode do you wish 
+ to  
+       execute the interrupt code, the choices being Kernel Mode 
+ (i.e.  
+       not in your program's address space) or User Mode (i.e. co
+ de within  
+       your program).  It might sound like User Mode is the log
+block 35: 512 bytes at time 7.57281176, ok
+ ical choice  
+       for a User ISR, but there is a problem which boils down to
+  a bit of  
+       hardware lore.  Recall that when executing an RTI to retur
+ n from  
+       interrupt, the PS, used to send you back to the previous m
+ ode, is  
+       updated from the value on the stack.  If you check the des
+ cription  
+       of RTI, you will notice that if you are in User Mode, you 
+ can  
+       only return to User mode; Supervisor gets you back to Supe
+ rvisor or  
+       User; Kernel gets you back to anywhere. The problem now
+block 36: 512 bytes at time 7.58271064, ok
+  is, in  
+       which mode does your interrupt code execute?  You control 
+ User Mode  
+       mapping, yet if you put the ISR in User Mode, you have to 
+ guarantee  
+       that no User Interrupt occurs while running Kernel Mode co
+ de (such  
+       stuff as USR, handler functions, monitor calls, etc.) or e
+ lse you  
+       will return in the wrong mode (you will return in User Mod
+ e, yet  
+       were interrupted in Kernel Mode; since User mapping <> Ker
+ nel  
+       mapping, you won't wind up where you should). 
+        
+       
+block 37: 512 bytes at time 7.59260248, ok
+ This problem can be (and has been) solved; an example is the cod
+ e  
+       required for Completion Routines.  The solution is to plac
+ e special  
+       code in (User) location 0 which executes an internal EMT c
+ alled  
+       .ASTX, ASynchronous Trap eXit.  This gets us back into Ker
+ nel mode,  
+       within the monitor, which realizes we're returning from a 
+ Completion  
+       Routine, and can look up the PS/PC saved on entering the R
+ outine.   
+       Now the RTI, exited from Kernel Mode, can return us proper
+ ly to  
+    
+block 38: 512 bytes at time 7.60251096, ok
+    any mode necessary.  The obvious solution is to put the inter
+ rupt  
+       code in Kernel Space, and the recommended way of doing thi
+ s is to  
+       write a handler which does the interrupt processing for yo
+ u.  At the  
+       cost of learning about handlers and learning some possibly
+   
+       unfamiliar data structures and methods, this solution has 
+ a number  
+       of secondary benefits.  First, it gets even more of your u
+ ser  
+       program out of User Space (remember, we're trying to save 
+ memory)  
+       and p
+block 39: 512 bytes at time 7.61237656, ok
+ uts it into Kernel Space (which is where .FETCH will store it). 
+  
+   
+       Second, routines have been built into the monitor that han
+ dle a lot  
+       of the dirty work for you.  For example, you generally nee
+ d to get  
+       the 22-bit address of the user buffer to hand to the hardw
+ are  
+       device -- RT-11 automatically translates the user buffer a
+ ddress  
+       for you (using PAR1 to point to it, and giving you the rel
+ ocation  
+       constant and displacement bias). 
+   
+       In addition, address translation ro
+block 40: 512 bytes at time 7.62225944, ok
+ utines (formerly handled by the  
+       ATX pseudohandler) are built into the monitor for non-stan
+ dard  
+       requests, such as .SPFUNs (allowing you to pass arbitrary 
+ "buffer 
+       -like" parameters and translate those of interest to you).
+  
+   
+       There are all kinds of clever tricks you could do to speed
+  things  
+       up using a handler.  For example, you could bypass the add
+ ress  
+       translation mechanism inherent in .READ/.WRITE processing 
+ by  
+       using a series of .SPFUNs to give the handler special
+block 41: 512 bytes at time 7.63214008, ok
+ ized  
+       information.  You could, for example, use one .SPFUN to te
+ ll the  
+       handler "Here is where my buffer lives, and it will stay h
+ ere for  
+       the duration of the program.  Go set up the DMA registers 
+  
+       accordingly."  You use another one to say "Now, using alre
+ ady 
+       -initialized addresses, go start the transfer."  Yet anoth
+ er could  
+       be used to mess with flags in the User Space to give you t
+ he Moral  
+       Equivalent of .WAIT.  If you want to be still more devious
+ , you can  
+      
+block 42: 512 bytes at time 7.64202456, ok
+  directly interact with the handler in the following way.  First
+ ,  
+       .DSTAT will give you the (Kernel) address of the handler a
+ fter it  
+       has been loaded into (Kernel) memory by .FETCH.  You can n
+ ow read  
+       and write into the handler using .PEEK/.POKE.  You can eve
+ n call  
+       handler routines using the .CALLK mechanism. 
+        
+       An interesting dichotomy arose in discussing the "SB Memor
+ y"  
+       problem with the RT-11 Developers.  In suggesting the mapp
+ ed  
+       monitors and VBGEXE, their 
+block 43: 512 bytes at time 7.65190712, ok
+ view of what was happening differed  
+       from mine.  I naturally saw the process as "shrinking the 
+ monitor",  
+       or more precisely, getting the monitor (and USR and handle
+ rs) out  
+       of my address space.  They saw it as "cleaning up Kernel S
+ pace" by  
+       getting rid of the User Program.  I was viewing memory, wh
+ ich to me  
+       meant User Space, as the scarce resource; they were lookin
+ g at  
+       scarce Kernel memory.  By banishing the User, more memory 
+ exists  
+       for handlers, the USR, special
+block 44: 512 bytes at time 7.66179416, ok
+ ized buffers, even special purpose  
+       routines which the user can .CallK (if you really get sque
+ ezed ...). 
+        
+       OK, so suppose we do all this, and now want to use VBGEXE.
+   How do  
+       we do it?  There are two bits, NOVBG$ and VBGEX$, in the J
+ ob  
+       Definition Word ($JSX, location 4 of the .SAV image) which
+  interact  
+       with VBG.  One forbids the job running under VBG (the BOOT
+  command  
+       and RESORC, for example, set this bit).  Under the guideli
+ nes given  
+       above, user programs w
+block 45: 512 bytes at time 7.67169112, ok
+ hich have interrupt service routines should  
+       set this bit!  (It is cleared by default).  The other bit 
+ gives  
+       implicit permission for VBG to run the job.  If you have S
+ ET RUN  
+       VBGEXE, then any program with this permission bit set will
+   
+       automatically use VBGEXE to load the program. Finally, if 
+ neither  
+       bit is set, VBG will be used if you explicitly request it 
+ using  
+       the V or VRUN commands. 
+   
+       Note that running under VBGEXE, with the additional memory
+  it  
+       provide
+block 46: 512 bytes at time 7.68155480, ok
+ s, can produce some dramatic improvements in your programs.   
+       One of the first programs to have the VBGEX$ bit set was M
+ ACRO --  
+       under VBG, large assemblies run faster by an order of magn
+ itude! 
+   
+       All that now remains is to answer the last question asked 
+ in the  
+       title, namely Where Has TT.SYS Gone?  By now, you all real
+ ize the  
+       answer to the question, namely that its functionality has 
+ all been  
+       absorbed into the monitor, just as it was in FB (and XM). 
+  However,  
+       RT-1
+block 47: 512 bytes at time 7.69145464, ok
+ 1 Version 5.6 (but not Version 5.7) actually had a copy of  
+       TT.SYS!   
+   
+       What gives?  It turns out that there was still a Version 5
+ .5 monitor  
+       included on the 5.6 kit RT11MT, the monitor which is loade
+ d as part  
+       of a bootable magtape.  Space is very tight for bootable t
+ ape, and  
+       the larger 5.6 monitor could not be so simply shoe-horned 
+ into  
+       memory.  Since the entire purpose of RT11MT was the creati
+ on of a  
+       bootable disk system, the 5.6 solution was to use the smal
+ le
+block 48: 512 bytes at time 7.70134744, ok
+ r 5.5  
+       MT monitor for this purpose.  In version 5.7, however, the
+  tape  
+       bootstrap code was changed to allow the entire 5.7 monitor
+  to be  
+       read in.  So there are no more 5.5 SJ monitors, hence no l
+ onger  
+       a need for TT.SYS. 
+   
+   
+                                                                 
+                                                                 
+                                                                 
+                                                                 
+       
+tape mark at time 7.73854488
+block 49: 80 bytes at time 7.75750392, ok
+ EOF1V5NOTE.TXT       RT11A 00010003000100 00000 00000 000036DECR
+ T11A            
+tape mark at time 7.79461432
+block 50: 80 bytes at time 7.84464216, ok
+ HDR1CUSTOM.TXT       RT11A 00010004000100 00000 00000 000000DECR
+ T11A            
+tape mark at time 7.88180696
+block 51: 512 bytes at time 7.90177336, ok
+  
+          RT-11 V05.07 Customization Patches - Offset Symbol Defi
+ nitions 
+          -------------------------------------------------------
+ ------- 
+   
+       The RT-11 Installation Guide contains customization patche
+ s for the moni- 
+  tors  and  the  utilities.   As  described  in the manual, the 
+ addresses to be 
+  patched are defined as symbols, not absolute addresses.  The va
+ lues of symbols 
+  for  monitor customization patches are obtained from the link m
+ aps distributed 
+  with RT-11 as the files RTSB.MAP, RTFB.MAP, 
+block 52: 512 bytes at time 7.91165016, ok
+ RTXM.MAP, and RTZM.MAP. 
+   
+       The /A option  must  be used with SIPP when you perform an
+ y customization 
+  to a monitor.  That is, you couple the /A  option with the moni
+ tor you specify 
+  in response to the SIPP utility prompt (*). 
+   
+       The link maps for the utilities are  not  distributed  how
+ ever,  and  the 
+  following symbol values should be used to apply customization p
+ atches to them. 
+  The section number refers to the relevant section in  the  RT-1
+ 1  Installation 
+  Guide. 
+   
+  2.6.5 Changing the Default O
+block 53: 512 bytes at time 7.92157080, ok
+ rder of Directory Listings 
+   
+   SWS = 6472 
+   
+   
+  2.6.6 Changing the Number of /Q Program Sections LINK Allows 
+   
+   QSWNUM = 1436 
+   
+   
+  2.6.7 Changing the Size of LINK's Library Module List 
+   
+   LMLSIZ = 1432 
+   
+   
+  2.6.8 Changing the Size of the QUEUE Work File 
+   
+   QSIZE = 1000 
+   QCBLK = 2706 
+   
+   
+  2.6.9 Modifying EDIT For Terminals with Nonstandard ESCAPE Code
+  
+   
+   ALTMDE = 11053 
+   
+   
+  2.6.11 Modifying BATCH to Save Space 
+   
+   BASE = 0 
+   
+   Offset for: ..RDIR = 30475 
+     ..RMAC = 31115 
+     ..RFOR = 31126 
+     ..RLIN = 
+block 54: 512 bytes at time 7.93145784, ok
+ 31145 
+     ..RPIP = 31160 
+     ..RBAS = 31177 
+          Page 2 
+   
+   
+  2.6.12 Modifying LINK to Change the Default SYSLIB Device 
+   
+   SYSLIB = 2536 
+   
+   
+  2.6.13 Modifying the Help Text 
+   
+   ..HLP1 = 10 
+   ..HLP2 = 13 
+   
+   
+  2.6.16 Setting VTCOM Default Dial String 
+   
+   For VTCOM.REL: 
+    ..DIAL = 13013 
+   
+   For VTCOM.SAV: 
+    ..DIAL = 31325 
+   
+   
+  2.6.18  Changing the Number of Bad Blocks That BUP Accepts 
+   
+   Section 0 
+   ..MBAD = 2142 
+   
+   
+  2.6.19  Changing Default File Type Extension of IND Control Fil
+ es 
+   
+   ..INDF = 3452 
+   
+block 55: 512 bytes at time 7.94136120, ok
+ 
+   
+  2.6.35 Changing the Default Number of Directory Segments 
+   
+   SEGTBL = 11430 
+   
+   
+  2.6.36 Changing the Banner Page Width 
+   
+   (NOTE: for ..NB1 and ..NB2, open those offsets as bytes. Do th
+ at by 
+   typing a backslash (\) under the new? display. That reopens th
+ e entire 
+   display for each offset in byte entry mode. The values documen
+ ted for 
+   ..NB1 are correct; use them. For offset ..NB2 (old value 40), 
+ enter 
+   the new value 15. For offset ..NB2+1 (old value 40), enter the
+  new 
+   value 12. At offset ..NB2+2, ent
+block 56: 512 bytes at time 7.95125272, ok
+ er CTRL/Z <RET>, and continue the 
+   patch as documented.) 
+   
+   ..NB1 = 4751 
+   ..NB2 = 5132 
+   ..NB3 = 13276 
+   
+   
+  2.6.37 Modifying Listing Page Length in LINK 
+   
+   LINPPG = 1434 
+   
+          Page 3 
+   
+  2.6.40 Supporting Bad Block Replacement in User-Written Handler
+ s 
+   
+   ARDPS = 11704 
+   SRDPS = 11714 
+   
+   
+  2.6.41 Supporting User-Written Magtape Handlers 
+   
+   MTDPS = 11676 
+   PIPMT =  7604 
+   MDUPMT = 5666 
+   
+   
+  2.6.42  Eliminating or Changing IND Control File Terminating Me
+ ssage 
+   
+   ..INEO = 10754 
+   
+   
+  2.6.43 Changing D
+block 57: 512 bytes at time 7.96114424, ok
+ efault File Type of Logical Disk Files 
+   
+   For LD.SYS: 
+    ..LDEX = 10672 
+   
+   For LDX.SYS: 
+    ..LDEX = 10664 
+   
+   
+  2.6.44 Changing QUEUE to Allow First Form Feed 
+   
+   ..DOFF = 2614 
+   
+   
+  2.6.45 Changing Listing Page Length in MACRO and CREF 
+   
+   MACRO: 
+    PGSIZE = 2434 
+   
+   CREF: 
+    PGSIZE = 1000 
+   
+   
+  2.6.47 Limiting Amount of Memory KEX Requests 
+   
+   Segment 1 
+   ..MAXM = 20006 
+   
+   
+  2.6.48 Changing MACRO's Default .LIST/.NLIST Options 
+   
+   LCBITS = 2440  
+   
+   
+  2.6.49 Changing MACRO's Default .ENABLE/.DISABLE Options
+block 58: 512 bytes at time 7.97104440, ok
+  
+   
+   EDBITS = 2436  
+   
+          Page 4 
+   
+  2.6.50 Modifying KED Default File type 
+   (Do not use /A in SIPP procedure) 
+   
+   Modifying edited file default extension for KED/KEX: 
+    
+   For KED.SAV: 
+    Segment 0 
+    ..EEXT = 3256 
+   
+   For KEX.SAV: 
+    Segment 1 
+    ..EEXT = 20010 
+   
+   Modifying inspected file default extension for KED/KEX: 
+   
+   For KED.SAV: 
+    Segment 0 
+    ..IEXT = 3260 
+   
+   For KEX.SAV: 
+    Segment 1 
+    ..IEXT = 20012 
+  
+   
+  2.6.51 Changing SPOOL's Work File Size 
+   (Do not use /A in SIPP procedure) 
+   
+   For S
+block 59: 512 bytes at time 7.98095224, ok
+ POOL.REL: 
+    Segment 0 
+    ..SPSZ = 2432 
+   
+   For SPOOL.SAV 
+    Segment 1 
+    ..SPSZ = 27702 
+   
+   
+  2.6.52 Changing SPOOL's Output Devices 
+   (Do not use /A in SIPP procedure) 
+   
+   For SPOOL.REL: 
+    Segment 2 
+    ..SPSO = 4226 
+   
+   For SPOOL.SAV: 
+    Segment 1 
+    ..SPSO = 20054 
+   
+   
+  2.6.53 Changing LINK for Default 132-Column Link Map and Global
+  
+   Cross-Reference Table 
+   
+   ..WDSZ = 4736 
+   
+   
+  2.6.54 Changing Default Size of MACRO-11 Work File 
+   
+   WRKSIZ = 2450 
+          Page 5 
+   
+   
+  2.6.55 Changing Name and Default Devic
+block 60: 512 bytes at time 7.99084088, ok
+ e for UCL.DAT 
+   
+   ..UCLD = 1002 
+   
+          Changing UCL Data File Error Message Name 
+    (patch located in Introduction to RT-11) 
+   
+   ..ERR = 2573 
+   
+   
+  2.6.56 Suppressing Dynamic Allocation of a Region for IND 
+   
+   ..ALRG = 3624 
+   
+   
+  2.6.57 Changing the Size of UCL.DAT 
+   
+   ..CMDS = 1000 
+   
+   
+  2.6.58 Changing Default VTCOM SEND Speed 
+   
+   For VTCOM.REL: 
+    ..FAST = 16502 
+   
+   For VTCOM.SAV: 
+    ..FAST = 35014 
+   
+   
+  2.6.59 Modifying the System MACRO Library SYSMAC.SML 
+   (See System Macro Library Manual) 
+   
+   ..SYSM =
+block 61: 512 bytes at time 8.00073432, ok
+  4 
+   
+   
+  2.6.60  Modifying the VTCOM Default Dial String Prefix 
+   
+   For VTCOM.REL: 
+    ..DPFX = 12773 
+   
+   For VTCOM.SAV: 
+    ..DPFX = 31305 
+   
+   
+  2.6.61  Modifying the VTCOM Default Dial String Suffix 
+   
+   For VTCOM.REL: 
+    ..DSFX = 13063 
+   
+   For VTCOM.SAV: 
+    ..DSFX = 31375 
+   
+          Page 6 
+   
+  2.6.62  Automatic KED/KEX Journal File Creation 
+   
+   For KED.SAV: 
+    Segment 10 
+    ..JOU = 31702 
+   
+   For KEX.SAV: 
+    Segment 1 
+    ..JOU = 60370 
+   
+   
+  2.6.63  Changing Default KED/KEX Journal File Size 
+   
+   For KED.SAV: 
+    S
+block 62: 512 bytes at time 8.01063416, ok
+ egment 0 
+    ..JSIZ = 27530 
+   
+   For KEX.SAV: 
+    Segment 1 
+    ..JSIZ = 63040 
+   
+   
+  2.6.64  Creating a Monitor-Independent ODT Debugger 
+   
+   ..GVAL = 1502 
+   
+   
+  2.6.65  Forcing an Explicit KED/KEX Journal File Device 
+   
+   For KED.SAV 
+    Segment 0  
+    ..JDEV = 3270 
+   
+   For KEX.SAV 
+    Segment 1 
+    ..JDEV = 20022 
+   
+   
+  2.6.66  Modifying the Storage Capacity for LEARN Macros 
+   
+   For KED.SAV 
+    Segment 0 
+    ..MACS = 3264 
+   
+   For KEX.SAV 
+    Segment 1 
+    ..MACS = 20016 
+   
+   
+  2.6.67  Modifying the Maximum Number of LEARN Ma
+block 63: 512 bytes at time 8.02054488, ok
+ cros 
+   
+   For KED.SAV 
+    Segment 0 
+    ..MACN = 3266 
+   
+   For KEX.SAV 
+    Segment 1 
+    ..MACN = 20020 
+          Page 7 
+   
+          
+  2.6.68  Restoring LOCAL Form Feed Processing 
+   
+   For KED.SAV 
+    Segment 0 
+    ..LCFF = 3263 
+   
+   For KEX.SAV 
+    Segment 1 
+    ..LCFF = 20015 
+   
+   
+  2.6.69 Removing the JSW Bit 6 Check for SL, SLX, and SLMIN 
+   
+   For SL: 
+    ..SLCN = 2034 
+   For SLX: 
+    ..SLCX = 1520 
+   For SLMIN: 
+    ..SLCM = 2026 
+   
+   
+  2.6.70  Changing SL Character Edit Mode to REPLACE 
+   
+   For SL: 
+    ..IRDF = 2766 
+   For SLX: 
+  
+block 64: 512 bytes at time 8.03044152, ok
+   ..IRDX = 12160 
+   For SLMIN: 
+    ..IRDM = 2746 
+   
+   
+  2.6.71  Changing the VTCOM Command Mode Character 
+   
+   For VTCOM.REL: 
+    ..LCCH = 10530 
+   
+   For VTCOM.SAV: 
+    ..LCCH = 27042 
+   
+  2.6.73  Making LINK /G Option a Default 
+   
+   ..GON = 4716 
+   
+  2.6.74  Changing the Default Magtape Label Size 
+   
+   ..MTLS = 11434 
+   
+   
+  ------ end of CUSTOM.TXT ------ 
+                                                                 
+                                                                 
+                                          
+tape mark at time 8.06767064
+block 65: 80 bytes at time 8.08492440, ok
+ EOF1CUSTOM.TXT       RT11A 00010004000100 00000 00000 000014DECR
+ T11A            
+tape mark at time 8.12206552
+tape mark at time 8.17098840
+tape mark at time 8.21833048
+end of file
+
+there were 65 data blocks with 29,392 bytes, and 14 tapemarks
+no blocks had errors
+no blocks had warnings

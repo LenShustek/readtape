@@ -11,6 +11,9 @@ The input is either:
   - a CSV file with multiple columns: a timestamp in seconds,
     and then the read head voltages at that time for each of the tracks.
   - a TBIN binary compressed data file; see csvtbin.h
+  - a JSON file extracted from a Saleae Logic 2.x .sal file, accompanied
+    by several .bin files, each representing the analog head voltages for
+    a sampled track.
 
 This is open-source code at https://github.com/LenShustek/readtape.
 - See the "A_documentation.txt" file for a narrative about usage,
@@ -337,12 +340,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 *** 26 Dec 2025, David Ryskalczyk (also Thalia Archibald), V3.18
  - Changes for macOS and Linux compatibility, and to reduce compiler warnings
 
- TODO:
-- support reading Saleae binary export files;
-  see https://support.saleae.com/faq/technical-faq/data-export-format-analog-binary
-  (But: .tbin is still smaller and faster, so have csvtbin do that conversion too?)
-  (But: Saleae has changed their export format, so which to do?)
+*** 23 April 2026, Joan Touzet V3.19
+ - Added support for extracted Saleae Logic 2.x data files. These files are
+   the binary exports direct from Logic, along with the meta.json file contained
+   within the .sal file (which is secretly a zipfile).  The extraction process
+   can be automated using the python sal-extract program. Try installing
+   it using `pipx install sal-extract`. readtape expects the meta.json file
+   as the input filename.
+ - Added -startime, -endtime, -scale from csvtbin so they may be applied
+   directly to a Logic capture without .sal->.csv->.tbin conversion first.
+ - Remove -tbin option to reduce invocation combinatorics.
 
+ TODO:
 - make multiple decodes work for WW. Pb is that the peak and skew state
   needs to be saved and restored because the blocks can be so close.
   Flash: we now have similar code at the end of deskewing, so check that out.
@@ -359,7 +368,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.18"
+#define VERSION "3.19"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
@@ -479,15 +488,20 @@ process_sample, return block status
 -----------------------------------------------------*/
 
 #include "decoder.h"
+#include "cJSON.h"            // only for Saleae .sal metadata support
+#include "tomlc17.h"          // for parsing .sal metadata descriptions
 
 // file names and handles
 FILE *inf, *outf, *rlogf = NULL, *summf;
+FILE *salf[MAXTRKS] = { 0 };  // Saleae track-by-track binary data, index is device channel
 char baseinfilename[MAXPATH+50];  // (could have a prepended path)
 char baseoutfilename[MAXPATH+50] = { 0 };
 char outpathname[MAXPATH+50] = { 0 };
 char summtxtfilename[MAXPATH+50] = { 0 };
 char summcsvfilename[MAXPATH+50] = { 0 };
 char outdatafilename[MAXPATH+50], indatafilename[MAXPATH+50];
+char *parent = NULL;  // for .json file handling only
+enum datafile_t infiletype = UNKNOWN_FILE;
 
 // statistics for the whole tape
 int numblks = 0, numblks_err = 0, numblks_warn = 0, numblks_trksmismatched = 0, numblks_midbiterrs = 0;
@@ -507,7 +521,7 @@ bool logging = true, verbose = false, quiet = false;
 int verbose_level = 0, debug_level = 0;
 bool baseoutfilename_given = false;
 bool filelist = false, tap_format = false, tap_read = false;
-bool tbin_file = false, do_txtfile = false, labels = true;
+bool do_txtfile = false, labels = true;
 bool multiple_tries = true, deskew = false, adjdeskew = false, skew_given = false, add_parity = false;
 bool invert_data = false, autoinvert_data = false, reverse_tape = false;
 bool doing_deskew = false, doing_density_detection = false, doing_summary = false;
@@ -525,6 +539,7 @@ char *wwtracktype_names[WWTRK_NUMTYPES] = {
    "alternate clk", "alternate LSB", "alternate MSB" };
 int head_to_trk[MAXTRKS] = { -1 };
 int trk_to_head[MAXTRKS] = { -1 };
+int sal_order[MAXTRKS] = { 0 };  // maps from Saleae Logic channel "track" order to device channel number
 char track_order_string[MAXTRKS + 1] = { 0 };
 struct tbin_hdr_t tbin_hdr = { 0 };
 struct tbin_hdrext_trkorder_t tbin_hdrext_trkorder = { 0 };
@@ -551,6 +566,8 @@ double data_start_time = 0;
 double last_block_time = 0;
 double block_start_time = 0;
 int skip_samples = 0, subsample = 1;
+float fstarttime = 0.0, fendtime = FLT_MAX;  // starting and ending times in floating seconds
+float scale = 1.0;  // scale voltages by arbitrary amount
 bool show_ibg = true;
 int show_ibg_threshold = 5000; // by default: gaps > 5 seconds are shown
 int dlog_lines = 0;
@@ -616,6 +633,26 @@ void close_summary_file(void) {
       fclose(summf);
       doing_summary = false; } }
 
+void makedir(const char *dirname) {
+#if defined (_WIN32)
+   if (_mkdir(dirname) != 0)
+#else
+   if (mkdir(dirname, 0777) != 0)
+#endif
+      assert(errno == EEXIST || errno == 0, "can't create directory \"%s\"", dirname); }
+
+char *parentdir(const char *filename) {
+   char *fullpath = NULLP;
+#if defined (_WIN32)
+   fullpath = _fullpath(filename, NULL, MAXPATH);
+#else
+   fullpath = realpath(filename, NULLP);
+#endif
+   assert(fullpath != NULLP, "unable to get full path of \"%s\"", filename);
+   char *dirend = strrchr(fullpath, pathsep);
+   *dirend = 0;
+   return fullpath; }
+
 /********************************************************************
    utility routines
 *********************************************************************/
@@ -653,6 +690,10 @@ int strcasecmp(const char*a, const char*b) {  // case-independent string compari
    while (tolower(*a) == tolower(*b++))
       if (*a++ == '\0') return (0);
    return (tolower(*a) - tolower(*--b)); }
+#endif
+
+#if defined(_WIN32)
+#define strncasecmp(x,y,z) _strnicmp(x,y,z)
 #endif
 
 float scanfast_float(char **p) { // *** fast scanning routines for CSV numbers
@@ -748,10 +789,11 @@ static char *github_info = "For more information, see https://github.com/LenShus
 void SayUsage (void) {
    static char *usage[] = { "",
       "use: readtape <options> <basefilename>[.ext]", "",
-      "  The input file is <basefilename> with .csv, .tbin, or .tap,",
-      "    which may optionally be included in the command.",
-      "   If the extension is not specified, it tries .csv first",
-      "    then.tbin, and.tap only if -tapread is specified.", "",
+      "  The input file format is deduced from the file extension, which may be",
+      "    .csv, .tbin, .json, or .tap. If no extension is given, extensions of",
+      "    .csv, .json, and .tbin are tried, in that order. .json files and their",
+      "    associated .bin files are extracted from .sal files by sal-extract.",
+      "    If -tapread is specified, .tap will also be tried.", "",
       "  The output files will be <basefilename>.xxx by default.", "",
       "  The optional parameter file is <basefilename>.parms,",
       "   or NRZI,PE,GCR,Whirlwind.parms, in the base or current directory.",
@@ -775,6 +817,9 @@ void SayUsage (void) {
       "  -fluxdir=d     flux direction is 'pos', 'neg', or 'auto' for each block",
       "  -reverse       reverse bits in a word and words in a block (Whirlwind only)",
       "  -skip=n        skip the first n samples",
+      "  -starttime=n   start only after sample time n",
+      "  -endtime=n     end after sample time n",
+      "  -scale=n       scale the voltages by n, which can be a fraction",
       "  -blklimit=n    stop after n blocks",
       "  -subsample=n   use only every nth data sample",
       "  -showibg=n     report on interblock gaps greater than n milliseconds",
@@ -783,7 +828,6 @@ void SayUsage (void) {
       "  -skew=n,n      use this skew, in #samples for each track, rather than deducing it",
       "  -correct       do error correction, where feasible",
       "  -addparity     include the parity bit as the highest bit in the data (for ntrks<9)",
-      "  -tbin          only look for a .tbin input file, not .csv first",
       "  -nolog         don't create a log file",
       "  -nolabels      don't try to decode IBM standard tape labels",
       "  -textfile      create an interpreted .<options>.txt file from the data",
@@ -951,6 +995,9 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_flt(arg, "BPI=", &bpi_specified, 100, 10000));
    else if (opt_flt(arg, "IPS=", &ips_specified, 10, 200));
    else if (opt_int(arg, "SKIP=", &skip_samples, 0, INT_MAX));
+   else if (opt_flt(arg, "STARTTIME=", &fstarttime, 0.0, FLT_MAX));
+   else if (opt_flt(arg, "ENDTIME=", &fendtime, 0.0, FLT_MAX));
+   else if (opt_flt(arg, "SCALE=", &scale, 0.0, FLT_MAX));
    else if (opt_int(arg, "BLKLIMIT=", &numblks_limit, 0, INT_MAX));
    else if (opt_int(arg, "SUBSAMPLE=", &subsample, 1, INT_MAX));
    else if (opt_int(arg, "SHOWIBG=", &show_ibg_threshold, 0, INT_MAX)) show_ibg = true;
@@ -976,7 +1023,6 @@ bool parse_option(char *option) { // (also called from .parm file processor)
    else if (opt_key(arg, "ADDPARITY")) add_parity = true;
    else if (opt_key(arg, "CORRECT")) do_correction = true;
    else if (opt_key(arg, "NOCORRECT")) do_correction = false;
-   else if (opt_key(arg, "TBIN")) tbin_file = true;
    else if (opt_filename(arg, "OUTF=", baseoutfilename)) baseoutfilename_given = true;
    else if (opt_filename(arg, "OUTP=", outpathname));
    else if (opt_filename(arg, "SUMT=", summtxtfilename));
@@ -1030,6 +1076,8 @@ int HandleOptions (int argc, char *argv[]) {
       if (!parse_option(argv[i])) { // end of switches
          firstnonoption = i;
          break; } }
+   assert(fstarttime < fendtime, "starttime is after endtime");
+   assert(fstarttime == 0.0 || skip_samples == 0, "cannot specify both -starttime and -skip");
    return firstnonoption; }
 
 /********************************************************************
@@ -1081,6 +1129,17 @@ void output_tap_marker(uint32_t num) {  //output a 4-byte .TAP file marker, litt
       num >>= 8; }
    numoutbytes += 4; }
 
+enum datafile_t check_file(const char *fname) {      // checks if file can be opened and validates file type
+   FILE *f = fopen(fname, "r");
+   if (f == NULLP) return UNKNOWN_FILE;
+   char *ext = strrchr(fname, '.');
+   assert(ext != NULLP, "extension not found for \"%s\"", fname);
+   if (strcasecmp(ext, ".csv") == 0) return CSV_FILE;
+   else if (strcasecmp(ext, ".tbin") == 0) return TBIN_FILE;
+   else if (strcasecmp(ext, ".json") == 0) return SAL_FILE;
+   else if (strcasecmp(ext, ".tap") == 0) return TAP_FILE;
+   else return UNKNOWN_FILE; }
+
 void close_file(void) {
    if (outf) {
       fclose(outf);
@@ -1128,6 +1187,9 @@ void save_file_position(struct file_position_t *fp, const char *msg) {
    assert((fp->position=ftello(inf)) >= 0, "ftell failed");
    //rlog("        at %.8lf, saving position %s %s\n", timenow, longlongcommas(fp->position), msg);
    //rlog("    save_file_position %s at %.3lf msec\n", msg, timenow*1e3);
+   if (infiletype == SAL_FILE) {
+      assert(inf == salf[0], "inf pointer corrupted!");
+      for (int trk = 1; trk < ntrks; ++trk) assert(ftello(salf[trk]) == fp->position, ".sal bins out of sync"); }
    fp->time_ns = timenow_ns;
    fp->time = timenow;
    fp->nsamples = numsamples; }
@@ -1135,6 +1197,9 @@ void save_file_position(struct file_position_t *fp, const char *msg) {
 void restore_file_position(struct file_position_t *fp, const char *msg) {
    //rlog("        at %.8lf, restor position %s time %.8lf %s\n", timenow, longlongcommas(fp->position), fp->time, msg);
    assert(fseeko(inf, fp->position, SEEK_SET) == 0, "fseek failed");
+   if (infiletype == SAL_FILE) {
+      assert(inf == salf[0], "inf pointer corrupted!");
+      for (int trk = 1; trk < ntrks; ++trk) assert(fseeko(salf[trk], fp->position, SEEK_SET) == 0, "fseek failed"); }
    timenow_ns = fp->time_ns;
    timenow = fp->time;
    numsamples = fp->nsamples; }
@@ -1312,9 +1377,9 @@ void got_datablock(bool badblock) {
 //log("got valid block %d, file pos %s at %.8lf\n", numblks, longlongcommas(blockstart.position), timenow);
 };
 
-/*****************************************************************************************
-      input tape data processing, in either CSV (ASCII) or TBIN (binary) format
-******************************************************************************************/
+/******************************************************************************************
+  input tape data processing, in CSV (ASCII), TBIN (binary), or JSON/SAL (binaries) format
+*******************************************************************************************/
 
 void read_tbin_header(void) {  // read the .TBIN file header
    if (!quiet) rlog("\n.tbin file header:\n");
@@ -1375,6 +1440,190 @@ void read_tbin_header(void) {  // read the .TBIN file header
    timenow_ns = tbin_dat.tstart;
    timenow = (float)timenow_ns / 1e9; };
 
+void read_sal_metadata() {  // read the SAL .json metadata file
+   if (!quiet) rlog(".sal file metadata:\n");
+   fseek(inf, 0L, SEEK_END);  // fseek/ftell OK, JSON file is under 10KB
+   long filelen = ftell(inf);
+   rewind(inf);
+   char *saljsonbuf = calloc(filelen, sizeof(char));
+   assert (saljsonbuf != NULLP, "unable to allocate enough memory to read meta.json");
+   fread(saljsonbuf, sizeof(char), filelen, inf);
+   fclose(inf);
+   inf = NULLP;  // will be replaced by head 0's file handle
+
+   char chfilename[MAXTRKS][MAXPATH] = { 0 };
+   cJSON *saljson = cJSON_ParseWithLength(saljsonbuf, filelen);
+   // 2a: find all captured analog binary datafiles binData[x].{deviceChannel|file}
+   const cJSON *bindata = cJSON_GetObjectItem(saljson, "binData");
+   const cJSON *trk = NULLP;
+   cJSON_ArrayForEach(trk, bindata) {
+      cJSON *type = cJSON_GetObjectItem(trk, "type");
+      if (strcmp(type->valuestring, "Analog") != 0) continue;  // ignore digital trackschfilename
+      cJSON *chnl = cJSON_GetObjectItem(trk, "deviceChannel");
+      cJSON *chfile = cJSON_GetObjectItem(trk, "file");
+      strncpy(chfilename[chnl->valueint], parent, MAXPATH - 5);
+      chfilename[chnl->valueint][strlen(parent)] = pathsep;
+      //strcat(chfilename[chnl->valueint], &chfile->valuestring[2]);
+      char *bufptr = & chfilename[chnl->valueint][strlen(chfilename[chnl->valueint])];
+      sprintf(bufptr, "analog_%d.bin", chnl->valueint);
+   }
+   // 2b: determine up to 9 analog tracks, and their ordering in Logic on-screen
+   bool chanActive[MAXTRKS] = { 0 };
+   char *rowNames[MAXTRKS] = { 0 };
+   char sal_trackorder_string[MAXTRKS + 1] = { 0 };
+   uint8_t idx = 0;
+   // channels must be enabled (data.legacySettings.enabledChannels)
+   cJSON *saldata = cJSON_GetObjectItem(saljson, "data");
+   cJSON *salsettings = cJSON_GetObjectItem(saldata, "legacySettings");
+   cJSON *salenabled = cJSON_GetObjectItem(salsettings, "enabledChannels");
+   cJSON *row = NULLP;
+   cJSON *rowType = NULLP;
+   cJSON_ArrayForEach(row, salenabled) {
+      rowType = cJSON_GetObjectItem(row, "type");
+      if (strcmp(rowType->valuestring, "Analog") != 0) continue;
+      cJSON *rowIndex = cJSON_GetObjectItem(row, "index");
+      chanActive[rowIndex->valueint] = true;
+   }
+   // channel ordering is in data.rowsSettings[x] which includes per-channel naming
+   cJSON *rows = cJSON_GetObjectItem(saldata, "rowsSettings");
+   cJSON_ArrayForEach(row, rows) {
+      cJSON *rowChan = cJSON_GetObjectItem(row, "channel");
+      rowType = cJSON_GetObjectItem(rowChan, "type");
+      if (strcmp(rowType->valuestring, "Analog") != 0) continue;
+      cJSON *rowDevChan = cJSON_GetObjectItem(rowChan, "deviceChannel");
+      if (!chanActive[rowDevChan->valueint]) continue;  // skip inactive channels
+      cJSON *rowName = cJSON_GetObjectItem(row, "name");
+      char *rname = NULLP;
+      rowNames[idx] = rname = rowName->valuestring;
+      sal_order[idx] = rowDevChan->valueint;
+      // 2c: determine if any in-file track labels override track order
+      //     By default, Saleae Logic's visual track ordering is used.
+      //     Drag tracks in Logic to reorder tracks for processing.
+      //     However, track name can override ordering like -order can!
+      //     Just name a track like "Track #" or just "#" (01234567P or CcLlMmx).
+      if (strncasecmp(rname, "track ", 6) == 0) rname += 6;  // skip "[Tt]rack " prefix
+      if (strlen(rname) != 1) {
+         ++idx; continue; }
+      assert(*rname == 'P' || isdigit(*rname) ||  // assumes ntrks <= 11
+                  tolower(*rname) == 'c' || tolower(*rname) == 'l' || tolower(*rname) == 'm' || *rname == 'x',  // whirlwind values
+                  "unknown track name \"%s\", please rename in Logic", rowNames[idx]);
+      strcat(sal_trackorder_string, rname);
+      ++idx;
+      assert(strlen(sal_trackorder_string) == idx, "named track parsing failure (%d != %d)", strlen(sal_trackorder_string), idx); }
+   if (idx <= MINTRKS) fatal("only %d tracks found in .sal file!\n", idx);
+   ntrks = nheads = idx;
+   if (!quiet) rlog("  using .sal ntrks = %d\n", ntrks);
+   if (strlen(sal_trackorder_string) > 0) {
+      // 2d: CLI-specified permutation will always override the above.
+      if (track_order_string[0] && sal_trackorder_string[0] && strcmp(track_order_string, sal_trackorder_string) != 0) {
+         if (!quiet) rlog("  the .sal track order %s is being ignored because it was specified as %s on the command line\n",
+                              sal_trackorder_string, track_order_string); }
+      else {
+         assert(parse_track_order(sal_trackorder_string), "invalid parsed track order: %s", sal_trackorder_string);
+         if (!quiet) rlog("  track names parsed as -order=%s\n", sal_trackorder_string); } }
+   else if (!track_order_string[0]) {  // default if no CLI permutation was given
+      for (idx = 0; idx < ntrks; ++idx) head_to_trk[idx] = trk_to_head[idx] = idx; }
+   for (idx = 0; idx < ntrks; ++idx) {
+      assert((salf[idx] = fopen(chfilename[sal_order[trk_to_head[idx]]], "rb")) != NULLP,
+                  "Unable to open .bin track file %s", chfilename[sal_order[trk_to_head[idx]]]);
+      if (!quiet) {
+         rlog("  head %c is device channel %d @ %s\n",
+                  idx == ntrks - 1 ? 'P' : '0' + idx,
+                  sal_order[trk_to_head[idx]],
+                  chfilename[sal_order[trk_to_head[idx]]]); }}
+   inf = salf[0];  // for convenience
+
+   // 3: parse other options
+   cJSON *salnotes = cJSON_GetObjectItem(saldata, "captureNotes");
+   toml_result_t result = toml_parse(salnotes->valuestring, strlen(salnotes->valuestring));
+   if (result.ok) {  // found some key=value data. might be useful!
+      toml_datum_t salbpi = toml_seek(result.toptab, "bpi");
+      toml_datum_t salips = toml_seek(result.toptab, "ips");
+      toml_datum_t salmode = toml_seek(result.toptab, "mode");
+      toml_datum_t saldatewritten = toml_seek(result.toptab, "datewritten");
+      toml_datum_t salcomment = toml_seek(result.toptab, "comment");
+      if (salcomment.type != TOML_STRING) salcomment = toml_seek(result.toptab, "desc");
+      if (bpi_specified < 0) {
+         if (salbpi.type == TOML_FP64) bpi = (float) salbpi.u.fp64;
+         else if (salbpi.type == TOML_INT64) bpi = (float) salbpi.u.int64;
+         if (bpi != 0 && !quiet) rlog("  using .sal bpi = %.0f\n", bpi); }
+      if (ips_specified < 0) {
+         if (salips.type == TOML_FP64) ips = (float) salips.u.fp64;
+         else if (salips.type == TOML_INT64) ips = (float) salips.u.int64;
+         if (ips != 0 && !quiet) rlog("  using .sal ips = %.0f\n", ips); }
+      if (salmode.type == TOML_STRING) {
+         if (strcasecmp(salmode.u.s, "PE") == 0) mode = PE;
+         else if (strcasecmp(salmode.u.s, "NRZI") == 0) mode = NRZI;
+         else if (strcasecmp(salmode.u.s, "GCR") == 0) mode = GCR;
+         else if (strcasecmp(salmode.u.s, "WW") == 0) mode = WW;
+         else rlog("  *** unknown .sal mode = %s", salmode.u.s);
+         if (!quiet) rlog("  using .sal mode = %s\n", modename()); }
+      if (saldatewritten.type == TOML_STRING) rlog("  created on:   %s", saldatewritten.u.s);
+      if (salcomment.type == TOML_STRING) rlog("  comment: %s\n", salcomment.u.s); }
+   cJSON *saltm = cJSON_GetObjectItem(saldata, "timingMarkers");
+   cJSON *salmarkers = cJSON_GetObjectItem(saltm, "markers");
+   cJSON_ArrayForEach(row, salmarkers) {
+      cJSON *salnote = cJSON_GetObjectItem(row, "note");
+      cJSON *saltime = cJSON_GetObjectItem(row, "timeSec");
+      if (strcasecmp(salnote->valuestring, "starttime") == 0 || strcasecmp(salnote->valuestring, "start") == 0) {
+         if (fstarttime == 0.0) {
+            fstarttime = (float) saltime->valuedouble; 
+            if (!quiet) rlog("  using .sal starttime = %13.9f\n", fstarttime); } }
+      if (strcasecmp(salnote->valuestring, "endtime") == 0 || strcasecmp(salnote->valuestring, "end") == 0) {
+         if (fendtime == FLT_MAX) { 
+            fendtime = (float) saltime->valuedouble;
+            if (!quiet) rlog("  using .sal   endtime = %13.9f\n", fendtime); } } }
+   // TODO: Parse data.timingMarkers.markers.n.{note|timeSec} for starttime/endtime
+   cJSON *saldateread = cJSON_GetObjectItem(saldata, "captureStartTime");
+   cJSON *saldatereadunix = cJSON_GetObjectItem(saldateread, "unixTimeMilliseconds");
+   time_t dateread = (long) round(saldatereadunix->valuedouble/1000);
+   if (!quiet) rlog("  read on:      %s", ctime(&dateread));
+   cJSON *salsmpl = cJSON_GetObjectItem(salsettings, "sampleRate");
+   cJSON *salrate = cJSON_GetObjectItem(salsmpl, "analog");
+   sample_deltat = 1.0 / salrate->valueint;
+   sample_deltat_ns = (int64_t) 1e9f * sample_deltat;
+   rlog("  time between samples: %.3f usec\n", (float)sample_deltat * 1e6);
+
+   // 4: read every .bin header & confirm format
+   double begin_time_zero;
+   uint64_t num_samples_zero;
+   for (idx = 0; idx < ntrks; ++idx) {
+      char identifier[9] = { 0 };
+      int32_t version;
+      int32_t type;
+      double begin_time;
+      uint64_t sample_rate;
+      uint64_t downsample;
+      uint64_t num_samples;
+      assert(fread(&identifier, sizeof(byte), 8, salf[idx]), "file read error");
+      assert(strcmp(identifier, "<SALEAE>") == 0, "incorrect file header %s\n", identifier);
+      assert(fread(&version, sizeof(int32_t), 1, salf[idx]), "file read error");
+      assert(version == 0, ".bin file is not version 0");
+      assert(fread(&type, sizeof(int32_t), 1, salf[idx]), "file read error");
+      assert(type == 1, "unexpected non-analog .bin file");
+      assert(fread(&begin_time, sizeof(double), 1, salf[idx]), "file read error");
+      if (idx == 0) {
+         begin_time_zero = timenow = begin_time; 
+         timenow_ns = timenow * 1e9; }
+      else {
+         // there may be tiny amounts of jitter in track-to-track begin_times. Ignore it.
+         assert(fabs(begin_time - begin_time_zero) < 1e-12, "too much track-to-track jitter???"); }
+      assert(fread(&sample_rate, sizeof(uint64_t), 1, salf[idx]), "file read error");
+      assert(sample_rate == salrate->valueint, "mismatched sample_rates");
+      assert(fread(&downsample, sizeof(uint64_t), 1, salf[idx]), "file read error");
+      assert(downsample == 1, "unknown downsample rate %d", downsample);
+      assert(fread(&num_samples, sizeof(uint64_t), 1, salf[idx]), "file read error");
+      if (idx == 0) {
+         num_samples_zero = num_samples; }
+      else {
+         assert(num_samples == num_samples_zero, "mismatched .bin number of samples"); }
+   }
+
+   cJSON_Delete(saljson);
+   free(saljsonbuf);
+   free(parent);
+} 
+
 void force_end_of_block(void) {
    if (mode == PE) pe_end_of_block();
    else if (mode == NRZI && nrzi.datablock) nrzi_end_of_block();
@@ -1402,7 +1651,8 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
    samples_per_bit = bpi > 0 ? (int)(1 / (bpi*ips*sample_deltat)) : 20;
    do { // loop reading samples
       if (!retry) ++lines_in;
-      if (tbin_file) { // TBIN file
+      switch (infiletype) {
+      case TBIN_FILE: {
          int16_t tbin_voltages[MAXTRKS];
          for (int i = 0; i < subsample; ++i) { // read the subsample=nth line and ignore all the others
             assert(fread(&tbin_voltages[0], 2, 1, inf) == 1, "can't read .tbin data for head 0 at time %.8lf", timenow);
@@ -1422,8 +1672,8 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
             if (do_differentiate) differentiate(&sample, trk); }
          sample.time = (double)timenow_ns / 1e9;
          timenow_ns += sample_deltat_ns; // (for next time)
-      }
-      else {  // CSV file
+         break; }
+      case CSV_FILE: {
          char line[MAXLINE + 1];
          for (int i=0; i < subsample; ++i) // read the subsample=nth line and ignore all the others
             if (!fgets(line, MAXLINE, inf)) {
@@ -1445,7 +1695,28 @@ bool readblock(bool retry) { // read the CSV or TBIN file until we get to the en
             int trk = head_to_trk[head];
             sample.voltage[trk] = scanfast_float(&linep);
             if (invert_data) sample.voltage[trk] = -sample.voltage[trk];
-            if (do_differentiate) differentiate(&sample, trk); } }
+            if (do_differentiate) differentiate(&sample, trk); }
+         break; }
+      case SAL_FILE: {
+         float voltages[MAXTRKS];
+         for (int i = 0; i < subsample; ++i) { // read the subsample=nth sample, skpping others
+            if (!fread(&voltages[0], sizeof(float), 1, salf[0])) {
+               if (did_processing) force_end_of_block(); // force "end of block" processing
+               endfile = true;
+               goto done; }
+            for (int head = 1; head < nheads; ++head) { // safely assume all files are same length
+               fread(&voltages[head], sizeof(float), 1, salf[head]); } }
+         for (int head = 0; head < nheads; ++head) {
+            int trk = head_to_trk[head];
+            sample.voltage[trk] = voltages[head];
+            if (invert_data) sample.voltage[trk] = -sample.voltage[trk];
+            if (do_differentiate) differentiate(&sample, trk); }
+         sample.time = (double) timenow_ns / 1e9;
+         timenow_ns += sample_deltat_ns; // (for next time)
+         break; }
+      default:
+         fatal("Unknown file type in readblock()!"); } // switch
+      for (int trk = 0; trk < nheads; ++trk) sample.voltage[trk] *= scale;
       ++numsamples;
       timenow = sample.time;
       if (torigin == 0) torigin = timenow; // for debugging output
@@ -1558,7 +1829,7 @@ void show_decode_status(void) { // show the results of all the decoding tries
 
 //-----------------------------------------------------------------------------------------------
 //   Process a complete input file whose path and base file name are in baseinfilename[],
-//   and whose extension of .csv or .tbin might have been specified and be in extension[].
+//   and whose extension of .csv/.tbin/.sal might have been specified and be in extension[].
 //   Return TRUE only if all blocks were well-formed and error-free.
 //-----------------------------------------------------------------------------------------------
 bool process_file(int argc, char *argv[], const char *extension) {
@@ -1568,12 +1839,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
    int res = 0;
 
 #if 0 // we no longer create a directory
-#if defined(_WIN32)
-   if (_mkdir(baseoutfilename) != 0) // create the working directory for output files
-#else
-   if (mkdir(baseoutfilename, 0777) != 0) // create the working directory for output files
-#endif
-      assert(errno == EEXIST || errno == 0, "can't create directory \"%s\", baseoutfilename");
+   makedir(baseoutfilename);
 #endif
 
    if (logging) { // Open the log file
@@ -1583,34 +1849,32 @@ bool process_file(int argc, char *argv[], const char *extension) {
 
    indatafilename[MAXPATH - 5] = '\0';
    inf = NULL;
-   if (!tbin_file && strcasecmp(extension, ".tbin") != 0) {
-      strncpy(indatafilename, baseinfilename, MAXPATH - 5);  // try to open <baseinfilename>.csv
-      strcat(indatafilename, ".csv");
-      inf = fopen(indatafilename, "r");
-      tbin_file = false; }
-   if (!inf) {
-      strncpy(indatafilename, baseinfilename, MAXPATH - 6);  // try to open <baseinfilename>.tbin
-      strcat(indatafilename, ".tbin");
-      inf = fopen(indatafilename, "rb");
-      assert(inf != NULL, "Unable to open input file \"%s\" .tbin or .csv", baseinfilename);
-      tbin_file = true; }
+
+   // check known file extensions
+   static char *exts[] = {NULLP, ".csv", ".tbin", ".json", NULLP};
+   exts[0] = (char *) extension;
+   for (int i = 0; infiletype == UNKNOWN_FILE && exts[i] != NULLP; ++i) {
+      strncpy(indatafilename, baseinfilename, MAXPATH - 5);
+      strcat(indatafilename, exts[i]);
+      infiletype = check_file(indatafilename); }  // checks if file exists and gets file type
+   assert(infiletype != UNKNOWN_FILE, "Unable to open input file \"%s\" with any known extension", baseinfilename);
+
    if (!quiet) {
       show_program_info(argc, argv);
       rlog("\nreading file \"%s\"\n", indatafilename);
       rlog("the output files will be \"%s.xxx\"\n", baseoutfilename); }
-   if (tbin_file) read_tbin_header();  // sets NRZI, etc., so do before read_parms()
 
-   read_parms(); // read the .parm file, if any
-   if (ntrks_specified > 0) {
-      if (ntrks == 0) ntrks = nheads = ntrks_specified;
-      else assert(ntrks == ntrks_specified, "ntrks=%d doesn't match what we already deduced: %d", ntrks_specified, ntrks); }
-
-   if (!tbin_file) {
-      // first two (why?) lines in the input file are headers from Saleae
+   switch (infiletype) {
+   case CSV_FILE:
+      inf = fopen(indatafilename, "r");
+      // Saleae Logic 1.x exports CSV files with 2 header lines.
+      // Saleae Logic 2.x CSVs have 1 header line, but it is probably safe to skip the first sample.
       assert(fgets(line, MAXLINE, inf) != NULLP, "Can't read first CSV title line");
       assert(fgets(line, MAXLINE, inf) != NULLP, "Can't read second CSV title line");
       unsigned int numcommas = 0; // count commas in the second line to determine # of tracks
       for (int i = 0; line[i]; ++i) if (line[i] == ',') ++numcommas;
+      assert(ntrks == 0, "unexpected ntrks != 0 at start of csv file handling");
+      if (ntrks_specified > 0) ntrks = nheads = ntrks_specified;
       if (ntrks <= 0) {
          ntrks = nheads = numcommas;
          rlog("  derived ntrks=%d from .CSV file header\n", ntrks); }
@@ -1630,21 +1894,66 @@ bool process_file(int argc, char *argv[], const char *extension) {
          else sample_deltat = (float)((timestamp - first_timestamp)*subsample/(linecounter-1)); }
       restore_file_position(&filestart, "at start of file after computing delta"); // go back to reading the first sample
       //rlog("sample_delta set to %.2f usec after %s samples\n", sample_deltat*1e6, intcommas(linecounter));
+      break;
+   case TBIN_FILE:
+      inf = fopen(indatafilename, "rb");
+      read_tbin_header();  // sets NRZI, etc., so do before read_parms()
+      if (ntrks_specified > 0) {
+         if (ntrks == 0) ntrks = nheads = ntrks_specified;
+         else assert(ntrks == ntrks_specified, "ntrks=%d doesn't match what we already deduced: %d", ntrks_specified, ntrks); }
+      break;
+   case SAL_FILE:
+      // indatafilename is our meta.json
+      inf = fopen(indatafilename, "rb");
+      read_sal_metadata();  // sets ntrks, order, etc. so do before read_parms()
+      // now, indatafilename is the parent directory
+      if (ntrks_specified > 0) {
+         if (ntrks == 0) ntrks = nheads = ntrks_specified;
+         else assert(ntrks == ntrks_specified, "ntrks=%d doesn't match what we already deduced: %d", ntrks_specified, ntrks); }
+      break;
+   default:
+      fatal("unknown file format %s.%s", baseinfilename, extension); } // switch
+
+   read_parms(); // read the .parm file, if any
+   
+   if (skip_samples > 0 || fstarttime > 0.0) {
+      uint64_t llskip = skip_samples;
+      if (!quiet) {
+         if (llskip == 0) {
+            llskip = (fstarttime - timenow) / sample_deltat; }
+         else {
+            fstarttime = (skip_samples * sample_deltat) + timenow; }
+         rlog("\nskipping %s samples...", longlongcommas(llskip), fstarttime); }
+      switch (infiletype) {
+      case CSV_FILE: {
+         uint64_t skipped = 0;
+         do {
+            assert(fgets(line, MAXLINE, inf) != NULLP, "endfile with samples left to skip\n");
+            ++skipped; }
+         while (skipped != llskip);
+         break; } // case
+      case TBIN_FILE: {
+         int newloc = fseeko(inf, sizeof(int16_t) * ntrks * llskip, SEEK_CUR);
+         assert(newloc == 0, "unable to skip %d tbin samples\n", llskip);
+         break; } // case
+      case SAL_FILE:
+         for (int idx = 0; idx < ntrks; ++idx) {
+            int newloc = fseeko(salf[idx], sizeof(float) * llskip, SEEK_CUR); 
+            assert(newloc == 0, "unable to skip %d sal samples\n", llskip);
+         }
+         break;
+      default:
+            fatal("cannot skip samples in %s", indatafilename); } // switch
+      timenow += llskip * sample_deltat;
+      timenow_ns += llskip * sample_deltat_ns;
+      if (!quiet) rlog("to time %.8lf\n", timenow);
    }
-   if (skip_samples > 0) {
-      if (!quiet) rlog("skipping the first %s samples...\n", intcommas(skip_samples));
-      while (skip_samples--) {
-         bool endfile;
-         struct sample_t sample;
-         if (tbin_file) endfile = fread(sample.voltage, 2, ntrks, inf) != ntrks;
-         else endfile = !fgets(line, MAXLINE, inf);
-         assert(!endfile, "endfile with %d lines left to skip\n", skip_samples); } }
    interblock_counter = 0;
    starting_parmset = 0;
 
    assert(!add_parity || ntrks < 9, "-parity not allowed with ntrks=%d", ntrks);
    if (head_to_trk[0] == -1 // if no input track permutation was given
-         || (tbin_file && !(tbin_hdr.u.s.flags & TBIN_NO_REORDER))) // or the tbin file had a permutation applied to it
+         || (infiletype == TBIN_FILE && !(tbin_hdr.u.s.flags & TBIN_NO_REORDER))) // or the tbin file had a permutation applied to it
       for (int i = 0; i < ntrks; ++i) head_to_trk[i] = trk_to_head[i] = i; // create default
    if (ips_specified >= 0) ips = ips_specified; // command line overrides tbin header
    if (ips == 0) ips = 50;  // default IPS
@@ -1717,7 +2026,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
             doing_deskew = false; } } }
 #endif
    bool endfile = false;
-   while (!endfile && numblks < numblks_limit) { // keep processing lines of the file for more blocks
+   while (!endfile && numblks < numblks_limit && timenow < fendtime) { // keep processing lines of the file for more blocks
       init_blockstate();  // initialize for first processing of a new block
       block.parmset = starting_parmset;
       save_file_position(&blockstart, "to remember block start"); // remember the file position for the start of a block
@@ -1958,7 +2267,8 @@ int main(int argc, char *argv[]) {
    if (filename_end &&
          (strcasecmp(filename_end, ".tap") == 0
           || strcasecmp(filename_end, ".csv") == 0
-          || strcasecmp(filename_end, ".tbin") == 0)) {
+          || strcasecmp(filename_end, ".tbin") == 0
+          || strcasecmp(filename_end, ".json") == 0)) {
       strlcpy(cmdfileext, filename_end, sizeof(cmdfileext)); // copy the extension, with the dot
       dlog("extension: %s\n", cmdfileext);
       *filename_end = 0; } // and remove it from the cmdfilename
@@ -1970,9 +2280,24 @@ int main(int argc, char *argv[]) {
    // file inherits what was given on the command line but can add/overrride.
    // That's probably overkill for a program that no one besides me is likely to use.
    if (!baseoutfilename_given) {
-      assert(strlen(outpathname) + strlen(cmdfilename) < MAXPATH - 1, "path + basename too long");
-      strcpy(baseoutfilename, outpathname);
-      strcat(baseoutfilename, cmdfilename); }
+      if (strcasecmp(cmdfileext, ".json") == 0) {
+            // pretend the baseoutfilename isn't "meta" but a file named the same as our parent directory
+            *filename_end = '.';  // put .json extension back on temporarily
+            parent = parentdir(cmdfilename); // /path/to/files/meta.json -> /path/to/files
+            *filename_end = 0;
+            char *dname = strrchr(parent, pathsep);
+            dname++;  // now has name of parent directory
+         if (strlen(outpathname) == 0) {
+            strcpy(outpathname, parent);
+            outpathname[strlen(outpathname)] = pathsep;
+         }
+         strcpy(baseoutfilename, outpathname);
+         strcat(baseoutfilename, dname);
+         baseoutfilename_given = true; }
+      else {
+         assert(strlen(outpathname) + strlen(cmdfilename) < MAXPATH - 1, "path + basename too long");
+         strcpy(baseoutfilename, outpathname);
+         strcat(baseoutfilename, cmdfilename); } }
 
    start_time = time(NULL);
    if (tap_read || strcasecmp(cmdfileext, ".tap") == 0) {  // we are only to read and interpret a SIMH .tap file
