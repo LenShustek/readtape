@@ -1137,7 +1137,7 @@ enum datafile_t check_file(const char *fname) {      // checks if file can be op
    if (strcasecmp(ext, ".csv") == 0) return CSV_FILE;
    else if (strcasecmp(ext, ".tbin") == 0) return TBIN_FILE;
    else if (strcasecmp(ext, ".json") == 0) return SAL_FILE;
-   else if (strcasecmp(ext, "tap") == 0) return TAP_FILE;
+   else if (strcasecmp(ext, ".tap") == 0) return TAP_FILE;
    else return UNKNOWN_FILE; }
 
 void close_file(void) {
@@ -1855,7 +1855,7 @@ bool process_file(int argc, char *argv[], const char *extension) {
    exts[0] = (char *) extension;
    for (int i = 0; infiletype == UNKNOWN_FILE && exts[i] != NULLP; ++i) {
       strncpy(indatafilename, baseinfilename, MAXPATH - 5);
-      strcat(indatafilename, extension);
+      strcat(indatafilename, exts[i]);
       infiletype = check_file(indatafilename); }  // checks if file exists and gets file type
    assert(infiletype != UNKNOWN_FILE, "Unable to open input file \"%s\" with any known extension", baseinfilename);
 
