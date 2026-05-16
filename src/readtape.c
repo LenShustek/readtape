@@ -644,7 +644,7 @@ void makedir(const char *dirname) {
 char *parentdir(const char *filename) {
    char *fullpath = NULLP;
 #if defined (_WIN32)
-   fullpath = _fullpath(filename, NULL, MAXPATH);
+   fullpath = _fullpath(NULL, filename, MAXPATH);
 #else
    fullpath = realpath(filename, NULLP);
 #endif
