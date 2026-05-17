@@ -351,6 +351,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
    directly to a Logic capture without .sal->.csv->.tbin conversion first.
  - Remove -tbin option to reduce invocation combinatorics.
 
+ *** 16 May 2026, Joan Touzet V3.20
+  - Fix bug: arguments to _fullpath() were reversed, causing crash for json files
+
  TODO:
 - make multiple decodes work for WW. Pb is that the peak and skew state
   needs to be saved and restored because the blocks can be so close.
@@ -368,7 +371,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   global command-line options that can be overridden from the .parm file.
 ***********************************************************************************/
 
-#define VERSION "3.19"
+#define VERSION "3.20"
 
 /*  the default bit and track numbering, where 0=msb and P=parity
              on tape     our tracks   in memory here    exported data
